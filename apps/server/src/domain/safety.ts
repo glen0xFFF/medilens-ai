@@ -2,14 +2,19 @@
  * Deterministic question safety gate (spec §4.3 step 1). Runs before any
  * model call. DEFAULT-DENY (Task 5b controller ruling):
  *
- * 1. Normalise (NFKC, lowercase, quotes, whitespace, trailing punctuation);
- *    an empty question or one over 300 characters is refused as outside_label.
+ * 1. Normalise (NFKC, strip invisible format characters, lowercase, quotes,
+ *    whitespace, trailing punctuation); an empty question or one over 300
+ *    characters is refused as outside_label.
  * 2. Refusal patterns run first and win, even inside a label-reading form:
  *    possible overdose, then the named refusal lists, then the structural
  *    gate, then modal dose talk about any person ("should she redose?").
- * 3. A question is allowed ONLY when the whole normalised question matches one
+ * 3. English only: a question with any character outside printable ASCII left
+ *    after normalisation (a Cyrillic look-alike, an emoji) is refused as
+ *    outside_label. This runs after the refusals so the emergency text is
+ *    never lost to it.
+ * 4. A question is allowed ONLY when the whole normalised question matches one
  *    of the anchored allow templates below (questions about printed content).
- * 4. Everything else is refused as outside_label.
+ * 5. Everything else is refused as outside_label.
  *
  * Over-refusal of free-typed questions is accepted: the mobile app offers
  * ALLOWED_QUESTION_EXAMPLES as buttons. An under-refusal could be dosing advice.
@@ -87,34 +92,58 @@ const COUNT_WORD_2PLUS = String.raw`(?:two|three|four|five|six|seven|eight|nine|
 const CONTAINER = String.raw`(?:bottles?|packs?|packets?|box(?:es)?|strips?|blisters?|jars?|tubs?|sachets?|containers?|tubes?|cartons?|vials?|syrups?|contents|supply|lot)`;
 const DOSE_FORMS = String.raw`(?:pills|tablets|capsules|caplets|tabs|caps|meds|medicines|doses)`;
 /** Things a count can measure that are not medicine: "it took 2 hours", "i had 2 beers". */
-const NOT_MEDICINE = String.raw`(?:hours?|hrs?|minutes?|mins?|seconds?|days?|nights?|mornings?|evenings?|afternoons?|weeks?|months?|years?|yrs?|time|beers?|drinks?|glass(?:es)?|cups?|shots?|coffees?|kids?|children|people|persons?|meals?|am|pm|o'?clock|kg|kilos?|lbs?|pounds?|questions?|photos?|pictures?)`;
+const NOT_MEDICINE = String.raw`(?:hours?|hrs?|minutes?|mins?|seconds?|days?|nights?|mornings?|evenings?|afternoons?|weeks?|months?|years?|yrs?|time|beers?|drinks?|glass(?:es)?|cups?|shots?|coffees?|kids?|children|people|persons?|meals?|am|pm|o'?clock|kg|kilos?|lbs?|pounds?|questions?|photos?|pictures?|care|caution|precautions?)`;
+/** Review round 1: too much without a count ("one too many", "a double dose", "extra"); not the "extra strength" product. */
+const TOO_MUCH = String.raw`(?:one too many\b|(?:an |some )?extra\b(?! strength)|(?:a |the |my |his |her |their )?(?:double|triple|quadruple)\b(?![ -]check| strength))`;
 /** An amount that may be too much: two or more, too many, a container, all of it. */
-const EXCESS = String.raw`(?:(?:like|about|around|maybe|probably|at least|over|more than|almost|nearly|roughly|perhaps) )?(?:(?:[2-9]|[1-9]\d+)(?:\.\d+)?|${COUNT_WORD_2PLUS}\b|a (?:couple|few|bunch|lot|handful|load|ton|heap|fistful|mouthful|dozen)\b|handfuls?\b|bunch(?:es)?\b|too (?:much|many)\b|all\b|(?:them|these|those) all\b|everything\b|(?:the |a |an |my |his |her |their |our )?(?:whole|entire|full|rest of the|remaining) (?:\w+ )?(?:${CONTAINER}|${DOSE_FORMS}|things?)\b|(?:the |a |an |my |his |her |their |our |half (?:the|a|of the) )(?:\w+ )?${CONTAINER}\b)(?! ?(?:of )?${NOT_MEDICINE}\b)`;
+const EXCESS = String.raw`(?:(?:like|about|around|maybe|probably|at least|over|more than|almost|nearly|roughly|perhaps) )?(?:(?:[2-9]|[1-9]\d+)(?:\.\d+)?|${COUNT_WORD_2PLUS}\b|a (?:couple|few|bunch|lot|handful|load|ton|heap|fistful|mouthful|dozen)\b|handfuls?\b|bunch(?:es)?\b|too (?:much|many)\b|${TOO_MUCH}|all\b|(?:them|these|those) all\b|everything\b|(?:the |a |an |my |his |her |their |our )?(?:whole|entire|full|rest of the|remaining) (?:\w+ )?(?:${CONTAINER}|${DOSE_FORMS}|things?)\b|(?:the |a |an |my |his |her |their |our |half (?:the|a|of the) )(?:\w+ )?${CONTAINER}\b)(?! ?(?:of )?${NOT_MEDICINE}\b)`;
 /** Past or perfect ingestion verbs, not passive ("can it be taken 2 at a time?", "is it used 3 times a day?"). */
 const NOT_PASSIVE = String.raw`(?<!\b(?:be|been|being|is|are|was|were|get|gets|got|to)(?: it| this| that| they| these| those)? )`;
 const INGESTED = String.raw`(?:took|taken|swallowed|popped|downed|used|consumed|gobbled|chugged|gulped|guzzled|inhaled|finished|wolfed|scoffed|devoured|chewed|necked|snorted|injected|knocked|polished)`;
-/** Food and drink verbs: "too much" after these is usually food or alcohol, so only counts and containers count. */
+/**
+ * Food and drink verbs: "too much", "one too many", "extra" or "a double" after
+ * these is usually food or alcohol, so only counts and containers count.
+ */
 const INGESTED_FOOD = String.raw`(?:ate|eaten|drank|drunk|had)`;
 const PARTICLE = String.raw`(?: (?:down|back|off|through|up))?`;
-const CHILD = String.raw`(?:kids?|child|children|baby|babies|toddlers?|infants?|newborns?|little ones?|sons?|daughters?|grand(?:son|daughter|child|kid)s?|nephews?|nieces?|anak|bata|sanggol)`;
+/** Review round 1: an age that stands for a person ("my 2 year old", "her 18-month-old", "my 3yo"). */
+const AGE = String.raw`(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen)[ -]?(?:(?:years?|yrs?|months?|mos?|weeks?|wks?)[ -]?old|y\.?o\.?)`;
+const CHILD = String.raw`(?:kids?|child|children|baby|babies|toddlers?|infants?|newborns?|little ones?|sons?|daughters?|grand(?:son|daughter|child|kid)s?|nephews?|nieces?|anak|bata|sanggol|${AGE})`;
 /** Up to three words between the child and the verb: "the baby may have", "is the baby ok if she". */
 const CHILD_GAP = String.raw`(?:[\w']+ ){0,3}?`;
 const CHILD_INGESTED = String.raw`(?:ate|eaten|swallowed|drank|drunk|took|taken|had|popped|chewed|sucked|licked|consumed|gulped|guzzled|chugged|gobbled|downed|bit|bitten|tasted)`;
+/** "chewed on the blister", "bit into a tablet", "sucked on a pill". */
+const CHILD_PARTICLE = String.raw`(?: (?:down|up|on|at|into|through|off))?`;
+/** What was taken again: "it", "my dose", "his pills". */
+const TAKEN_THING = String.raw`(?:it|them|one|(?:my|his|her|their|our|the|a|this|that) (?:\w+ )?(?:dose|doses|${PILL}|medicines?|medications?|meds|syrup))`;
+/** Review round 1: a whole dose taken again ("twice", "three times"), but not a schedule ("twice a day"). */
+const REPEATED = String.raw`(?:twice|thrice|(?:two|three|four|2|3|4) times|a second time)\b(?! ?(?:a|per|each|every) (?:day|night|week|morning|evening)\b| ?(?:daily|nightly|weekly)\b)`;
 const CHILD_OBJECT = String.raw`(?:some|one|it|them|all|any|a few|a bunch|a lot|a handful|a couple|several|many|\d+|${COUNT_WORD_2PLUS}|(?:a|an|the|my|his|her|their|our|your)(?: \w+)? (?:pills?|tablets?|capsules?|caplets?|tabs?|caps|medicines?|meds|syrups?|drops|doses?|${CONTAINER}|spoonfuls?|sips?|bites?|bits?|pieces?)|pills?|tablets?|capsules?|caplets?|medicines?|meds|syrup)`;
 
 const POSSIBLE_OVERDOSE: readonly RegExp[] = [
   // "i swallowed 6 of these", "she has taken too many", "i took the whole pack"
   new RegExp(String.raw`${NOT_PASSIVE}\b${INGESTED}${PARTICLE} ${EXCESS}`),
-  new RegExp(String.raw`${NOT_PASSIVE}\b${INGESTED_FOOD}${PARTICLE} (?!too much\b)${EXCESS}`),
+  new RegExp(
+    String.raw`${NOT_PASSIVE}\b${INGESTED_FOOD}${PARTICLE} (?!too much\b|${TOO_MUCH})${EXCESS}`,
+  ),
+  // "i had a double dose": a dose word after a food verb is not food
+  new RegExp(
+    String.raw`${NOT_PASSIVE}\b${INGESTED_FOOD} ${TOO_MUCH} (?:\w+ )?(?:doses?|${PILL}|medicines?|meds)\b`,
+  ),
+  // "i took it twice", "he took his pills twice today", "i had my dose twice"
+  new RegExp(String.raw`${NOT_PASSIVE}\b${INGESTED}${PARTICLE}(?: ${TAKEN_THING})? ${REPEATED}`),
+  new RegExp(String.raw`${NOT_PASSIVE}\b${INGESTED_FOOD} ${TAKEN_THING} ${REPEATED}`),
   // "chugged it", "gobbled them", "downed everything"
   /\b(?:chugged|gobbled|downed|guzzled|wolfed|necked|scoffed|devoured|knocked back|polished off)(?: down| back| off)? (?:it|them|all|everything)\b/,
-  // "i doubled my dose", "she od'd"
-  /\b(?:doubled|tripled|quadrupled|double[- ]?dosed|overdid|od'?d|oded)\b/,
-  // a child got into it or swallowed something
+  // "i doubled my dose", "she od'd", "i might have overdone it"
+  /\b(?:doubled|tripled|quadrupled|double[- ]?dosed|overdid|overdone|overdoing|od'?d|oded)\b/,
+  // a child got into it, got some, or swallowed something
   new RegExp(
-    String.raw`\b${CHILD} ${CHILD_GAP}(?:got into|gotten into|got in to|got hold of|got at|got to|grabbed|found|opened|reached)\b`,
+    String.raw`\b${CHILD} ${CHILD_GAP}(?:got into|gotten into|got in to|got (?:a )?hold of|got ahold of|got at|got to|got (?:some|one|it|them)|grabbed|found|opened|reached)\b`,
   ),
-  new RegExp(String.raw`\b${CHILD} ${CHILD_GAP}${CHILD_INGESTED}(?: down| up)? ${CHILD_OBJECT}\b`),
+  new RegExp(
+    String.raw`\b${CHILD} ${CHILD_GAP}${CHILD_INGESTED}${CHILD_PARTICLE} ${CHILD_OBJECT}\b`,
+  ),
   // overdose, poison and lethality words ("he overdosed", "lethal?", "can it kill?")
   /\b(?:overdos\w*|poison\w*|toxic\w*|lethal|fatal|deadly)\b/,
   /\b(?:can|could|will|would|might|may|does|did) (?:it|this|these|they|that|too much|an overdose) kill\b/,
@@ -501,11 +530,27 @@ const SECTION = String.raw`(?:warnings?|cautions?|precautions?|directions?(?: fo
 const FIELD = String.raw`(?:brand(?: name)?|generic(?: name)?|name|product name|medicine name|drug name|full name|manufacturer|maker|distributor|importer|ingredients?|active ingredients?|inactive ingredients?|dosage form|form|expiry(?: date)?|expiration(?: date)?|exp date|best before(?: date)?|manufacturing date|date of manufacture|lot(?: number| no)?|batch(?: number| no)?|registration(?: number| no)?|fda registration(?: number| no)?|reg no|dose amount|dosage amount)`;
 /** What "what does the label say about ..." may ask about. */
 const TOPIC = String.raw`(?:(?:the |its )?(?:${FIELD}|${SECTION}|strength|dose|dosage|dosing|storage)|how (?:often )?to (?:take|use|store) (?:it|this|them)|storing it)`;
-/** A word of an unquoted printed phrase: no pronoun, modal, question word or verdict word. */
-const PHRASE_STOP = String.raw`(?:i|me|my|mine|myself|we|us|our|ours|you|your|yours|he|him|his|she|her|hers|they|them|their|theirs|it|its|this|that|these|those|someone|somebody|anyone|can|could|should|would|will|shall|may|might|must|do|does|did|is|are|am|was|were|be|been|being|have|has|had|if|when|whether|how|why|what|which|who|whom|whose|where|and|or|but|so|then|than|because|ok|okay|yes|no|not|safe)`;
-const PHRASE_WORD = String.raw`(?!${PHRASE_STOP}\b)[a-z0-9][a-z0-9.%/+&'-]*`;
-const PHRASE = String.raw`${PHRASE_WORD}(?: ${PHRASE_WORD}){0,5}`;
-const QUOTED = String.raw`(?:"[^"]{1,160}"|'[^']{1,160}')`;
+/**
+ * Words a printed phrase may not contain, quoted or not (review round 1): a
+ * pronoun; a modal or auxiliary, also negated without its apostrophe ("dont",
+ * "shouldnt"); a question word or conjunction; a verdict, claim or amount word
+ * ("fake", "same", "cure", "need", "works", "much"); a person or animal it
+ * could be for; a giving or taking verb; and "mean" itself, so that a phrase
+ * always ends at the first " mean".
+ */
+const PHRASE_STOP = String.raw`(?:i|me|my|mine|myself|we|us|our|ours|you|your|yours|he|him|his|she|her|hers|they|them|their|theirs|it|its|this|that|these|those|someone|somebody|anyone|anybody|everyone|everybody|nobody|people|can|could|should|would|will|shall|may|might|must|do|does|did|is|are|am|was|were|be|been|being|have|has|had|(?:do|does|did|is|are|was|were|has|have|had|ca|can|could|would|should|must|need|wo|ai|might|sha)nt|if|when|whenever|whether|how|why|what|which|who|whom|whose|where|and|or|but|so|then|than|because|until|till|ok|okay|yes|no|not|safe|safer|safest|safely|unsafe|harm\w*|fake\w*|counterfeit\w*|genuine\w*|real|really|authentic\w*|legit\w*|same|identical|equivalent\w*|similar|substitut\w*|interchangeab\w*|cur(?:e|es|ed|ing)|need\w*|true|false|fine|good|bad|better|best|worse|worst|wrong|right|enough|effective\w*|work\w*|treat\w*|heal\w*|kill\w*|many|much|more|most|less|fewer|often|freely|unlimited|doctors?|physicians?|pets?|dogs?|cats?|pupp(?:y|ies)|animals?|give\w*|gave|take\w*|took|mean\w*)`;
+/** A word of a printed phrase. No quote or apostrophe: a phrase cannot run past its closing quote. */
+const PHRASE_WORD = String.raw`(?!${PHRASE_STOP}\b)[a-z0-9][a-z0-9.%/+&-]*`;
+/** Longest printed phrase, in characters, that "what does ... mean" accepts. */
+const MAX_PHRASE_CHARS = 60;
+/**
+ * A printed phrase, quoted or not: 1 to 6 words and at most 60 characters. The
+ * lookahead finds a quote or " mean" within 60 characters; a phrase can contain
+ * neither, so it ends there.
+ */
+const PHRASE = String.raw`(?=[^"']{1,${MAX_PHRASE_CHARS}}(?:["']| mean\b))${PHRASE_WORD}(?: ${PHRASE_WORD}){0,5}`;
+/** A quoted printed phrase: the same grammar as the unquoted one. */
+const QUOTED = String.raw`(?:"${PHRASE}"|'${PHRASE}')`;
 const UNCLEAR = String.raw`(?:unclear|not clear|unreadable|not readable|hard to read|blurry|blurred|illegible|missing|cut off|uncertain)`;
 const PARTS = String.raw`(?:parts?|fields?|bits?|sections?|words?|lines?|details?|things?)`;
 const COULD_NOT_YOU = String.raw`(?:(?:couldn't|couldnt|could not|can't|cant|cannot|can not|didn't|didnt|did not|weren't|were not) you|(?:could|can|did|were) you not)`;
@@ -576,7 +621,7 @@ const TEMPLATES: readonly [AllowedIntent, string][] = [
     'strength',
     String.raw`how strong is (?:it|this|this medicine|each (?:tablet|capsule|caplet))(?: per (?:tablet|capsule|caplet|ml))? according to ${DET} ${PACK}`,
   ],
-  ['strength', String.raw`is (?:it|this|the strength) \d+(?:\.\d+)? ?(?:mg|mcg|μg|g|ml|iu|%)`],
+  ['strength', String.raw`is (?:it|this|the strength) \d+(?:\.\d+)? ?(?:mg|mcg|g|ml|iu|%)`],
   ['strength', String.raw`${ASK}(?:tell me|read(?: me)?|say) the strength${ON_PACK}${PLEASE}`],
   // explain_text
   [
@@ -670,9 +715,21 @@ const ALLOW_TEMPLATES: readonly [AllowedIntent, RegExp][] = TEMPLATES.map(
 /** Trailing characters stripped during normalisation. */
 const TRAILING = new Set([' ', '?', '.', '!', ',', ';', ':']);
 
+/**
+ * Review round 1: invisible format and default-ignorable characters (soft
+ * hyphen U+00AD, zero-width space and joiners U+200B-U+200D, direction marks
+ * U+200E-U+200F, word joiner U+2060, BOM U+FEFF, combining grapheme joiner
+ * U+034F, ...). They are removed, not replaced by a space, so one cannot split
+ * a word ("s\u200Bafe") and hide it from the refusal patterns.
+ */
+const INVISIBLE = /[\p{Cf}\p{Default_Ignorable_Code_Point}]/gu;
+/** English only: any character outside printable ASCII left after normalisation. */
+const NOT_PRINTABLE_ASCII = /[^\x20-\x7e]/;
+
 function normalise(q: string): string {
   const text = q
     .normalize('NFKC')
+    .replace(INVISIBLE, '')
     .toLowerCase()
     .replace(/[‘’‛′`]/g, "'")
     .replace(/[“”„‟″]/g, '"')
@@ -699,6 +756,9 @@ export function classifyQuestion(q: string): QuestionClass {
   }
   const reason = refusalReason(text);
   if (reason !== null) return { allowed: false, reason };
+  // after the refusals, so "my baby swallowed some" followed by an emoji or an
+  // em dash still gets the emergency text
+  if (NOT_PRINTABLE_ASCII.test(text)) return { allowed: false, reason: 'outside_label' };
   for (const [intent, template] of ALLOW_TEMPLATES) {
     if (template.test(text)) return { allowed: true, intent };
   }

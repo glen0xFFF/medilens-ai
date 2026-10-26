@@ -299,6 +299,60 @@ const ROUND_5_PROBES: [question: string, reason: RefusalReason][] = [
 ];
 
 /**
+ * Task 5b review round 1 (finding 1): the quoted and unquoted phrase slots of
+ * "what does ... mean" share one grammar: at most 6 words and 60 characters,
+ * with no pronoun, modal, question word, or verdict, claim or amount word.
+ * Invisible characters are stripped before any pattern runs, and a look-alike
+ * letter outside ASCII is never allowed.
+ */
+const PHRASE_SLOT_PROBES: [question: string, reason: RefusalReason][] = [
+  // the reviewer's probes
+  ['What does "you should take as many as you need" mean?', 'outside_label'],
+  ['What does "you dont need a doctor" mean?', 'outside_label'],
+  ['What does "you can take it till you feel better" mean?', 'outside_label'],
+  ['What does "increase if needed" mean?', 'outside_label'],
+  ['What does "give it to a puppy" mean?', 'outside_label'],
+  ['What does "it works for covid" mean?', 'outside_label'],
+  ['What does "this is a fake" mean?', 'outside_label'],
+  ['What does "biogesic is the same thing" mean?', 'outside_label'],
+  // zero-width spaces are stripped, so the pregnancy pattern sees "safe while pregnant"
+  ['What does "is it s\u200Bafe while pr\u200Begnant" mean?', 'special_population'],
+  // Cyrillic look-alike letters (U+043E, U+0430) are not ASCII
+  ['What does "h\u043Ew m\u0430ny sh\u043Euld I t\u0430ke" mean?', 'outside_label'],
+  // more members of the class: each phrase has one stop word and nothing else that refuses
+  ['What does "fake" mean?', 'outside_label'],
+  ["What does 'counterfeit product' mean?", 'outside_label'],
+  ['What does "genuine medicine" mean?', 'outside_label'],
+  ['What does "real medicine" mean?', 'outside_label'],
+  ['What does "same as biogesic" mean?', 'outside_label'],
+  ['What does "cures covid" mean?', 'outside_label'],
+  ['What does "works for covid" mean?', 'outside_label'],
+  ['What does "whenever needed" mean?', 'outside_label'],
+  ['What does "as much as wanted" mean?', 'outside_label'],
+  ['What does "doctor optional" mean?', 'outside_label'],
+  ['What does "give to a puppy" mean?', 'outside_label'],
+  // found by probing after the first green: sameness and verdict words
+  ['What does "identical to biogesic" mean?', 'outside_label'],
+  ['What does "equivalent to biogesic" mean?', 'outside_label'],
+  ['What does "harmless" mean?', 'outside_label'],
+  ['What does "unsafe" mean?', 'outside_label'],
+  ['What does "use freely" mean?', 'outside_label'],
+  // a negated modal without its apostrophe is a modal; an apostrophe is not a phrase character
+  ['What does "dont exceed" mean?', 'outside_label'],
+  ['What does "shouldnt exceed" mean?', 'outside_label'],
+  ['What does "don\'t exceed" mean?', 'outside_label'],
+  // the unquoted slot has the same grammar
+  ['What does fake mean?', 'outside_label'],
+  ['What does same as biogesic mean?', 'outside_label'],
+  ['What does cures covid mean?', 'outside_label'],
+  ['What does the phrase genuine medicine mean?', 'outside_label'],
+  // at most 6 words
+  ['What does "keep in a cool dry place always" mean?', 'outside_label'],
+  // a Cyrillic look-alike (U+0435) inside an otherwise allowed quoted phrase
+  ['What does "k\u0435ep dry" mean?', 'outside_label'],
+];
+
+/**
  * Third-person modal plus dose talk refuses even inside a label-reading form,
  * exactly as the first-person form already did (that one keeps its Task 5
  * reason, personal_safety).
@@ -339,6 +393,35 @@ const OVERDOSE: string[] = [
   'She took the entire blister pack',
   'I took the rest of the pills',
   'My kid ate the rest of the pills',
+  // Task 5b review round 1 (finding 2): a child named by age, "got some",
+  // "chewed on", and too-much phrasing without a count
+  'My 2 year old drank some',
+  'The baby got some',
+  'My toddler chewed on the blister',
+  'I took one too many',
+  'I took a double dose',
+  'I took my dose twice',
+  'I took it twice',
+  'I took extra',
+  'I might have overdone it',
+  // more members of the same class
+  'My two-year-old swallowed one',
+  'My 18 month old ate a tablet',
+  'Her 4-year-old drank the syrup',
+  'My 3yo got into the pills',
+  'My little one swallowed some',
+  'The baby got one',
+  'My daughter got them',
+  'My son sucked on a tablet',
+  'I took an extra one',
+  'I took double',
+  'She took double the dose',
+  'I had a double dose',
+  'I took twice the dose',
+  'He took his pills twice today',
+  'I took it three times today',
+  'I had my dose twice',
+  'I have overdone it',
 ];
 
 /** Counts, food, drink and passive questions that are not a report of too much taken. */
@@ -354,6 +437,18 @@ const NOT_OVERDOSE: [question: string, reason: RefusalReason][] = [
   ['I took the full dose, can I take more?', 'personal_dose'],
   ['I took the full amount', 'personal_dose'],
   ['I finished the whole course', 'personal_safety'],
+  // review round 1: a schedule, a food or drink idiom, or a product variant is not too much taken
+  ['I took it twice a day for a week', 'personal_dose'],
+  ['I used it twice daily', 'personal_dose'],
+  ['Is it taken twice a day?', 'personal_dose'],
+  ['I had one too many last night, can I take it?', 'personal_dose'],
+  ['I had extra rice, can I take it now?', 'personal_safety'],
+  ['I ate twice today, can I take it?', 'personal_safety'],
+  ['I took extra care to keep it dry', 'personal_dose'],
+  ['I took the extra strength one', 'personal_dose'],
+  ['I took the double strength one', 'personal_dose'],
+  ['My 2 year old has a fever, can she take it?', 'special_population'],
+  ['My son got a fever, can he take it?', 'special_population'],
 ];
 
 const ALLOW: [question: string, intent: AllowedIntent][] = [
@@ -477,6 +572,40 @@ describe('classifyQuestion refusals kept from Task 5', () => {
 describe('classifyQuestion round-5 re-review probes', () => {
   test.each(ROUND_5_PROBES)('%s -> %s', (question, reason) => {
     expect(classifyQuestion(question)).toEqual({ allowed: false, reason });
+  });
+});
+
+describe('classifyQuestion printed-phrase slots (review round 1)', () => {
+  test.each(PHRASE_SLOT_PROBES)('%s -> %s', (question, reason) => {
+    expect(classifyQuestion(question)).toEqual({ allowed: false, reason });
+  });
+
+  test('a printed phrase is at most 60 characters, quoted or not', () => {
+    const at60 = 'abcdefghij'.repeat(6);
+    expect(at60).toHaveLength(60);
+    const explain = { allowed: true, intent: 'explain_text' };
+    const outside = { allowed: false, reason: 'outside_label' };
+    expect(classifyQuestion(`What does "${at60}" mean?`)).toEqual(explain);
+    expect(classifyQuestion(`What does "${at60}k" mean?`)).toEqual(outside);
+    expect(classifyQuestion(`What does '${at60}' mean?`)).toEqual(explain);
+    expect(classifyQuestion(`What does '${at60}k' mean?`)).toEqual(outside);
+    expect(classifyQuestion(`What does ${at60} mean?`)).toEqual(explain);
+    expect(classifyQuestion(`What does ${at60}k mean?`)).toEqual(outside);
+  });
+
+  test('a printed phrase is at most 6 words, quoted or not', () => {
+    expect(classifyQuestion('What does "keep in a cool dry place" mean?')).toEqual({
+      allowed: true,
+      intent: 'explain_text',
+    });
+    expect(classifyQuestion('What does keep in a cool dry place mean?')).toEqual({
+      allowed: true,
+      intent: 'explain_text',
+    });
+    expect(classifyQuestion('What does keep in a cool dry place always mean?')).toEqual({
+      allowed: false,
+      reason: 'outside_label',
+    });
   });
 });
 
@@ -616,6 +745,70 @@ describe('classifyQuestion normalisation', () => {
     expect(classifyQuestion('What does “keep dry” mean?')).toEqual({
       allowed: true,
       intent: 'explain_text',
+    });
+  });
+
+  test('strips invisible format characters before any pattern runs (review round 1)', () => {
+    // soft hyphen, zero-width space, ZWNJ, ZWJ, LRM, RLM, word joiner, BOM,
+    // combining grapheme joiner, Mongolian vowel separator
+    const invisible = [
+      '\u00AD',
+      '\u200B',
+      '\u200C',
+      '\u200D',
+      '\u200E',
+      '\u200F',
+      '\u2060',
+      '\uFEFF',
+      '\u034F',
+      '\u180E',
+    ];
+    for (const c of invisible) {
+      expect(classifyQuestion(`Is it s${c}afe while pr${c}egnant?`)).toEqual({
+        allowed: false,
+        reason: 'special_population',
+      });
+      expect(classifyQuestion(`How m${c}any should I t${c}ake?`)).toEqual({
+        allowed: false,
+        reason: 'personal_dose',
+      });
+      expect(classifyQuestion(`My b${c}aby swall${c}owed some`)).toEqual({
+        allowed: false,
+        reason: 'possible_overdose',
+      });
+      // stripped, not refused: the rest is an allowed question
+      expect(classifyQuestion(`Can you read this la${c}bel?${c}`)).toEqual({
+        allowed: true,
+        intent: 'read_label',
+      });
+    }
+  });
+
+  test('never allows a character outside printable ASCII (review round 1)', () => {
+    const outside = { allowed: false, reason: 'outside_label' };
+    // Cyrillic look-alikes: U+0430, U+0435
+    expect(classifyQuestion('Can you read this l\u0430bel?')).toEqual(outside);
+    expect(classifyQuestion('What does "k\u0435ep dry" mean?')).toEqual(outside);
+    expect(classifyQuestion("What does 'k\u0435ep dry' mean?")).toEqual(outside);
+    // an accented letter, an emoji and a control character
+    expect(classifyQuestion('What does "caf\u00E9" mean?')).toEqual(outside);
+    expect(classifyQuestion('What does "keep dry \u{1F600}" mean?')).toEqual(outside);
+    expect(classifyQuestion('What does "keep\u0007dry" mean?')).toEqual(outside);
+  });
+
+  test('a refusal still wins when a non-ASCII character remains (review round 1)', () => {
+    // the emergency text is never lost to the ASCII rule
+    expect(classifyQuestion('My baby swallowed some \u{1F622}')).toEqual({
+      allowed: false,
+      reason: 'possible_overdose',
+    });
+    expect(classifyQuestion('My kid ate some \u2014 help')).toEqual({
+      allowed: false,
+      reason: 'possible_overdose',
+    });
+    expect(classifyQuestion('Is it safe while pregnant \u2014 really?')).toEqual({
+      allowed: false,
+      reason: 'special_population',
     });
   });
 
