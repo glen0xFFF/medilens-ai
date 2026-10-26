@@ -49,6 +49,22 @@ const REFUSE: [question: string, reason: RefusalReason][] = [
   ['Is it ok with my high blood pressure?', 'personal_safety'],
   ['I have diabetes, can this be used?', 'personal_safety'],
   ['Can this be taken by diabetics?', 'personal_safety'],
+  // review round 2: suitability for me or someone else
+  ['Is it suitable for me?', 'personal_safety'],
+  ['Is it suitable for my father?', 'personal_safety'],
+  ['Would my mom be okay taking this?', 'personal_safety'],
+  ['Is this for my dad too?', 'personal_safety'],
+  // review round 2: personal quantity with a bare count
+  ['Is 3 a day ok?', 'personal_dose'],
+  ['Is three okay?', 'personal_dose'],
+  ['Is 2 enough?', 'personal_dose'],
+  ['How about 3 a day?', 'personal_dose'],
+  ['My husband wants to take 2, fine?', 'personal_dose'],
+  ['What if my wife takes two?', 'personal_dose'],
+  ['Can I double up?', 'personal_dose'],
+  // review round 2: overdose without "took"
+  ['I swallowed 6 of these', 'personal_dose'],
+  ['I ate the whole pack, what now?', 'personal_dose'],
 ];
 
 const ALLOW: [question: string, intent: string][] = [

@@ -37,6 +37,8 @@ const PILL = String.raw`(?:pills?|tablets?|capsules?|caplets?|tabs?)`;
 /** Who the question is about: me, someone else, or a group ("diabetics"). */
 const SUBJECT = String.raw`(?:i|you|he|she|we|they|someone|anyone|my \w+|\w+s)`;
 const COUNT = String.raw`(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|half|a)`;
+/** A count with no unit ("is 3 a day ok?", "what if she takes two?"); excludes "a". */
+const BARE_COUNT = String.raw`(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|half)`;
 const AMOUNT_UNIT = String.raw`(?:${PILL}|mg|mcg|ml|g|doses?|teaspoons?|tsp|tablespoons?|tbsp|spoons?|drops?|sachets?)`;
 const CONDITION = String.raw`(?:diabet\w*|blood pressure|hypertensi\w*|kidneys?|renal|liver|heart|asthma\w*|ulcers?)`;
 const LOOKS = String.raw`(?:white|yellow|pink|blue|red|orange|green|brown|purple|grey|gray|black|round|oval|oblong|small|big|large|tiny|loose|scored|coated|shiny)`;
@@ -115,6 +117,14 @@ const REFUSALS: readonly [RefusalReason, readonly RegExp[]][] = [
       new RegExp(
         String.raw`\b${COUNT} ?${AMOUNT_UNIT}\b.*\b(?:ok|okay|fine|alright|all right|enough|too|safe|good|normal)\b`,
       ),
+      // bare counts: "is 3 a day ok?", "is 2 enough?", "what if my wife takes two?"
+      new RegExp(String.raw`\b${BARE_COUNT} (?:a|per|each) (?:day|night|time)\b`),
+      new RegExp(String.raw`\b${BARE_COUNT}\b.*\b(?:ok|okay|fine|alright|all right|enough|too)\b`),
+      new RegExp(String.raw`\btakes? ${BARE_COUNT}\b`),
+      /\bdouble (?:up|it)\b/,
+      // overdose without "took": "i swallowed 6", "i ate the whole pack"
+      /\b(?:swallowed|ate|drank|had) (?:\d+|all|the whole|too)\b/,
+      /\bwhole (?:pack|box|bottle|strip)\b/,
       /\bilang?\b/,
     ],
   ],
@@ -151,6 +161,10 @@ const REFUSALS: readonly [RefusalReason, readonly RegExp[]][] = [
       /\b(?:is|are) (?:it|this|these|they) (?:ok|okay|alright|all right|fine) (?:for|to)\b/,
       /\bwill (?:it|this) (?:hurt|harm|affect) me\b/,
       /\bstill (?:take|use)\b/,
+      // "is it suitable for me?", "would my mom be okay taking this?", "is this for my dad too?"
+      /\bsuitable\b/,
+      /\b(?:be )?(?:ok|okay|fine|alright) (?:taking|to take|using|for (?:him|her|them|my \w+))\b/,
+      /\bfor my \w+\b/,
       /\bpwede ba\b/,
     ],
   ],
