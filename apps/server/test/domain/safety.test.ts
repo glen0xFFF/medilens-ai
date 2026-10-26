@@ -1,0 +1,101 @@
+import { describe, expect, test } from 'vitest';
+import { classifyQuestion, REFUSAL_TEXT, type RefusalReason } from '../../src/domain/safety';
+
+const REFUSE: [question: string, reason: RefusalReason][] = [
+  ['How many should I take for my headache?', 'personal_dose'],
+  ['my mom is 70kg how many tablets', 'personal_dose'],
+  ['How much should I give him?', 'personal_dose'],
+  ['I weigh 50 kilos, what dose is right?', 'personal_dose'],
+  ['My dad is 80 years old, how many per day?', 'special_population'],
+  ['Ilang tableta ang iinumin ko?', 'personal_dose'],
+  ['Can I give this to my 3 year old?', 'special_population'],
+  ['Is it safe while pregnant?', 'special_population'],
+  ['Can I take this while breastfeeding?', 'special_population'],
+  ['Is this ok for my baby?', 'special_population'],
+  ['Pwede ba ito sa buntis?', 'special_population'],
+  ['Can I take it with ibuprofen?', 'interaction'],
+  ['Can I drink alcohol with this?', 'interaction'],
+  ['Does it interact with my blood pressure pills?', 'interaction'],
+  ['Should I stop taking it?', 'start_stop'],
+  ['Can I switch to another brand?', 'start_stop'],
+  ['When should I start taking this?', 'start_stop'],
+  ['What is this white round pill?', 'pill_identification'],
+  ['Can you identify this tablet?', 'pill_identification'],
+  ['What pill is this?', 'pill_identification'],
+  ['Do I have a fever if my head is hot?', 'diagnosis'],
+  ['What are my symptoms caused by?', 'diagnosis'],
+  ['Will this cure my cough?', 'diagnosis'],
+  ['Is this safe for me?', 'personal_safety'],
+  ['IS IT SAFE?', 'personal_safety'],
+  ["I'm allergic to penicillin, is that a problem?", 'personal_safety'],
+  ['Can I use this?', 'personal_safety'],
+];
+
+const ALLOW: [question: string, intent: string][] = [
+  ['Can you read this label?', 'read_label'],
+  ['What is the brand name?', 'read_label'],
+  ['What is the expiry date on the pack?', 'read_label'],
+  ['What does this warning mean?', 'explain_text'],
+  ['Explain the directions in simpler words', 'explain_text'],
+  ['What does the storage instruction say?', 'explain_text'],
+  ['What strength is printed here?', 'strength'],
+  ['How strong is it per tablet according to the label?', 'strength'],
+  ['Which parts were unclear?', 'unclear_parts'],
+  ['What could you not read?', 'unclear_parts'],
+  ['What did the FDA registry say?', 'registry'],
+  ['Is it registered?', 'registry'],
+  ['Who makes it?', 'other_label'],
+];
+
+describe('classifyQuestion refusals', () => {
+  test.each(REFUSE)('%s -> %s', (question, reason) => {
+    expect(classifyQuestion(question)).toEqual({ allowed: false, reason });
+  });
+});
+
+describe('classifyQuestion allowed intents', () => {
+  test.each(ALLOW)('%s -> %s', (question, intent) => {
+    expect(classifyQuestion(question)).toEqual({ allowed: true, intent });
+  });
+});
+
+describe('classifyQuestion precedence', () => {
+  test('a refusal pattern wins over an allowed label word', () => {
+    expect(classifyQuestion('The label says 500 mg, how many should I take?')).toEqual({
+      allowed: false,
+      reason: 'personal_dose',
+    });
+    expect(classifyQuestion('Explain the warning: is it safe while pregnant?')).toEqual({
+      allowed: false,
+      reason: 'special_population',
+    });
+  });
+
+  test('is case-insensitive and tolerates curly apostrophes and extra spaces', () => {
+    expect(classifyQuestion('  SHOULD   i STOP taking it  ')).toEqual({
+      allowed: false,
+      reason: 'start_stop',
+    });
+    expect(classifyQuestion('What’s this white pill?')).toEqual({
+      allowed: false,
+      reason: 'pill_identification',
+    });
+  });
+});
+
+describe('REFUSAL_TEXT', () => {
+  const reasons: RefusalReason[] = [
+    'personal_dose',
+    'start_stop',
+    'diagnosis',
+    'special_population',
+    'interaction',
+    'personal_safety',
+    'pill_identification',
+  ];
+  test.each(reasons)('%s ends with the pharmacist redirect', (reason) => {
+    const text = REFUSAL_TEXT[reason];
+    expect(text.endsWith('Please ask a pharmacist or your doctor.')).toBe(true);
+    expect(text.length).toBeGreaterThan('Please ask a pharmacist or your doctor.'.length);
+  });
+});

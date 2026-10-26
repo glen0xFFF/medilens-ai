@@ -26,7 +26,7 @@ import {
 const EXPIRY_NOTE = "Registration expiry is not the product's expiry date.";
 const UNAVAILABLE_NOTE = 'Registry lookup unavailable; nothing was verified.';
 const NOT_ATTEMPTED_NOTE = 'Registry lookup was not attempted.';
-const REG_NOT_FOUND_NOTE = 'The registration number on the pack was not found in the registry.';
+export const REG_NOT_FOUND_NOTE = 'The registration number on the pack was not found in the registry.';
 
 /** The label fields the matcher compares, in the order they are reported. */
 const COMPARED: readonly FieldKey[] = [
