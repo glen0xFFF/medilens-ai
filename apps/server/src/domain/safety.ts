@@ -125,6 +125,17 @@ const REFUSALS: readonly [RefusalReason, readonly RegExp[]][] = [
       // overdose without "took": "i swallowed 6", "i ate the whole pack"
       /\b(?:swallowed|ate|drank|had) (?:\d+|all|the whole|too)\b/,
       /\bwhole (?:pack|box|bottle|strip)\b/,
+      // review round 3: "i had eight", "i popped 5", "i downed the bottle", "i ate a lot of them"
+      new RegExp(
+        String.raw`\b(?:taken|popped|downed|used|finished|swallowed|ate|drank|had) (?:like |about |around )?(?:${BARE_COUNT}|a bunch|a lot|lots|many|several|some|the (?:whole |entire )?(?:pack|box|bottle|strip))\b`,
+      ),
+      /\b(?:i've|i have|ive) (?:taken|had|used)\b/,
+      // "3x a day?", "3/day?", "3 times daily", "3 daily?"
+      new RegExp(String.raw`\b${BARE_COUNT} ?(?:x|times|/) ?(?:a |per )?(?:day|daily|night)\b`),
+      new RegExp(String.raw`\b${BARE_COUNT} daily\b`),
+      /\b(?:once|twice|thrice) (?:a|per) day\b.*\b(?:ok|okay|fine|enough|too|safe)\b/,
+      /\bextra (?:one|dose|pill|tablet)\b/,
+      /\b(?:triple|double) (?:up|it|the dose)\b/,
       /\bilang?\b/,
     ],
   ],
@@ -165,6 +176,9 @@ const REFUSALS: readonly [RefusalReason, readonly RegExp[]][] = [
       /\bsuitable\b/,
       /\b(?:be )?(?:ok|okay|fine|alright) (?:taking|to take|using|for (?:him|her|them|my \w+))\b/,
       /\bfor my \w+\b/,
+      // review round 3: "is it appropriate for me?", "is this meant for adults like me?"
+      /\b(?:appropriate|right|meant|safe) for (?:me|us|him|her|them|someone|adults like me)\b/,
+      /\blike me\b/,
       /\bpwede ba\b/,
     ],
   ],
