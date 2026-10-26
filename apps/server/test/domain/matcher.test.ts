@@ -388,12 +388,66 @@ describe('assessMatch: comparison details', () => {
     ['Pessary', '500 mg Tablet'],
     ['Tablet', '500 mg Pessary'],
     ['Tablet', '500 mg Chewable Tablet'],
-    ['Film Coated Tablet', '500 mg Tablet'],
+    // A word mixing letters and digits that is not a pure strength is unrecognised, never dropped.
+    ['Tablet', '500mgTablet'],
+    ['Tablet', '500 mg Tablet-1s'],
+    ['Tablet', '500 mg Tablets (10s)'],
+    ['Tablet', '500 mg Capsule500'],
+    ['Tablet500', '500 mg Tablet'],
+    // A format character is never stripped silently.
+    ['Tablet\u200b', '500 mg Tablet'],
+    ['Tab\u00adlet', '500 mg Tablet'],
   ])('unrecognised form text (label %s, registry %s) caps the status at partial', (form, sf) => {
     const result = assess(fullLabel({ dosageForm: form }), ok([record({ strengthForm: sf })]));
     expect(result.status).toBe('partial');
     expect(result.missing).toContain('dosageForm');
     expect(result.conflicting).toEqual([]);
+  });
+
+  test.each([
+    ['Tablet', '500mg-Capsule', '500 mg'],
+    ['Syrup', '250mg/5mL-Suspension', '250 mg/5 mL'],
+    ['Tablet', 'Suppository-500mg', '500 mg'],
+    ['Tablet', '500mg-Suppository', '500 mg'],
+  ])(
+    'a form glued to the strength is still read: label %s vs %s -> conflicting',
+    (form, sf, st) => {
+      const result = assess(
+        fullLabel({ dosageForm: form, strength: st }),
+        ok([record({ strengthForm: sf })]),
+      );
+      expect(result.status).toBe('conflicting');
+      expect(result.conflicting.map((c) => c.key)).toEqual(['dosageForm']);
+    },
+  );
+
+  test.each([
+    ['Tablet', '500mg-Tablet'],
+    ['Tablet', '500 mg Film Coated Tablet'],
+    ['Tablet', '500 mg Film–Coated Tablet'],
+    ['Tablet', '500 mg Film—Coated Tablet'],
+    ['Film Coated Tablet', '500 mg Tablet'],
+    ['Film—Coated Tablets', '500 mg Tablet'],
+  ])('label %s matches registry %s', (form, sf) => {
+    const result = assess(fullLabel({ dosageForm: form }), ok([record({ strengthForm: sf })]));
+    expect(result.status).toBe('verified');
+    expect(result.matched).toContain('dosageForm');
+  });
+
+  test('rule 1: an unconfirmable record under the same number caps the status at partial', () => {
+    const result = assess(
+      fullLabel({ dosageForm: 'Tablet' }),
+      ok([record(), record({ strengthForm: '500 mg Chewable Tablet' })]),
+    );
+    expect(result.status).toBe('partial');
+  });
+
+  test.each<[string, Partial<ReferenceRecord>]>([
+    ['unparseable strength', { strengthForm: 'See package insert Tablet' }],
+    ['missing brand', { brandName: null }],
+  ])('rule 1: a sibling with %s caps the status at partial', (_, sibling) => {
+    const result = assess(fullLabel(), ok([record(), record(sibling)]));
+    expect(result.status).toBe('partial');
   });
 
   test('a stated label form that is not clear caps the status at partial', () => {

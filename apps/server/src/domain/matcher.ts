@@ -113,8 +113,8 @@ function compareStrength(labelValue: string, strengthForm: string): Outcome {
   return strengthsEqual(a, b) ? 'matched' : 'conflict';
 }
 
-/** Strength words skipped when looking for form text in `500 mg/5 mL Suspension`. */
-const STRENGTH_WORDS = new Set([
+/** Units skipped when looking for form text in `500 mg/5 mL Suspension`. */
+const UNIT_WORDS = new Set([
   'mg',
   'mcg',
   'μg',
@@ -129,9 +129,38 @@ const STRENGTH_WORDS = new Set([
   'ml',
   'l',
   'iu',
-  'per',
-  'x',
 ]);
+/** Standalone words that belong to a strength or pack size, not to a form. */
+const STRENGTH_WORDS = new Set([...UNIT_WORDS, 'per', 'x']);
+/** A number glued to a unit, such as `500mg` or `5ml`: a pure strength token. */
+const GLUED_STRENGTH = /^\p{N}+(\p{L}+)$/u;
+/** `Film Coated`, `Film–Coated` and `Film—Coated` are all spelled `film-coated`. */
+const FILM_COATED = /film[\s\p{Pd}]*coated/gu;
+
+/**
+ * Splits free text into lower-case words. A hyphen-glued token that is not
+ * itself a vocabulary word (`500mg-capsule`) is split at its hyphens, so the
+ * form is still seen. Numbers, units and glued strengths are dropped. Any
+ * other word that mixes letters and digits (`capsule500`, `10s`) is kept,
+ * so it counts as unrecognised.
+ */
+function formWords(text: string): string[] {
+  const words: string[] = [];
+  const tokens = text.normalize('NFKC').toLowerCase().replace(FILM_COATED, 'film-coated');
+  for (const token of tokens.split(/[^\p{L}\p{N}-]+/u)) {
+    const parts = isVocabulary(token) ? [token] : token.split('-');
+    for (const part of parts) {
+      if (!/\p{L}/u.test(part) || STRENGTH_WORDS.has(part)) continue;
+      const glued = GLUED_STRENGTH.exec(part);
+      if (glued !== null && UNIT_WORDS.has(glued[1] ?? '')) continue;
+      words.push(part);
+    }
+  }
+  return words;
+}
+
+const isVocabulary = (word: string) =>
+  formOf(word) !== undefined || DOSAGE_FORM_MODIFIERS.has(word);
 
 interface FormReading {
   /** Canonical forms named, e.g. `tablet`, `eye drops`. */
@@ -146,14 +175,11 @@ interface FormReading {
  * numbers and strength units, such as `500 mg`).
  */
 function readForm(text: string): FormReading | null {
-  const words = text
-    .normalize('NFKC')
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}-]+/u)
-    .filter((w) => /\p{L}/u.test(w) && !/\p{N}/u.test(w) && !STRENGTH_WORDS.has(w));
+  const words = formWords(text);
   if (words.length === 0) return null;
   const forms = new Set<string>();
-  let unrecognised = false;
+  // A format character (zero-width space, soft hyphen) is never stripped silently.
+  let unrecognised = /\p{Cf}/u.test(text);
   for (let i = 0; i < words.length; i++) {
     const word = words[i] ?? '';
     if (DOSAGE_FORM_MODIFIERS.has(word)) continue;
@@ -354,12 +380,17 @@ export function assessMatch(label: ExtractedLabel, search: ReferenceSearchResult
 
   let relevant: Evaluation[];
   let notes: string[] = [];
+  // Rule 1 with several records under one number: any record that cannot be
+  // confirmed (unrecognised form, unparseable strength, no brand) is
+  // unresolved evidence for the same registration, so `verified` is out.
+  let unresolvedSibling = false;
   if (byReg.length > 0) {
     relevant = byReg.map((r) => evaluate(label, r, true));
     // Rule 6 on the rule 1 path: every record under this number speaks for
     // the pack, so a conflict on any of them is never outweighed by a fit.
     const conflicted = relevant.filter((e) => e.conflicts.length > 0);
     if (conflicted.length > 0) return conflictResult(conflicted, advisories, notes);
+    unresolvedSibling = relevant.length > 1 && !relevant.every(isVerified);
   } else {
     // A clear number on the pack that the registry does not hold is worth saying.
     if (labelReg !== null) notes = [REG_NOT_FOUND_NOTE];
@@ -396,7 +427,7 @@ export function assessMatch(label: ExtractedLabel, search: ReferenceSearchResult
     if (best.length === 1 && chosen !== undefined && isPartial(chosen)) {
       return withNotes(
         {
-          status: isVerified(chosen) ? 'verified' : 'partial',
+          status: isVerified(chosen) && !unresolvedSibling ? 'verified' : 'partial',
           matched: keysWith(chosen, 'matched'),
           conflicting: [],
           missing: keysWith(chosen, 'missing'),
