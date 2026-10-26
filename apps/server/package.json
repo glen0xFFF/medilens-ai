@@ -8,6 +8,11 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "devDependencies": {
+    "@types/node": "^24.19.2",
     "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@medilens/contracts": "*",
+    "sharp": "^0.35.5"
   }
 }
