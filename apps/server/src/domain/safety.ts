@@ -1,9 +1,18 @@
 /**
  * Deterministic question safety gate (spec §4.3 step 1). Runs before any
- * model call. Refusal patterns are checked before anything is allowed, so a
- * question that mentions the label AND asks for personal advice is refused.
- * Patterns err towards refusing: an over-refusal costs a pharmacist visit, an
- * under-refusal could be dosing advice.
+ * model call. DEFAULT-DENY (Task 5b controller ruling):
+ *
+ * 1. Normalise (NFKC, lowercase, quotes, whitespace, trailing punctuation);
+ *    an empty question or one over 300 characters is refused as outside_label.
+ * 2. Refusal patterns run first and win, even inside a label-reading form:
+ *    possible overdose, then the named refusal lists, then the structural
+ *    gate, then modal dose talk about any person ("should she redose?").
+ * 3. A question is allowed ONLY when the whole normalised question matches one
+ *    of the anchored allow templates below (questions about printed content).
+ * 4. Everything else is refused as outside_label.
+ *
+ * Over-refusal of free-typed questions is accepted: the mobile app offers
+ * ALLOWED_QUESTION_EXAMPLES as buttons. An under-refusal could be dosing advice.
  */
 
 export type RefusalReason =
@@ -13,7 +22,9 @@ export type RefusalReason =
   | 'special_population'
   | 'interaction'
   | 'personal_safety'
-  | 'pill_identification';
+  | 'pill_identification'
+  | 'possible_overdose'
+  | 'outside_label';
 
 export type AllowedIntent =
   'read_label' | 'explain_text' | 'strength' | 'unclear_parts' | 'registry' | 'other_label';
@@ -31,7 +42,28 @@ export const REFUSAL_TEXT: Record<RefusalReason, string> = {
   interaction: `I can't check whether this medicine is safe to take with other medicines, food or alcohol. ${REDIRECT}`,
   personal_safety: `I can't say whether this medicine is safe for you. ${REDIRECT}`,
   pill_identification: `I can't identify a medicine from how a pill looks. ${REDIRECT}`,
+  possible_overdose:
+    'If someone may have taken too much of this medicine, call 911 or go to the nearest emergency room now.',
+  outside_label:
+    'I can only read and explain what is printed on this label. For questions about whether or how to take it, please ask a pharmacist or your doctor.',
 };
+
+/** Canonical preset questions; the mobile app shows these as buttons. Each one is allowed. */
+export const ALLOWED_QUESTION_EXAMPLES: string[] = [
+  'Can you read this label?',
+  'What does this warning mean?',
+  'What strength is printed here?',
+  'Explain the directions in simpler words.',
+  'Which parts were unclear?',
+  'What did the FDA registry say?',
+  'Who makes this medicine?',
+  'What is the expiry date on the pack?',
+  'How should it be stored?',
+  'Can you repeat that?',
+];
+
+/** Longest question the gate considers (spec §5.1 explain body: question ≤ 300 chars). */
+const MAX_QUESTION_CHARS = 300;
 
 const PILL = String.raw`(?:pills?|tablets?|capsules?|caplets?|tabs?)`;
 /** Who the question is about: me, someone else, or a group ("diabetics"). */
@@ -42,6 +74,53 @@ const BARE_COUNT = String.raw`(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven
 const AMOUNT_UNIT = String.raw`(?:${PILL}|mg|mcg|ml|g|doses?|teaspoons?|tsp|tablespoons?|tbsp|spoons?|drops?|sachets?)`;
 const CONDITION = String.raw`(?:diabet\w*|blood pressure|hypertensi\w*|kidneys?|renal|liver|heart|asthma\w*|ulcers?)`;
 const LOOKS = String.raw`(?:white|yellow|pink|blue|red|orange|green|brown|purple|grey|gray|black|round|oval|oblong|small|big|large|tiny|loose|scored|coated|shiny)`;
+
+/**
+ * Task 5b: possible overdose, checked before every other refusal so the
+ * emergency text wins ("my baby swallowed one, is that ok?" is not a
+ * special_population question). Three shapes: someone reports having taken an
+ * amount (two or more, too many, a container, all of it); a child got into or
+ * swallowed something; overdose, poison or lethality words. Taking exactly one
+ * stays a dose question ("i took one, can i take another?").
+ */
+const COUNT_WORD_2PLUS = String.raw`(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|dozens?|couple|several|many|multiple|lots|loads|heaps|tons)`;
+const CONTAINER = String.raw`(?:bottles?|packs?|packets?|box(?:es)?|strips?|blisters?|jars?|tubs?|sachets?|containers?|tubes?|cartons?|vials?|syrups?|contents|supply|lot)`;
+const DOSE_FORMS = String.raw`(?:pills|tablets|capsules|caplets|tabs|caps|meds|medicines|doses)`;
+/** Things a count can measure that are not medicine: "it took 2 hours", "i had 2 beers". */
+const NOT_MEDICINE = String.raw`(?:hours?|hrs?|minutes?|mins?|seconds?|days?|nights?|mornings?|evenings?|afternoons?|weeks?|months?|years?|yrs?|time|beers?|drinks?|glass(?:es)?|cups?|shots?|coffees?|kids?|children|people|persons?|meals?|am|pm|o'?clock|kg|kilos?|lbs?|pounds?|questions?|photos?|pictures?)`;
+/** An amount that may be too much: two or more, too many, a container, all of it. */
+const EXCESS = String.raw`(?:(?:like|about|around|maybe|probably|at least|over|more than|almost|nearly|roughly|perhaps) )?(?:(?:[2-9]|[1-9]\d+)(?:\.\d+)?|${COUNT_WORD_2PLUS}\b|a (?:couple|few|bunch|lot|handful|load|ton|heap|fistful|mouthful|dozen)\b|handfuls?\b|bunch(?:es)?\b|too (?:much|many)\b|all\b|(?:them|these|those) all\b|everything\b|(?:the |a |an |my |his |her |their |our )?(?:whole|entire|full|rest of the|remaining) (?:\w+ )?(?:${CONTAINER}|${DOSE_FORMS}|things?)\b|(?:the |a |an |my |his |her |their |our |half (?:the|a|of the) )(?:\w+ )?${CONTAINER}\b)(?! ?(?:of )?${NOT_MEDICINE}\b)`;
+/** Past or perfect ingestion verbs, not passive ("can it be taken 2 at a time?", "is it used 3 times a day?"). */
+const NOT_PASSIVE = String.raw`(?<!\b(?:be|been|being|is|are|was|were|get|gets|got|to)(?: it| this| that| they| these| those)? )`;
+const INGESTED = String.raw`(?:took|taken|swallowed|popped|downed|used|consumed|gobbled|chugged|gulped|guzzled|inhaled|finished|wolfed|scoffed|devoured|chewed|necked|snorted|injected|knocked|polished)`;
+/** Food and drink verbs: "too much" after these is usually food or alcohol, so only counts and containers count. */
+const INGESTED_FOOD = String.raw`(?:ate|eaten|drank|drunk|had)`;
+const PARTICLE = String.raw`(?: (?:down|back|off|through|up))?`;
+const CHILD = String.raw`(?:kids?|child|children|baby|babies|toddlers?|infants?|newborns?|little ones?|sons?|daughters?|grand(?:son|daughter|child|kid)s?|nephews?|nieces?|anak|bata|sanggol)`;
+/** Up to three words between the child and the verb: "the baby may have", "is the baby ok if she". */
+const CHILD_GAP = String.raw`(?:[\w']+ ){0,3}?`;
+const CHILD_INGESTED = String.raw`(?:ate|eaten|swallowed|drank|drunk|took|taken|had|popped|chewed|sucked|licked|consumed|gulped|guzzled|chugged|gobbled|downed|bit|bitten|tasted)`;
+const CHILD_OBJECT = String.raw`(?:some|one|it|them|all|any|a few|a bunch|a lot|a handful|a couple|several|many|\d+|${COUNT_WORD_2PLUS}|(?:a|an|the|my|his|her|their|our|your)(?: \w+)? (?:pills?|tablets?|capsules?|caplets?|tabs?|caps|medicines?|meds|syrups?|drops|doses?|${CONTAINER}|spoonfuls?|sips?|bites?|bits?|pieces?)|pills?|tablets?|capsules?|caplets?|medicines?|meds|syrup)`;
+
+const POSSIBLE_OVERDOSE: readonly RegExp[] = [
+  // "i swallowed 6 of these", "she has taken too many", "i took the whole pack"
+  new RegExp(String.raw`${NOT_PASSIVE}\b${INGESTED}${PARTICLE} ${EXCESS}`),
+  new RegExp(String.raw`${NOT_PASSIVE}\b${INGESTED_FOOD}${PARTICLE} (?!too much\b)${EXCESS}`),
+  // "chugged it", "gobbled them", "downed everything"
+  /\b(?:chugged|gobbled|downed|guzzled|wolfed|necked|scoffed|devoured|knocked back|polished off)(?: down| back| off)? (?:it|them|all|everything)\b/,
+  // "i doubled my dose", "she od'd"
+  /\b(?:doubled|tripled|quadrupled|double[- ]?dosed|overdid|od'?d|oded)\b/,
+  // a child got into it or swallowed something
+  new RegExp(
+    String.raw`\b${CHILD} ${CHILD_GAP}(?:got into|gotten into|got in to|got hold of|got at|got to|grabbed|found|opened|reached)\b`,
+  ),
+  new RegExp(String.raw`\b${CHILD} ${CHILD_GAP}${CHILD_INGESTED}(?: down| up)? ${CHILD_OBJECT}\b`),
+  // overdose, poison and lethality words ("he overdosed", "lethal?", "can it kill?")
+  /\b(?:overdos\w*|poison\w*|toxic\w*|lethal|fatal|deadly)\b/,
+  /\b(?:can|could|will|would|might|may|does|did) (?:it|this|these|they|that|too much|an overdose) kill\b/,
+  /\bkill (?:me|you|him|her|them|us|someone|somebody|a (?:person|child|kid|baby))\b/,
+  /\b(?:die|dies|died|dying)\b/,
+];
 
 /** Checked in this order; the first matching reason wins. */
 const REFUSALS: readonly [RefusalReason, readonly RegExp[]][] = [
@@ -375,61 +454,253 @@ function structuralRefusal(text: string): RefusalReason | null {
   return 'personal_safety';
 }
 
-/** Checked in this order after no refusal matched; default `other_label`. */
-const INTENTS: readonly [AllowedIntent, readonly RegExp[]][] = [
+/**
+ * Task 5b: a modal about any person plus dose or use talk refuses even inside a
+ * label-reading form, exactly as the first-person form does ("according to the
+ * label, should she increase the dose?", "what does it say, can she up it?",
+ * "what does it say about how i should take it?"). Runs after the structural
+ * gate so the Task 5 reasons of first-person questions are unchanged.
+ */
+const DOSE_PERSON = String.raw`(?:i|we|he|she|they|someone|somebody|anyone|everyone|people|adults?|patients?|(?:my|his|her|their|our|your|the|a|this|that) (?!(?:label|labels|pack|box|text|photo|picture|image|registry|fda|dose|dosage|medicine|tablets?|capsules?|pills?|syrup|bottle|warnings?|directions|instructions|strength|name|brand)\b)\w+)`;
+const MODAL_PERSON: readonly RegExp[] = [
+  new RegExp(
+    String.raw`\b(?:can|could|should|would|will|may|might|must|shall|do|does|did|is it (?:ok|okay|fine|alright|safe) (?:if|for)|ok (?:if|for)) ${DOSE_PERSON}\b`,
+  ),
+  new RegExp(
+    String.raw`\b${DOSE_PERSON} (?:can|could|should|would|will|may|might|must|shall|needs? to|ha(?:ve|s) to|ought to|(?:is|are|am) (?:supposed|allowed|meant) to|wants? to)\b`,
+  ),
+];
+const EXTRA_DOSE_VERB = /\b(?:inject\w*|administer\w*|consum\w*|bump\w*|redo\w*)\b/;
+
+function modalDoseRefusal(text: string): RefusalReason | null {
+  if (!MODAL_PERSON.some((p) => p.test(text))) return null;
+  const doseTalk =
+    DOSE_TALK.some((p) => p.test(text)) || ANY_USE_VERB.test(text) || EXTRA_DOSE_VERB.test(text);
+  return doseTalk ? 'personal_dose' : null;
+}
+
+/*
+ * Anchored allow templates (Task 5b). A question is allowed only when the
+ * WHOLE normalised question matches one of these; the free slots are narrow
+ * (a field name, a section name, a quoted printed phrase or a short phrase
+ * with no pronoun, modal or question word).
+ */
+const ASK = String.raw`(?:please )?(?:(?:can|could|would|will) you (?:please )?)?`;
+const PLEASE = String.raw`(?: please)?`;
+const PACK = String.raw`(?:label|labels|pack|packet|package|packaging|box|carton|bottle|blister|strip|sachet|leaflet|insert|package insert|tube|container|wrapper)`;
+const DET = String.raw`(?:the|this|that|my)`;
+const ON_PACK = String.raw`(?: (?:on|in|from) ${DET} ${PACK})?`;
+const HERE = String.raw`(?: here| on it)?`;
+const ALOUD = String.raw`(?: (?:out loud|aloud|to me|for me))?`;
+const SIMPLER = String.raw`(?: (?:in (?:simpler|simple|plain|easier|easy|other|everyday) (?:words|terms|language|english)|more simply|simply))?`;
+/** A part of the pack: "the second line", "the lower half of the label", "the right side". */
+const REGION = String.raw`(?:top|bottom|left|right|front|back|side|first|second|third|last|next|other|upper|lower|middle)(?: (?:half|part|side|line|panel|section|row|paragraph|word|bit|corner|edge))?(?: of ${DET} ${PACK})?`;
+/** Printed sections that are explained rather than read out. */
+const SECTION = String.raw`(?:warnings?|cautions?|precautions?|directions?(?: for use)?|instructions?|storage(?: instructions?| conditions?| directions?)?|label text)`;
+/** Printed fields that are read out. */
+const FIELD = String.raw`(?:brand(?: name)?|generic(?: name)?|name|product name|medicine name|drug name|full name|manufacturer|maker|distributor|importer|ingredients?|active ingredients?|inactive ingredients?|dosage form|form|expiry(?: date)?|expiration(?: date)?|exp date|best before(?: date)?|manufacturing date|date of manufacture|lot(?: number| no)?|batch(?: number| no)?|registration(?: number| no)?|fda registration(?: number| no)?|reg no|dose amount|dosage amount)`;
+/** What "what does the label say about ..." may ask about. */
+const TOPIC = String.raw`(?:(?:the |its )?(?:${FIELD}|${SECTION}|strength|dose|dosage|dosing|storage)|how (?:often )?to (?:take|use|store) (?:it|this|them)|storing it)`;
+/** A word of an unquoted printed phrase: no pronoun, modal, question word or verdict word. */
+const PHRASE_STOP = String.raw`(?:i|me|my|mine|myself|we|us|our|ours|you|your|yours|he|him|his|she|her|hers|they|them|their|theirs|it|its|this|that|these|those|someone|somebody|anyone|can|could|should|would|will|shall|may|might|must|do|does|did|is|are|am|was|were|be|been|being|have|has|had|if|when|whether|how|why|what|which|who|whom|whose|where|and|or|but|so|then|than|because|ok|okay|yes|no|not|safe)`;
+const PHRASE_WORD = String.raw`(?!${PHRASE_STOP}\b)[a-z0-9][a-z0-9.%/+&'-]*`;
+const PHRASE = String.raw`${PHRASE_WORD}(?: ${PHRASE_WORD}){0,5}`;
+const QUOTED = String.raw`(?:"[^"]{1,160}"|'[^']{1,160}')`;
+const UNCLEAR = String.raw`(?:unclear|not clear|unreadable|not readable|hard to read|blurry|blurred|illegible|missing|cut off|uncertain)`;
+const PARTS = String.raw`(?:parts?|fields?|bits?|sections?|words?|lines?|details?|things?)`;
+const COULD_NOT_YOU = String.raw`(?:(?:couldn't|couldnt|could not|can't|cant|cannot|can not|didn't|didnt|did not|weren't|were not) you|(?:could|can|did|were) you not)`;
+const REG = String.raw`(?:fda |ph fda |philippine fda )?(?:registry|register|database|fda|records?)`;
+const THING = String.raw`(?:it|this|this medicine|the medicine|this product|the product|this drug|this one)`;
+
+const TEMPLATES: readonly [AllowedIntent, string][] = [
+  // unclear_parts
+  ['unclear_parts', String.raw`(?:which|what) ${PARTS} (?:were|are|was|is) ${UNCLEAR}`],
   [
     'unclear_parts',
-    [
-      /\bunclear\b/,
-      /\bunreadable\b/,
-      /\b(?:could|can|did|do)(?:n't| ?not) (?:you )?(?:read|see|make out)\b/,
-      /\b(?:could|can|did|do) you not (?:read|see|make out)\b/,
-      /\bnot (?:clear|readable|legible)\b/,
-      /\b(?:blurry|missing|illegible)\b/,
-    ],
+    String.raw`(?:which|what) (?:${PARTS} )?${COULD_NOT_YOU} (?:read|see|make out)`,
   ],
-  ['registry', [/\b(?:fda|registry|registered|registration|verified|verify|verification)\b/]],
-  ['strength', [/\bstrength\b/, /\bhow strong\b/, /\b(?:mg|mcg|ml|milligrams?|micrograms?)\b/]],
+  ['unclear_parts', String.raw`what(?:'s| is| was| were| are) ${UNCLEAR}`],
+  [
+    'unclear_parts',
+    String.raw`(?:is|was|are|were) (?:any(?:thing| part| parts| of it)?|something|it|part of ${DET} ${PACK}|(?:the|this) (?:text|label|pack|box|photo|picture|image|print|writing|scan)|the ${REGION}|the ${FIELD}|the strength)(?: on ${DET} ${PACK})? (?:${UNCLEAR}|clear|readable|legible)`,
+  ],
+  [
+    'unclear_parts',
+    String.raw`(?:were|are) there any (?:${UNCLEAR} ${PARTS}|${PARTS} (?:that (?:were|are) )?${UNCLEAR})`,
+  ],
+  [
+    'unclear_parts',
+    String.raw`how (?:clear|readable|legible) (?:is|was) (?:the (?:photo|picture|image|label|text|scan)|it)`,
+  ],
+  // registry
+  [
+    'registry',
+    String.raw`what (?:did|does) the ${REG}(?: (?:check|search|lookup|result|record))? (?:say|show|find|return|report)(?: about ${THING})?`,
+  ],
+  ['registry', String.raw`what did you find in the ${REG}`],
+  [
+    'registry',
+    String.raw`is ${THING} (?:fda[- ])?(?:registered|listed)(?: (?:with|by|in|on) the ${REG})?(?: now)?`,
+  ],
+  ['registry', String.raw`is ${THING} (?:in|on|listed in|listed on|found in) the ${REG}`],
+  [
+    'registry',
+    String.raw`(?:was|is) ${THING} (?:found|listed|verified|matched|registered) (?:in|by|on|with) the ${REG}`,
+  ],
+  [
+    'registry',
+    String.raw`(?:did|does|could|can) (?:the ${REG}|you) (?:find|match|verify|list|have) (?:${THING}|a match)(?: in the ${REG})?`,
+  ],
+  [
+    'registry',
+    String.raw`${ASK}(?:check the ${REG}|search the ${REG}|look (?:it|this|this medicine) up in the ${REG}|look up ${THING} in the ${REG})${PLEASE}`,
+  ],
+  [
+    'registry',
+    String.raw`is (?:the registration number|the reg no|[a-z]{1,4}-?\d[\w-]*) (?:registered|in the ${REG})`,
+  ],
+  [
+    'registry',
+    String.raw`what (?:is|was) the (?:registry|fda|verification|match|registration) (?:result|status|outcome)`,
+  ],
+  // strength
+  [
+    'strength',
+    String.raw`what(?:'s| is) the strength(?: (?:printed|written|shown|stated))?(?: (?:of|for) (?:it|this|this medicine|each (?:tablet|capsule|caplet)))?${ON_PACK}${HERE}`,
+  ],
+  [
+    'strength',
+    String.raw`what strength is (?:it|this|this medicine|printed|written|shown|stated|on ${DET} ${PACK})${ON_PACK}${HERE}`,
+  ],
+  [
+    'strength',
+    String.raw`how strong is (?:it|this|this medicine|each (?:tablet|capsule|caplet))(?: per (?:tablet|capsule|caplet|ml))? according to ${DET} ${PACK}`,
+  ],
+  ['strength', String.raw`is (?:it|this|the strength) \d+(?:\.\d+)? ?(?:mg|mcg|μg|g|ml|iu|%)`],
+  ['strength', String.raw`${ASK}(?:tell me|read(?: me)?|say) the strength${ON_PACK}${PLEASE}`],
+  // explain_text
   [
     'explain_text',
-    [
-      /\bexplain/,
-      /\bmeans?\b/,
-      /\bmeaning\b/,
-      /\bsimpl(?:e|er)\b/,
-      /\bin other words\b/,
-      /\b(?:warnings?|directions?|instructions?|storage|store|caution|precautions?)\b/,
-    ],
+    String.raw`what does (?:this|the|that) (?:warning|caution|precaution|direction|instruction|word|phrase|sentence|line|term|abbreviation|symbol|sign|icon|statement|note|part|section|bit|text|storage instruction) mean${SIMPLER}`,
+  ],
+  [
+    'explain_text',
+    String.raw`what do (?:these|the|those) (?:warnings|cautions|precautions|directions|instructions|words|phrases|sentences|lines|terms|abbreviations|symbols|signs|icons|statements|notes) mean${SIMPLER}`,
+  ],
+  ['explain_text', String.raw`what does (?:it|that|this) mean${SIMPLER}`],
+  [
+    'explain_text',
+    String.raw`what does (?:the (?:word|term|phrase|abbreviation|sentence|line|warning|instruction|direction) )?${QUOTED} mean${SIMPLER}`,
+  ],
+  [
+    'explain_text',
+    String.raw`what does (?:the (?:word|term|phrase|abbreviation) )?${PHRASE} mean${SIMPLER}`,
+  ],
+  [
+    'explain_text',
+    String.raw`${ASK}(?:explain|simplify|clarify|rephrase|paraphrase|summari[sz]e) (?:the |this |that |these |those )?${SECTION}(?: on ${DET} ${PACK})?${SIMPLER}${PLEASE}`,
+  ],
+  [
+    'explain_text',
+    String.raw`${ASK}explain (?:it|that|this|what (?:it|that|this|${DET} ${PACK}) (?:says|means))${SIMPLER}${PLEASE}`,
+  ],
+  [
+    'explain_text',
+    String.raw`${ASK}(?:say|put|explain|word) (?:it|that|this) (?:in (?:simpler|simple|plain|easier|easy|other|everyday) (?:words|terms|language|english)|more simply|simply)${PLEASE}`,
+  ],
+  ['explain_text', String.raw`what (?:are|were) the ${SECTION}${ON_PACK}`],
+  ['explain_text', String.raw`what (?:do|does) the ${SECTION} say`],
+  [
+    'explain_text',
+    String.raw`how (?:should|must|can) (?:it|this|this medicine|these|the (?:tablets|capsules|medicine|bottle|pack)) be (?:stored|kept)`,
+  ],
+  ['explain_text', String.raw`how (?:is|are) (?:it|this|this medicine|these) (?:stored|kept)`],
+  [
+    'explain_text',
+    String.raw`how (?:do you |to |should you )?store (?:it|this|this medicine|them)`,
+  ],
+  ['explain_text', String.raw`tell me (?:more )?about the ${SECTION}`],
+  ['explain_text', String.raw`${ASK}read (?:me |out )?the ${SECTION}${ALOUD}(?: again)?${PLEASE}`],
+  // read_label
+  [
+    'read_label',
+    String.raw`${ASK}read (?:me |out |aloud |back )?(?:(?:${DET} )?${PACK}|it|this|that|everything|all of it|(?:the )?(?:whole|entire|full) (?:${PACK}|thing|text)|what (?:it|${DET} ${PACK}) says)${ALOUD}(?: again)?${PLEASE}`,
+  ],
+  ['read_label', String.raw`${ASK}read (?:me )?the ${REGION}${ALOUD}${PLEASE}`],
+  ['read_label', String.raw`${ASK}(?:read|tell me|say) (?:me )?the ${FIELD}${ON_PACK}${PLEASE}`],
+  [
+    'read_label',
+    String.raw`what does (?:${DET} )?${PACK} (?:say|read|show|state)(?: about ${TOPIC})?`,
+  ],
+  ['read_label', String.raw`what (?:does|do) it say(?: on ${DET} ${PACK})?(?: about ${TOPIC})?`],
+  ['read_label', String.raw`what(?:'s| is) (?:printed|written|shown) (?:on|in) ${DET} ${PACK}`],
+  [
+    'read_label',
+    String.raw`what (?:does|do) (?:the )?(?:text|words?|writing|print|wording|small print|fine print)(?: on ${DET} ${PACK})? say`,
+  ],
+  ['read_label', String.raw`what does the ${REGION} say`],
+  ['read_label', String.raw`${ASK}tell me what (?:it|${DET} ${PACK}) says`],
+  [
+    'read_label',
+    String.raw`what(?:'s| is| are) (?:the |its )?${FIELD}(?: (?:printed|written|shown|listed|stated))?${ON_PACK}${HERE}`,
   ],
   [
     'read_label',
-    [
-      /\bread\b/,
-      /\blabel\b/,
-      /\b(?:printed|written)\b/,
-      /\b(?:name|brand|generic|expiry|expiration|expires?|batch|lot)\b/,
-    ],
+    String.raw`what ${FIELD} is (?:printed|written|shown|listed|stated|on ${DET} ${PACK})(?: (?:on|in) ${DET} ${PACK})?${HERE}`,
   ],
+  ['read_label', String.raw`which (?:one|part|line|word) is the ${FIELD}`],
+  ['read_label', String.raw`where(?:'s| is) the ${FIELD}(?: (?:printed|written|shown))?${ON_PACK}`],
+  [
+    'read_label',
+    String.raw`who (?:makes|made|manufactures|manufactured|produces|produced|distributes|distributed|markets|marketed) ${THING}`,
+  ],
+  ['read_label', String.raw`when does (?:it|this|this medicine|the medicine|${DET} pack) expire`],
+  // other_label: repeat the last answer
+  [
+    'other_label',
+    String.raw`${ASK}(?:repeat (?:that|this|it|the answer|the last (?:part|answer|sentence|bit|line))|say (?:that|it|this) again)(?: (?:more )?(?:slowly|slower|louder))?${PLEASE}`,
+  ],
+  ['other_label', String.raw`(?:pardon|say again|what did you say)`],
 ];
 
+const ALLOW_TEMPLATES: readonly [AllowedIntent, RegExp][] = TEMPLATES.map(
+  ([intent, source]) => [intent, new RegExp(String.raw`^(?:${source})$`)] as const,
+);
+
+/** Trailing characters stripped during normalisation. */
+const TRAILING = new Set([' ', '?', '.', '!', ',', ';', ':']);
+
 function normalise(q: string): string {
-  return q
+  const text = q
     .normalize('NFKC')
     .toLowerCase()
     .replace(/[‘’‛′`]/g, "'")
+    .replace(/[“”„‟″]/g, '"')
     .replace(/\s+/g, ' ')
     .trim();
+  // a linear scan, not a regex: a long run of punctuation must not backtrack
+  let end = text.length;
+  while (end > 0 && TRAILING.has(text.charAt(end - 1))) end--;
+  return text.slice(0, end);
+}
+
+function refusalReason(text: string): RefusalReason | null {
+  if (POSSIBLE_OVERDOSE.some((p) => p.test(text))) return 'possible_overdose';
+  for (const [reason, patterns] of REFUSALS) {
+    if (patterns.some((p) => p.test(text))) return reason;
+  }
+  return structuralRefusal(text) ?? modalDoseRefusal(text);
 }
 
 export function classifyQuestion(q: string): QuestionClass {
-  const text = normalise(q);
-  for (const [reason, patterns] of REFUSALS) {
-    if (patterns.some((p) => p.test(text))) return { allowed: false, reason };
+  const text = typeof q === 'string' ? normalise(q) : '';
+  if (text.length === 0 || text.length > MAX_QUESTION_CHARS) {
+    return { allowed: false, reason: 'outside_label' };
   }
-  const structural = structuralRefusal(text);
-  if (structural !== null) return { allowed: false, reason: structural };
-  for (const [intent, patterns] of INTENTS) {
-    if (patterns.some((p) => p.test(text))) return { allowed: true, intent };
+  const reason = refusalReason(text);
+  if (reason !== null) return { allowed: false, reason };
+  for (const [intent, template] of ALLOW_TEMPLATES) {
+    if (template.test(text)) return { allowed: true, intent };
   }
-  return { allowed: true, intent: 'other_label' };
+  return { allowed: false, reason: 'outside_label' };
 }
