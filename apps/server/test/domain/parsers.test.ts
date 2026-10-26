@@ -368,6 +368,66 @@ describe('parseStrength', () => {
     });
   });
 
+  describe('only whitespace or a glued decimal point may sit between digits', () => {
+    // The joiner rule is an allowlist: any other non-letter character between
+    // two numbers (or between a count word and the next number) fails closed,
+    // so the tail is never read as the strength.
+    test.each([
+      ['10x1~2 mg', '2 mg'],
+      ['10x1∶2 mg', '2 mg'],
+      ['10x1→2 mg', '2 mg'],
+      ['10x1•2 mg', '2 mg'],
+      ['10x1*2 mg', '2 mg'],
+      ['10x1×2 mg', '2 mg'],
+      ['10x1=2 mg', '2 mg'],
+      ['10x1`2 mg', '2 mg'],
+      ['10x1"2 mg', '2 mg'],
+      ['10x0。5 mg', '5 mg'],
+      ['10x0、5 mg', '5 mg'],
+      ['10x0‚5 mg', '5 mg'],
+      ['10x0˙5 mg', '5 mg'],
+      ['Drug B12~5 mg', '5 mg'],
+      ['Drug 10 tablets ÷ 2 mg', '2 mg'],
+      ['10x0​,5 mg', '5 mg'],
+      // Extras: spaced joiners, a bracket opening between numbers, a joiner glued to the right.
+      ['10x1 ~ 2 mg', '2 mg'],
+      ['10 x 1 * 2 mg', '2 mg'],
+      ['10x10 (2 mg)', '2 mg'],
+      ['10x1 )2 mg', '2 mg'],
+      ['Drug 10 tablets ~2 mg', '2 mg'],
+      ['Drug B12 ÷ 5 mg', '5 mg'],
+    ])('%s -> null (never equal to %s)', (input, misread) => {
+      const parsed = parseStrength(input);
+      expect(parsed).toBeNull();
+      expect(strengthsEqual(parsed, parseStrength(misread))).toBe(false);
+    });
+
+    test.each([['500​ mg'], ['Para​cetamol 500 mg'], ['500 mg­'], ['﻿500 mg'], ['500 mg⁠']])(
+      'any format character fails closed: %j',
+      (input) => {
+        expect(parseStrength(input)).toBeNull();
+      },
+    );
+
+    test.each([
+      ['0.5 mg', [{ amount: 0.5, unit: 'mg' }]],
+      ['1,000.5 mg', [{ amount: 1000.5, unit: 'mg' }]],
+      ['250 mg/5 mL', [{ amount: 250, unit: 'mg', per: { amount: 5, unit: 'mL' } }]],
+      ['Cholecalciferol (Vitamin D3) 400 IU', [{ amount: 400, unit: 'IU' }]],
+      [
+        'Vitamin B1 100 mg + B6 5 mg',
+        [
+          { amount: 100, unit: 'mg' },
+          { amount: 5, unit: 'mg' },
+        ],
+      ],
+      ['10 x 10 tablets 500 mg', [{ amount: 500, unit: 'mg' }]],
+      ['10 sachets plus 2 sachet and 500 mg', [{ amount: 500, unit: 'mg' }]],
+    ])('still parses: %s', (input, expected) => {
+      expect(parseStrength(input)).toEqual(expected);
+    });
+  });
+
   describe('spelled-out units', () => {
     test.each([
       ['10 micrograms', [{ amount: 10, unit: 'mcg' }]],

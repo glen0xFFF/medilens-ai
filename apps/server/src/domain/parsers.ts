@@ -38,23 +38,31 @@ const COMMA_NUMBER = /(?<![\p{N}.,])\d+(?:,\d+)+/gu;
  */
 const THOUSANDS = /^[1-9]\d?(?:,\d{3})+$/;
 /**
- * Characters that join two numbers into something we do not read as one
- * amount: a decimal comma (`0,5`), a fraction (`1/2`, and `½`, which NFKC
- * turns into `1⁄2`), a range (`1-2`, `1–2`), a ratio (`3:5`), a foreign
- * decimal or thousands mark (`0·5`, `0٫5`, `1'000`) and similar. `\p{Pd}`
- * covers every dash and `\p{Pc}` covers `_`.
+ * Every run of non-letter characters that sits between two numbers. The
+ * lookahead lets runs overlap, so `1~2~3` yields both joins.
  */
-const NUMBER_JOINER = String.raw`[\p{Pd}\p{Pc},/\\|·٫٬⁄∕−:;'’‘′″‧⋅∙・]`;
+const NUMBER_GAP = /\p{N}(?=([^\p{L}\p{N}]+)\p{N})/gu;
 /**
- * Two numbers joined by a `NUMBER_JOINER`, or by a `.` with a space on either
- * side (`1 . 5`). It runs after valid thousands commas are removed, and the
- * only joins left that we accept are a glued decimal point (`0.5`) and a `/`
- * after a unit (`250 mg/5 mL`), neither of which this matches.
+ * The only accepted joins between two numbers (an allowlist, not a
+ * blocklist): whitespace, a glued decimal point (`0.5`), or a closing bracket
+ * glued to the left number and followed by whitespace (`(Vitamin D3) 400 IU`).
+ * Valid thousands commas are removed before this runs. Anything else, such as
+ * a decimal comma (`0,5`), a fraction (`1/2`, `½` → `1⁄2`), a range (`1-2`,
+ * `1~2`), a ratio (`3:5`), an operator (`1×2`, `1÷2`) or a foreign decimal
+ * mark (`0·5`, `0。5`), means we cannot tell which part is the amount. A `/`
+ * after a unit (`250 mg/5 mL`) is not between two numbers, so it is allowed.
  */
-const JOINED_NUMBERS = new RegExp(
-  String.raw`\p{N}(?:\s*${NUMBER_JOINER}\s*|\s+\.\s*|\.\s+)\p{N}`,
-  'u',
-);
+const ACCEPTED_JOIN = /^(?:\s+|\.|[)\]]\s+)$/u;
+/** Format characters (zero-width space, soft hyphen, BOM, ...) are rejected, never stripped. */
+const FORMAT_CHAR = /\p{Cf}/u;
+
+/** True when some pair of numbers in `text` is joined by anything but an accepted join. */
+function hasUnacceptedJoin(text: string): boolean {
+  for (const m of text.matchAll(NUMBER_GAP)) {
+    if (!ACCEPTED_JOIN.test(m[1] ?? '')) return true;
+  }
+  return false;
+}
 /**
  * `1.000 mg` may be a European thousands separator (1000) or a decimal (1).
  * A leading zero (`0.125 mg`) cannot be a thousands group, so it stays a decimal.
@@ -116,8 +124,9 @@ const blank = (match: string) => ' '.repeat(match.length);
  * True when the text after `from` starts (past spaces and punctuation, and
  * past any chain of allowed follower words) with a letter, a symbol, `%` or
  * `‰`, i.e. something that could be the unit of the number just before it,
- * or when a slash is skipped on the way. A digit, a blanked strength or the
- * end of the string is safe.
+ * or when a slash is skipped on the way. A digit or a blanked strength is
+ * safe only when the gap before it is empty or an accepted join
+ * (`10 tablets ÷ 2 mg` is not). The end of the string is safe.
  */
 function followedByUnitLikeText(s: string, from: number): boolean {
   let i = from;
@@ -126,7 +135,9 @@ function followedByUnitLikeText(s: string, from: number): boolean {
     if (SLASH_LIKE.test(skipped)) return true;
     i += skipped.length;
     const rest = s.slice(i);
-    if (!UNIT_LIKE_START.test(rest)) return false;
+    if (rest === '') return false;
+    // A digit or blanked strength is next: the gap must be an accepted join.
+    if (!UNIT_LIKE_START.test(rest)) return skipped !== '' && !ACCEPTED_JOIN.test(skipped);
     const word = FOLLOWER_WORD.exec(rest);
     if (word === null) return true;
     i += word[0].length;
@@ -160,6 +171,8 @@ export function parseStrength(s: string): Strength[] | null {
   let text = s.normalize('NFKC').replace(/[µμ]g/gi, 'mcg');
   // The strength marker must not be forgeable from the input.
   if (text.includes(STRENGTH_MARK)) return null;
+  // A zero-width character can hide a join between numbers (`0<ZWSP>,5`).
+  if (FORMAT_CHAR.test(text)) return null;
 
   // A digit-consumed `1.000 mg` would read as 1 mg, so it is rejected explicitly.
   if (DOTTED_THOUSANDS.test(text)) return null;
@@ -168,9 +181,9 @@ export function parseStrength(s: string): Strength[] | null {
   text = text.replace(COMMA_NUMBER, (token) =>
     THOUSANDS.test(token) ? token.replace(/,/g, '') : token,
   );
-  // A number split by punctuation (`2 x 0,5 mg`, `10x1/2 mg`, `B12,5 mg`)
+  // A number split by punctuation (`2 x 0,5 mg`, `10x1~2 mg`, `B12,5 mg`)
   // would otherwise have its tail read as the strength, a wrong amount.
-  if (JOINED_NUMBERS.test(text)) return null;
+  if (hasUnacceptedJoin(text)) return null;
 
   const out: Strength[] = [];
   let residual = text;
