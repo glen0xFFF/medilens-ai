@@ -15,8 +15,8 @@ export interface Strength {
 }
 
 const NUMBER = String.raw`(\d+(?:\.\d+)?)`;
-// Unit must not be followed by another letter, so `500 gel` and `5 mgx` do not parse.
-const UNIT = String.raw`(mcg|mg|g|ml|iu|%)(?![a-z])`;
+// Longest spellings first. A unit must not be followed by another letter, so `500 gel` does not parse.
+const UNIT = String.raw`(micrograms?|milligrams?|grams?|mcg|mg|g|ml|iu|%)(?![a-z])`;
 const PER_SEP = String.raw`\s*(?:\/|per(?![a-z]))\s*`;
 const PER = String.raw`(?:${PER_SEP}(\d+(?:\.\d+)?)?\s*(ml|g|l)(?![a-z]))?`;
 // Lookbehind stops a match starting in the middle of a number or a word (e.g. `B12mg`).
@@ -33,42 +33,41 @@ const COMMA_NUMBER = /\d+(?:,\d+)+/g;
  * likely two merged strengths, so anything that ambiguous is rejected.
  */
 const THOUSANDS = /^\d{1,2}(?:,\d{3})+$/;
+/**
+ * `1.000 mg` may be a European thousands separator (1000) or a decimal (1).
+ * A leading zero (`0.125 mg`) cannot be a thousands group, so it stays a decimal.
+ */
+const DOTTED_THOUSANDS = /(?<![\d.])[1-9]\d{0,2}\.\d{3}(?!\d)\s*[a-zµμ%]/i;
 
-/** Number followed by letters, left over once the recognised strengths are blanked out. */
-const RESIDUAL = /(?<![\d.a-z])\d+(?:\.\d+)?(\s*)([a-zµμ%]+)/gi;
-/** Unit-like words that may follow a number after a space but are not supported strength units. */
-const UNSUPPORTED_UNITS = new Set([
-  'mmol',
-  'mol',
-  'meq',
-  'eq',
-  'kg',
-  'cc',
-  'tsp',
-  'tbsp',
-  'l',
-  'dl',
-  'ul',
-  'µl',
-  'μl',
-  'mcl',
-  'ng',
-  'u',
-  'unit',
-  'units',
-  'mu',
-  'ppm',
-  'oz',
-  'gr',
-  'grain',
-  'grains',
-  'lb',
+/** A number followed by a word, left over once the recognised strengths are blanked out. */
+const RESIDUAL = /(?<![\d.a-z])\d+(?:\.\d+)?\s*([a-zµμ%]+)/gi;
+/** Fail closed: the only words allowed after a leftover number. Anything else may be a unit. */
+const NON_UNIT_WORDS = new Set([
+  'tablet',
+  'tablets',
+  'capsule',
+  'capsules',
+  'caplet',
+  'caplets',
+  'sachet',
+  'sachets',
+  'each',
+  'x',
+  'forte',
+  'plus',
+  'and',
 ]);
 
 const UNIT_MAP: Record<string, StrengthUnit> = {
   mcg: 'mcg',
+  microgram: 'mcg',
+  micrograms: 'mcg',
   mg: 'mg',
+  milligram: 'mg',
+  milligrams: 'mg',
   g: 'g',
+  gram: 'g',
+  grams: 'g',
   ml: 'mL',
   iu: 'IU',
   '%': '%',
@@ -76,14 +75,16 @@ const UNIT_MAP: Record<string, StrengthUnit> = {
 const PER_UNIT_MAP: Record<string, PerUnit> = { ml: 'mL', g: 'g', l: 'L' };
 
 /**
- * Parses every strength in `s`. Returns null when nothing is found, and also
- * when anything strength-like cannot be understood (an unknown `per` unit,
- * an unsupported unit such as mmol, an ambiguous comma number): silently
- * dropping part of a strength could make two different products compare equal.
+ * Parses every strength in `s`. Fails closed: returns null when nothing is
+ * found, and also when anything cannot be fully understood (an unknown `per`
+ * unit, a number followed by a word that is not a known non-unit word, an
+ * ambiguous comma or dot number). Silently dropping part of a strength could
+ * make two different products compare equal.
  */
 export function parseStrength(s: string): Strength[] | null {
   let text = s.replace(/[µμ]g/gi, 'mcg');
 
+  if (DOTTED_THOUSANDS.test(text)) return null;
   for (const [token] of text.matchAll(COMMA_NUMBER)) {
     if (!THOUSANDS.test(token)) return null;
   }
@@ -102,23 +103,21 @@ export function parseStrength(s: string): Strength[] | null {
 
     const [, amountStr, unitStr, perAmountStr, perUnitStr] = m;
     const unit = UNIT_MAP[(unitStr ?? '').toLowerCase()];
-    if (amountStr === undefined || unit === undefined) continue;
+    if (amountStr === undefined || unit === undefined) return null;
     const entry: Strength = { amount: Number(amountStr), unit };
     if (perUnitStr !== undefined) {
       const perUnit = PER_UNIT_MAP[perUnitStr.toLowerCase()];
-      if (perUnit !== undefined) {
-        entry.per = {
-          amount: perAmountStr === undefined ? 1 : Number(perAmountStr),
-          unit: perUnit,
-        };
-      }
+      if (perUnit === undefined) return null;
+      entry.per = {
+        amount: perAmountStr === undefined ? 1 : Number(perAmountStr),
+        unit: perUnit,
+      };
     }
     out.push(entry);
   }
 
-  for (const [, space, word] of residual.matchAll(RESIDUAL)) {
-    // Letters glued to a number (`10mmol`) are always unit-like; after a space only known units are.
-    if (space === '' || UNSUPPORTED_UNITS.has((word ?? '').toLowerCase())) return null;
+  for (const [, word] of residual.matchAll(RESIDUAL)) {
+    if (!NON_UNIT_WORDS.has((word ?? '').toLowerCase())) return null;
   }
   return out.length > 0 ? out : null;
 }

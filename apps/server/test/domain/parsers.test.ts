@@ -98,6 +98,81 @@ describe('parseStrength', () => {
     });
   });
 
+  describe('fails closed on unrecognised words after numbers', () => {
+    test.each([
+      ['Zinc 10 mg + Lactobacillus 5 billion CFU'],
+      ['500 mg + 5 drams'],
+      ['500 mg 2 in 1'],
+    ])('%s -> null', (input) => {
+      expect(parseStrength(input)).toBeNull();
+    });
+
+    test.each([
+      ['Calcium 600 mg + Vitamin D 10 micrograms', '600 mg'],
+      ['Amoxicillin 500 mg + Clavulanic acid 125 milligrams', '500 mg'],
+      ['500 mg + 10 grams', '500 mg'],
+      ['Zinc 10 mg + Lactobacillus 5 billion CFU', '10 mg'],
+      ['1.000 mg', '1 mg'],
+    ])('strengthsEqual(%s, %s) is false', (a, b) => {
+      expect(strengthsEqual(parseStrength(a), parseStrength(b))).toBe(false);
+    });
+
+    test.each([
+      ['Paracetamol 500 mg 10 tablets', [{ amount: 500, unit: 'mg' }]],
+      ['500 mg, 10 x 10 capsules', [{ amount: 500, unit: 'mg' }]],
+      ['500 mg 1 caplet each', [{ amount: 500, unit: 'mg' }]],
+      ['10 sachets plus 2 sachet and 500 mg', [{ amount: 500, unit: 'mg' }]],
+    ])('allowlisted words pass: %s', (input, expected) => {
+      expect(parseStrength(input)).toEqual(expected);
+    });
+  });
+
+  describe('spelled-out units', () => {
+    test.each([
+      ['10 micrograms', [{ amount: 10, unit: 'mcg' }]],
+      ['1 microgram', [{ amount: 1, unit: 'mcg' }]],
+      ['125 milligrams', [{ amount: 125, unit: 'mg' }]],
+      ['1 milligram', [{ amount: 1, unit: 'mg' }]],
+      ['10 grams', [{ amount: 10, unit: 'g' }]],
+      ['1 Gram', [{ amount: 1, unit: 'g' }]],
+      [
+        'Amoxicillin 500 mg + Clavulanic acid 125 milligrams',
+        [
+          { amount: 500, unit: 'mg' },
+          { amount: 125, unit: 'mg' },
+        ],
+      ],
+      [
+        'Calcium 600 mg + Vitamin D 10 micrograms',
+        [
+          { amount: 600, unit: 'mg' },
+          { amount: 10, unit: 'mcg' },
+        ],
+      ],
+    ])('%s', (input, expected) => {
+      expect(parseStrength(input)).toEqual(expected);
+    });
+
+    test('125 milligrams equals 125 mg', () => {
+      expect(strengthsEqual(parseStrength('125 milligrams'), parseStrength('125 mg'))).toBe(true);
+    });
+  });
+
+  describe('dotted numbers', () => {
+    test.each([['1.000 mg'], ['2.500 mg'], ['1.000.000 IU']])('%s -> null (ambiguous)', (input) => {
+      expect(parseStrength(input)).toBeNull();
+    });
+
+    test.each([
+      ['0.5 mg', [{ amount: 0.5, unit: 'mg' }]],
+      ['2.5 mg', [{ amount: 2.5, unit: 'mg' }]],
+      ['0.125 mg', [{ amount: 0.125, unit: 'mg' }]],
+      ['1.25 mg', [{ amount: 1.25, unit: 'mg' }]],
+    ])('real decimals still parse: %s', (input, expected) => {
+      expect(parseStrength(input)).toEqual(expected);
+    });
+  });
+
   describe('thousands separators', () => {
     test.each([
       ['1,000 mg', [{ amount: 1000, unit: 'mg' }]],
