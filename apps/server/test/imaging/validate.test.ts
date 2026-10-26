@@ -1,8 +1,8 @@
 import sharp from 'sharp';
 import { describe, expect, test } from 'vitest';
-import { MAX_IMAGE_BYTES } from '../../src/config';
+import { MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS } from '../../src/config';
 import { normalizeImage, validateImage } from '../../src/imaging/validate';
-import { sharpGif, sharpJpeg, sharpPng, sharpWebp } from '../helpers/images';
+import { hugeDimensionPng, sharpGif, sharpJpeg, sharpPng, sharpWebp } from '../helpers/images';
 
 describe('validateImage', () => {
   test('MAX_IMAGE_BYTES is 8 MB', () => {
@@ -44,6 +44,16 @@ describe('validateImage', () => {
 
   test('rejects an empty buffer as INVALID_IMAGE', async () => {
     expect(await validateImage(Buffer.alloc(0))).toEqual({ ok: false, code: 'INVALID_IMAGE' });
+  });
+
+  test('MAX_IMAGE_PIXELS is 40 million', () => {
+    expect(MAX_IMAGE_PIXELS).toBe(40_000_000);
+  });
+
+  test('rejects a small-byte PNG with huge dimensions as INVALID_IMAGE', async () => {
+    const png = await hugeDimensionPng(7000);
+    expect(png.length).toBeLessThan(MAX_IMAGE_BYTES);
+    expect(await validateImage(png)).toEqual({ ok: false, code: 'INVALID_IMAGE' });
   });
 
   test('rejects a real GIF image as INVALID_IMAGE', async () => {

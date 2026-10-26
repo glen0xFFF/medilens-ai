@@ -15,3 +15,9 @@ export const DEFAULT_THRESHOLDS: QualityThresholds = {
   maxLuminance: 235,
   maxGlare: 0.08,
 };
+
+/**
+ * Largest accepted decoded size in pixels. Guards against decompression
+ * bombs: a solid 16000x16000 PNG is under 1 MB on disk but ~768 MB decoded.
+ */
+export const MAX_IMAGE_PIXELS = 40_000_000;

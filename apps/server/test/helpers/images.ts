@@ -76,3 +76,30 @@ export async function glareJpeg(): Promise<Buffer> {
     .jpeg({ quality: 90 })
     .toBuffer();
 }
+
+/** The sharp text-like pattern expanded to a 3-channel sRGB JPEG. */
+export function sharpRgbJpeg(): Promise<Buffer> {
+  return textLike().toColourspace('srgb').jpeg({ quality: 90 }).toBuffer();
+}
+
+/** A solid saturated RGB colour as a JPEG. */
+export function solidRgbJpeg(r: number, g: number, b: number): Promise<Buffer> {
+  return sharp({ create: { width: WIDTH, height: HEIGHT, channels: 3, background: { r, g, b } } })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+}
+
+/** Decompression-bomb shape: a solid PNG with huge dimensions but a small byte size. */
+export function hugeDimensionPng(side = 7000): Promise<Buffer> {
+  return sharp({ create: { width: side, height: side, channels: 3, background: '#ffffff' } })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+}
+
+/** Mean of a raw greyscale decode, computed independently of the analyzer. */
+export async function rawGreyMean(img: Buffer): Promise<number> {
+  const { data } = await sharp(img).greyscale().raw().toBuffer({ resolveWithObject: true });
+  let sum = 0;
+  for (const v of data) sum += v;
+  return sum / data.length;
+}

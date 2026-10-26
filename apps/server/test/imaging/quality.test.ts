@@ -2,7 +2,16 @@ import { QualityReportSchema } from '@medilens/contracts';
 import { describe, expect, test } from 'vitest';
 import { DEFAULT_THRESHOLDS } from '../../src/config';
 import { assessQuality } from '../../src/imaging/quality';
-import { blurredJpeg, darkJpeg, glareJpeg, sharpJpeg } from '../helpers/images';
+import { normalizeImage } from '../../src/imaging/validate';
+import {
+  blurredJpeg,
+  darkJpeg,
+  glareJpeg,
+  rawGreyMean,
+  sharpJpeg,
+  sharpRgbJpeg,
+  solidRgbJpeg,
+} from '../helpers/images';
 
 describe('DEFAULT_THRESHOLDS', () => {
   test('has the agreed starting values', () => {
@@ -54,5 +63,27 @@ describe('assessQuality', () => {
     });
     expect(report.reasons).toEqual(['BLURRY']);
     expect(report.ok).toBe(false);
+  });
+
+  test.each([
+    ['blue', 0, 0, 255],
+    ['green', 0, 255, 0],
+  ] as const)('a well-lit saturated %s RGB image is not TOO_DARK', async (_name, r, g, b) => {
+    const img = await solidRgbJpeg(r, g, b);
+    const report = await assessQuality(img);
+    expect(report.reasons).not.toContain('TOO_DARK');
+    expect(Math.abs(report.luminance - (await rawGreyMean(img)))).toBeLessThanOrEqual(2);
+  });
+
+  test('an RGB copy of the sharp pattern is ok', async () => {
+    const report = await assessQuality(await sharpRgbJpeg());
+    expect(report.reasons).toEqual([]);
+    expect(report.ok).toBe(true);
+  });
+
+  test('the sharp pattern is ok after normalizeImage', async () => {
+    const report = await assessQuality(await normalizeImage(await sharpJpeg()));
+    expect(report.reasons).toEqual([]);
+    expect(report.ok).toBe(true);
   });
 });
