@@ -25,14 +25,36 @@ const STARTS_WITH_STRENGTH = new RegExp(String.raw`^${NUMBER}\s*${UNIT}`, 'i');
 /** A `/` or `per` directly after a strength, i.e. a concentration we did not recognise. */
 const DANGLING_SEP = /^\s*(\/|per(?![a-z]))\s*/i;
 
-/** Digit runs joined by commas, e.g. `1,000` or `500,125`. */
-const COMMA_NUMBER = /\d+(?:,\d+)+/g;
+/**
+ * Digit runs joined by commas, e.g. `1,000` or `500,125`. A run that starts
+ * right after another number, a `.` or a `,` (`0.5,000`) is not a candidate.
+ */
+const COMMA_NUMBER = /(?<![\p{N}.,])\d+(?:,\d+)+/gu;
 /**
  * Accepted thousands grouping. The leading group is 1-2 digits on purpose:
  * `500,125` has the same shape as a 3-digit-led thousands number but is more
- * likely two merged strengths, so anything that ambiguous is rejected.
+ * likely two merged strengths, so anything that ambiguous is rejected. It may
+ * not start with 0: `0,500` and `0,125` are decimal commas, not 500 and 125.
  */
-const THOUSANDS = /^\d{1,2}(?:,\d{3})+$/;
+const THOUSANDS = /^[1-9]\d?(?:,\d{3})+$/;
+/**
+ * Characters that join two numbers into something we do not read as one
+ * amount: a decimal comma (`0,5`), a fraction (`1/2`, and `½`, which NFKC
+ * turns into `1⁄2`), a range (`1-2`, `1–2`), a ratio (`3:5`), a foreign
+ * decimal or thousands mark (`0·5`, `0٫5`, `1'000`) and similar. `\p{Pd}`
+ * covers every dash and `\p{Pc}` covers `_`.
+ */
+const NUMBER_JOINER = String.raw`[\p{Pd}\p{Pc},/\\|·٫٬⁄∕−:;'’‘′″‧⋅∙・]`;
+/**
+ * Two numbers joined by a `NUMBER_JOINER`, or by a `.` with a space on either
+ * side (`1 . 5`). It runs after valid thousands commas are removed, and the
+ * only joins left that we accept are a glued decimal point (`0.5`) and a `/`
+ * after a unit (`250 mg/5 mL`), neither of which this matches.
+ */
+const JOINED_NUMBERS = new RegExp(
+  String.raw`\p{N}(?:\s*${NUMBER_JOINER}\s*|\s+\.\s*|\.\s+)\p{N}`,
+  'u',
+);
 /**
  * `1.000 mg` may be a European thousands separator (1000) or a decimal (1).
  * A leading zero (`0.125 mg`) cannot be a thousands group, so it stays a decimal.
@@ -56,16 +78,19 @@ const COUNT_WORD =
 const VITAMIN_NAME = /(?<![\p{L}\p{N}])(?:b(?:1|2|3|5|6|7|9|12)|d2|d3|k1|k2)(?![\p{L}\p{N}])/giu;
 /**
  * Words that may follow an allowlisted match: the count words plus the
- * connectors `plus` and `and`. Any other word, `%` or `‰` counts as unit-like.
+ * connectors `plus` and `and`. Any other word, symbol, `%` or `‰` counts as
+ * unit-like.
  */
 const FOLLOWER_WORD =
   /^(?:tablets?|capsules?|caplets?|sachets?|each|x|forte|plus|and)(?![\p{L}\p{N}])/iu;
 /**
  * Characters skipped while looking for what follows a match. Digits, letters,
- * `%`, `‰` and the strength marker stop the scan.
+ * symbols (`℥`, `$`), `%`, `‰` and the strength marker stop the scan.
  */
-const FOLLOWER_SKIP = /^[^\p{L}\p{N}%‰\uE000]*/u;
-const UNIT_LIKE_START = /^[\p{L}%‰]/u;
+const FOLLOWER_SKIP = /^[^\p{L}\p{N}\p{So}\p{Sc}%‰\uE000]*/u;
+const UNIT_LIKE_START = /^[\p{L}\p{So}\p{Sc}%‰]/u;
+/** A slash after an allowlisted match (`10 tablets/2 mg`) is a ratio we do not read. */
+const SLASH_LIKE = /[/\\⁄∕]/u;
 /** Private-use character that marks where a recognised strength was blanked out. */
 const STRENGTH_MARK = '\uE000';
 
@@ -89,14 +114,17 @@ const blank = (match: string) => ' '.repeat(match.length);
 
 /**
  * True when the text after `from` starts (past spaces and punctuation, and
- * past any chain of allowed follower words) with a letter, `%` or `‰`, i.e.
- * something that could be the unit of the number just before it. A digit, a
- * blanked strength or the end of the string is safe.
+ * past any chain of allowed follower words) with a letter, a symbol, `%` or
+ * `‰`, i.e. something that could be the unit of the number just before it,
+ * or when a slash is skipped on the way. A digit, a blanked strength or the
+ * end of the string is safe.
  */
 function followedByUnitLikeText(s: string, from: number): boolean {
   let i = from;
   for (;;) {
-    i += FOLLOWER_SKIP.exec(s.slice(i))?.[0].length ?? 0;
+    const skipped = FOLLOWER_SKIP.exec(s.slice(i))?.[0] ?? '';
+    if (SLASH_LIKE.test(skipped)) return true;
+    i += skipped.length;
     const rest = s.slice(i);
     if (!UNIT_LIKE_START.test(rest)) return false;
     const word = FOLLOWER_WORD.exec(rest);
@@ -140,6 +168,9 @@ export function parseStrength(s: string): Strength[] | null {
   text = text.replace(COMMA_NUMBER, (token) =>
     THOUSANDS.test(token) ? token.replace(/,/g, '') : token,
   );
+  // A number split by punctuation (`2 x 0,5 mg`, `10x1/2 mg`, `B12,5 mg`)
+  // would otherwise have its tail read as the strength, a wrong amount.
+  if (JOINED_NUMBERS.test(text)) return null;
 
   const out: Strength[] = [];
   let residual = text;

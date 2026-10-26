@@ -271,6 +271,103 @@ describe('parseStrength', () => {
     });
   });
 
+  describe('punctuation-joined numbers fail closed', () => {
+    // Each input joins two numbers with punctuation that is neither a decimal
+    // point nor a valid thousands comma. Reading only the tail would report
+    // the misread amount on the right, so the whole parse must be null.
+    test.each([
+      // Decimal comma and other decimal marks next to a pack grid or count.
+      ['Drug 2 x 0,5 mg', '5 mg'],
+      ['2x0,5 mg', '5 mg'],
+      ['10x0,5 mg', '5 mg'],
+      ['10x2,5 mg', '5 mg'],
+      ['1 x 2,5 mg', '5 mg'],
+      ['10x0٫5 mg', '5 mg'],
+      ['10x0·5 mg', '5 mg'],
+      ['2 x 0 , 5 mg', '5 mg'],
+      ['10 x 1 . 5 mg', '5 mg'],
+      // Fractions and ranges.
+      ['Drug 10x1/2 mg', '2 mg'],
+      ['10x½ mg', '2 mg'],
+      ['½ mg', '2 mg'],
+      ['10x⅓ mg', '3 mg'],
+      ['10x1⁄2 mg', '2 mg'],
+      ['10x1-2 mg', '2 mg'],
+      ['10x1–2 mg', '2 mg'],
+      ['10x1—2 mg', '2 mg'],
+      ['10 x 1 / 2 mg', '2 mg'],
+      // Vitamin names joined to a number.
+      ['Drug B12,5 mg', '5 mg'],
+      ['Drug D3:5 mg', '5 mg'],
+      ['Drug B12/5 mg', '5 mg'],
+      ["Drug B1'2 mg", '2 mg'],
+      ['Drug D3_5 mg', '5 mg'],
+      // Other joiners between plain numbers.
+      ["1'000 mg", '000 mg'],
+      ['500 mg + 10:5 mg', '500 mg + 5 mg'],
+      ['500 mg + 10_5 mg', '500 mg + 5 mg'],
+      // A slash after an allowlisted count word is a ratio we do not understand.
+      ['Drug 10 tablets/2 mg', '2 mg'],
+      ['Drug 10 x 10 tablets / 2 mg', '2 mg'],
+      // A thousands group cannot start with 0: these are decimal commas.
+      ['0,500 mg', '500 mg'],
+      ['0,125 mg', '125 mg'],
+      ['2 x 0,500 mg', '500 mg'],
+      // A symbol after an allowlisted match is unit-like.
+      ['500 mg + 10 x 10 ℥', '500 mg'],
+      ['500 mg + 10 tablets ℔', '500 mg'],
+      ['500 mg + 2 x $', '500 mg'],
+    ])('%s -> null (never equal to %s)', (input, misread) => {
+      const parsed = parseStrength(input);
+      expect(parsed).toBeNull();
+      expect(strengthsEqual(parsed, parseStrength(misread))).toBe(false);
+    });
+
+    test.each([
+      ['0.5 mg', [{ amount: 0.5, unit: 'mg' }]],
+      ['0.125 mg', [{ amount: 0.125, unit: 'mg' }]],
+      ['2.5 mg', [{ amount: 2.5, unit: 'mg' }]],
+      ['1,000 mg', [{ amount: 1000, unit: 'mg' }]],
+      ['12,500 IU', [{ amount: 12500, unit: 'IU' }]],
+      ['Paracetamol 500 mg 10 tablets', [{ amount: 500, unit: 'mg' }]],
+      ['250 mg/5 mL', [{ amount: 250, unit: 'mg', per: { amount: 5, unit: 'mL' } }]],
+      ['B12 500 mcg', [{ amount: 500, unit: 'mcg' }]],
+      [
+        'Vitamin D3 1000 IU + 500 mg',
+        [
+          { amount: 1000, unit: 'IU' },
+          { amount: 500, unit: 'mg' },
+        ],
+      ],
+      ['10 x 10 tablets 500 mg', [{ amount: 500, unit: 'mg' }]],
+      ['500 mg 10 x 10 tablets', [{ amount: 500, unit: 'mg' }]],
+      [
+        'Paracetamol 500 mg + Caffeine 65 mg',
+        [
+          { amount: 500, unit: 'mg' },
+          { amount: 65, unit: 'mg' },
+        ],
+      ],
+      [
+        'Co-Amoxiclav 500mg/125mg',
+        [
+          { amount: 500, unit: 'mg' },
+          { amount: 125, unit: 'mg' },
+        ],
+      ],
+      ['2 x 0.5 mg', [{ amount: 0.5, unit: 'mg' }]],
+      ['Paracetamol 500 mg, 10 x 10 tablets', [{ amount: 500, unit: 'mg' }]],
+    ])('still parses: %s', (input, expected) => {
+      expect(parseStrength(input)).toEqual(expected);
+    });
+
+    test('500 mg per 5 mL still equals 500 mg/5 mL', () => {
+      expect(strengthsEqual(parseStrength('500 mg per 5 mL'), parseStrength('500 mg/5 mL'))).toBe(
+        true,
+      );
+    });
+  });
+
   describe('spelled-out units', () => {
     test.each([
       ['10 micrograms', [{ amount: 10, unit: 'mcg' }]],
