@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  AdvisorySchema,
   AnalysisResultSchema,
   AnswerSchema,
   DemoScenarioRequestSchema,
@@ -175,6 +176,22 @@ describe('match', () => {
       advisories: [{ title: 'Counterfeit advisory', url: 'https://www.fda.gov.ph/advisory' }],
     };
     expect(MatchAssessmentSchema.safeParse(conflicting).success).toBe(true);
+  });
+
+  const dangerousUrls = ['javascript:alert(1)', 'intent://x#Intent;end', 'file:///etc/passwd'];
+
+  test.each(dangerousUrls)('ReferenceRecord.sourceUrl rejects %s', (url) => {
+    expect(ReferenceRecordSchema.safeParse({ ...reference, sourceUrl: url }).success).toBe(false);
+  });
+
+  test.each(dangerousUrls)('Advisory.url rejects %s', (url) => {
+    expect(AdvisorySchema.safeParse({ title: 'Advisory', url }).success).toBe(false);
+  });
+
+  test('ReferenceRecord.sourceUrl and Advisory.url accept https', () => {
+    const url = 'https://www.fda.gov.ph/advisory';
+    expect(ReferenceRecordSchema.safeParse({ ...reference, sourceUrl: url }).success).toBe(true);
+    expect(AdvisorySchema.safeParse({ title: 'Advisory', url }).success).toBe(true);
   });
 });
 

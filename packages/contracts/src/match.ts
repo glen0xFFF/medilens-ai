@@ -8,7 +8,7 @@ import { FieldKeySchema } from './label';
  */
 export const ReferenceRecordSchema = z.object({
   provider: z.string(),
-  sourceUrl: z.url(),
+  sourceUrl: z.httpUrl(),
   registrationNumber: z.string(),
   brandName: z.string().nullable(),
   genericName: z.string().nullable(),
@@ -41,7 +41,7 @@ export type FieldConflict = z.infer<typeof FieldConflictSchema>;
 /** Registry advisory; reported alongside the status, never folded into it. */
 export const AdvisorySchema = z.object({
   title: z.string(),
-  url: z.url(),
+  url: z.httpUrl(),
 });
 export type Advisory = z.infer<typeof AdvisorySchema>;
 
