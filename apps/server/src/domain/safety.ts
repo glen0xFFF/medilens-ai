@@ -184,6 +184,13 @@ const REFUSALS: readonly [RefusalReason, readonly RegExp[]][] = [
   ],
 ];
 
+/** Who consumed it: someone other than the asker, or nobody named. */
+const CONSUMER = String.raw`(?:he|she|they|we|you|someone|somebody|anyone|my \w+|his \w+|her \w+|their \w+|the \w+)`;
+/** A past-tense consumption verb; photo and purchase verbs are not consumption. */
+const CONSUMED_VERB = String.raw`(?!(?:printed|photographed|scanned|checked|opened|bought|purchased|found|received|read|showed|shown|uploaded|sent|stored|kept|labeled|labelled|listed|marked|stamped|attached|included|supplied|manufactured|packed|packaged|registered|verified|expired|dated|needed|wanted|dropped|lost|threw|saw|got|left|placed|stated|said|mentioned|called|named|asked|answered|explained)\b)(?:\w+ed|took|ate|drank|downed|swallowed|had)`;
+/** What was consumed: a pronoun, "all", or a container or dosage form. */
+const CONSUMED_OBJECT = String.raw`(?:it|them|all|everything|(?:all of |all the |half the |the rest of the |the whole |the entire |the |a |an |my |his |her |their )+(?:\w+ )?(?:lot|bottles?|packs?|box(?:es)?|strips?|blisters?|packets?|jars?|tubs?|sachets?|syrups?|tablets?|pills?|capsules?|caplets?|tabs|caps|doses?|medicines?|meds|liquid|suspension|drops|spoonfuls?|teaspoons?|contents))\b`;
+
 /**
  * Structural gate, checked after the named refusal lists (review round 4).
  * Instead of listing dosing phrasings one at a time, any question carrying a
@@ -224,15 +231,46 @@ const QUANTITY_TOKENS: readonly RegExp[] = [
   /\b(?:doubl|tripl|quadrupl)(?:e|es|ed|ing)\b(?![ -]check)/,
   // first-person consumption of a whole container with any verb ("i chugged the bottle")
   /\bi (?!(?:opened|bought|purchased|photographed|scanned|checked|found|received|got|have|see|saw|read|want|need|hold|held|keep|kept|lost|dropped|threw|open|am)\b)\w+(?: down| through| off)? (?:the |a |an |my |all |all of |half |half of )*(?:whole |entire |full |rest of the )?(?:bottle|pack|box|strip|blister|packet|jar|tub|sachets?)\b/,
+  // review round 5 (c): past-tense consumption with a third-person subject or
+  // none ("he gobbled the bottle", "chugged it", "downed the lot")
+  new RegExp(
+    String.raw`(?:^|\b${CONSUMER} )${CONSUMED_VERB}(?: down| through| off| back)? ${CONSUMED_OBJECT}`,
+  ),
+  // review round 5 (b): glued counts and clinical abbreviations
+  // ("2x", "2tabs", "every 4h", "x2", "q6h", "bid", "prn")
+  /\b\d+(?:\.\d+)? ?(?:x|tabs?|caps?|h|hrs?|pcs?)\b/,
+  /(?<![\w-])x ?\d+\b/,
+  /\bq ?\d+ ?(?:h|hrs?|hours?)\b/,
+  /\b(?:bid|tid|qid|prn|qds|tds|qhs)\b/,
+  // administration and timing: "a quarter?", "dissolve it?", "with food?", "before sleep?"
+  /\bquarters?\b/,
+  /\b(?:dissolv|sprinkl)\w*/,
+  /\bopen\w*\b.*\b(?:capsules?|caps)\b|\b(?:capsules?|caps)\b.*\bopen\w*/,
+  /\bempty stomach\b/,
+  /\bwith (?:food|meals?|a meal|milk|water|juice)\b/,
+  /\b(?:before|after) (?:eating|meals?|food|sleep\w*|bed|breakfast|lunch|dinner|supper)\b/,
+  // duration and continuation: "for how long?", "a week?", "continue?", "keep going?"
+  /\bfor how long\b/,
+  /\bhow long (?:should|can|must|do|to)\b/,
+  /\b(?:a|one|per|each|for a|whole|entire) (?:weeks?|months?|fortnights?)\b/,
+  /\bcontinu\w*/,
+  /\b(?:keep|kept|keeps) (?:going|on)\b|\bcarry on\b/,
+  // measures and schedules: "a spoonful?", "alternate days?", "monthly?"
+  /\b(?:spoon\w*|teaspoon\w*|tablespoon\w*|tsp|tbsp|capful\w*|cupful\w*|dropper\w*)\b/,
+  /\b(?:monthly|alternate|every other)\b/,
+  // the whole question is an amount: "5ml?", "10 mg?"
+  /^\d+(?:\.\d+)? ?(?:ml|cc|mg|mcg|g)\W*$/,
 ];
 
 /**
- * A first-person subject makes the question about the asker's own use. Such a
- * question refuses by default, whatever its verb ("could i up it?", "can my
- * body handle it?", "is it strong enough for me?"); only the explicit
- * label-reading and request forms below let it through.
+ * A personal subject (first person, third person or a caregiver's charge)
+ * makes the question about someone's own use. Such a question refuses by
+ * default, whatever its verb ("could i up it?", "can my body handle it?", "is
+ * it strong enough for her?"); only the explicit label-reading and request
+ * forms below let it through.
  */
-const PERSONAL_SUBJECT = /\b(?:i|me|my|myself|mine|im|ive|id|we|us|our)\b/;
+const PERSONAL_SUBJECT =
+  /\b(?:i|me|my|myself|mine|im|ive|id|we|us|our|he|she|they|him|her|them|his|their|someone|somebody|kids?|child|baby|son|daughter)\b/;
 /** Suitability words: with a first-person subject these refuse even inside a label-reading form. */
 const SUITABILITY =
   /\b(?:works?|working|worked|good|better|best|bad|worse|safe|safer|appropriate|meant|suitable|helps?|need|needs|enough|handle)\b|\bright\b(?! (?:side|corner|edge|hand|part|panel|of)\b)/;
@@ -248,6 +286,7 @@ const LABEL_READING: readonly RegExp[] = [
   /\b(?:can|could|would|will|please) (?:you )?read\b/,
   /\bread (?:me |out |aloud |back )?(?:the|this|that|what|it)\b/,
   /\b(?:printed|written) (?:on|in|about)\b/,
+  /\baccording to the (?:label|pack|box|directions|instructions|leaflet)\b/,
 ];
 /** Request and photo forms that carry a first-person word but ask nothing about use. */
 const REQUEST_FORMS: readonly RegExp[] = [
@@ -257,14 +296,81 @@ const REQUEST_FORMS: readonly RegExp[] = [
   /\bi (?:took|sent|uploaded|scanned|have) (?:a|the|this|another|my) (?:photos?|pictures?|pics?|images?|scans?)\b/,
 ];
 
+/**
+ * Review round 5 (a): talk of a dose or of changing one ("up the dose?",
+ * "redose?", "repeat?", "skipped a dose") refuses as personal_dose unless the
+ * question is an explicit label-reading form ("what does the label say about
+ * the dose?").
+ */
+const DOSE_TALK: readonly RegExp[] = [
+  // a dose lexeme, but not the label term "dosage form"
+  /\b(?:dose|doses|dosage|dosages|dosing|redos\w*|re-dos\w*|overdos\w*)\b(?! forms?\b)/,
+  /\b(?:increas\w*|rais(?:e|es|ed|ing)|reduc\w*|repeated|repeating|repeats|retak\w*|retook|re-tak\w*|skip\w*|missed)\b/,
+  // "repeat", but not "can you repeat that?" / "please repeat the warning"
+  /(?<!\b(?:you|please) )\brepeat\b(?! (?:that|this|what|it back|the (?:last|warnings?|directions|label|text|name|answer))\b)/,
+  /\btop(?:s|ped|ping)? (?:it |them |me |him |her )?up\b/,
+  /\b(?:lessen\w*|halv\w*|less|fewer|decreas\w*|cut (?:back|down))\b/,
+  // comparatives, but not "the lower half" / "bigger text"
+  /\b(?:bigger|higher|stronger|lower|larger|smaller|weaker)\b(?! (?:half|part|side|corner|edge|line|section|panel|left|right|text|font|print|letters|photo|picture|image)\b)/,
+  // "up" as a verb ("up the dose?", "could i up it?"), but not "look it up" / "up to date"
+  /(?<!\b(?:look|looks|looking|looked|pick|picked|show|shows|showed|come|comes|came|set|sum|speak|turn|turned|bring|open|opened|end|ended|it|them|that|this|pull|pulled|make|made|mix|mixed|mess|messed|zoom|zoomed|scroll|scrolled|line|lined|fill|filled|follow|followed|shake|shook|wake|woke|get|got|catch|hold|held|speed|back|move|moved|go|goes|went|scan|scanned) )\bup\b(?! to date\b)/,
+];
+
+/** Asking for advice or what the assistant itself would do; checked on every question. */
+const ADVICE_REQUEST: readonly RegExp[] = [
+  /\b(?:is|are) (?:this|it|these|they) (?:\w+ )?for (?:me|us)\b/,
+  /\b(?:recommend|advise|advice|suggest)\w*/,
+  // review round 5 (d): "would you take this?", "what would you do?", "if you were me?"
+  /\b(?:would|should|will|did|could) you (?:take|use|give|do|try|buy|choose|pick)\b/,
+  /\bif you were (?:me|him|her|them|us)\b/,
+  /\bought\b/,
+  // use after expiry or over time: "still good after expiry?", "still ok?"
+  /\bstill (?:ok|okay|good|fine|safe|usable|alright|effective|work\w*)\b/,
+];
+
+/** Words that make a question about the pack, the photo or the registry, not about use. */
+const LABEL_NOUN =
+  /\b(?:label|labels|pack|packs|box|text|printed|written|print|say|says|said|mean|means|meaning|photo|picture|image|font|letters|fda|registry|registered|registration|brand|name|generic|expiry|expir\w*|manufacturer|batch|lot)\b/;
+/** Elliptical timing with no label noun: "take it now?", "today?", "right away?". */
+const TIMING =
+  /\b(?:food|meals?|stomach|now|later|today|tomorrow|yesterday|right away|immediately|asap|overnight|soon)\b/;
+/**
+ * A medicine-use verb outside a label-reading form asks how or whether to use
+ * it ("chug it?", "eat first?", "can a dog have it?"), whoever the subject.
+ * "used" is left out so "what is it used for?" stays a label question.
+ */
+const ANY_USE_VERB =
+  /\b(?:take|takes|taking|took|use|uses|using|drink|drinks|drinking|swallow\w*|chew\w*|chug\w*|gulp\w*|eat|eats|eating|give|gives|giving|apply|applying)\b(?! (?:me|us)\b)|\bhave (?:it|this|one|these|them|some|more|another)\b/;
+/** Suitability, comparison and effect words with no label noun: "strong enough?", "which is better?". */
+const SUITABILITY_WORD =
+  /\b(?:strong|stronger|effective|effectiveness|worth|works?|good|better|best|bad|worse|kick in|pets?|dogs?|cats?|animals?|driv\w*|machinery)\b/;
+/**
+ * Review round 5 (d): yes/no suitability with no subject ("will this work?",
+ * "is it enough?", "too strong?"). Refuses only when no label noun is present.
+ */
+const SUITABILITY_QUESTION: readonly RegExp[] = [
+  /\b(?:will|would|does|do|did|is|are|was|can|could|should|might|may) (?:this|it|these|they|that)(?: (?:really|still|even|actually|definitely))? (?:work|works|help|helps|right|the right \w+|enough|ok|okay|fine|alright|safe|effective|good|strong enough|necessary|needed|too \w+)\b/,
+  /\btoo \w+/,
+  // the whole question is a verdict word: "ok?", "fine?", "is it safe?"
+  /^(?:(?:is|are) (?:it|this|that|they) )?(?:ok|okay|fine|alright|good|bad|safe|right|enough)\W*$/,
+  // "is it for headaches?", but not "what is it for?"
+  /\b(?:is|are) (?:this|it|these|they|that) (?:\w+ )?for (?!what\b)\w+/,
+];
+
 function structuralRefusal(text: string): RefusalReason | null {
   if (QUANTITY_TOKENS.some((p) => p.test(text))) return 'personal_dose';
-  if (/\b(?:is|are) (?:this|it|these|they) (?:\w+ )?for (?:me|us)\b/.test(text))
-    return 'personal_safety';
-  if (/\b(?:recommend|advise|advice|suggest)\w*/.test(text)) return 'personal_safety';
+  if (ADVICE_REQUEST.some((p) => p.test(text))) return 'personal_safety';
+  const labelReading = LABEL_READING.some((p) => p.test(text));
+  if (!labelReading && DOSE_TALK.some((p) => p.test(text))) return 'personal_dose';
+  if (!LABEL_NOUN.test(text)) {
+    if (TIMING.test(text)) return 'personal_dose';
+    if (SUITABILITY_QUESTION.some((p) => p.test(text)) || SUITABILITY_WORD.test(text))
+      return 'personal_safety';
+  }
+  if (!labelReading && ANY_USE_VERB.test(text)) return 'personal_safety';
   if (!PERSONAL_SUBJECT.test(text)) return null;
   if (SUITABILITY.test(text) || MODAL_SUBJECT.test(text)) return 'personal_safety';
-  if (LABEL_READING.some((p) => p.test(text))) return null;
+  if (labelReading) return null;
   if (!USE_VERB.test(text) && REQUEST_FORMS.some((p) => p.test(text))) return null;
   return 'personal_safety';
 }
