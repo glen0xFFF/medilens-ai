@@ -1,0 +1,7 @@
+.superpowers/
+node_modules/
+.env
+dist/
+coverage/
+eval/packs/
+.expo/
