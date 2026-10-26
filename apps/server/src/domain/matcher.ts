@@ -14,6 +14,9 @@ import type {
 } from '@medilens/contracts';
 import type { ReferenceSearchResult } from '../providers/types';
 import {
+  DOSAGE_FORM_MODIFIERS,
+  DOSAGE_FORM_WORDS,
+  DROPS_QUALIFIERS,
   normalizeName,
   normalizeRegistrationNumber,
   parseStrength,
@@ -23,6 +26,7 @@ import {
 const EXPIRY_NOTE = "Registration expiry is not the product's expiry date.";
 const UNAVAILABLE_NOTE = 'Registry lookup unavailable; nothing was verified.';
 const NOT_ATTEMPTED_NOTE = 'Registry lookup was not attempted.';
+const REG_NOT_FOUND_NOTE = 'The registration number on the pack was not found in the registry.';
 
 /** The label fields the matcher compares, in the order they are reported. */
 const COMPARED: readonly FieldKey[] = [
@@ -43,6 +47,8 @@ interface Evaluation {
   score: number;
   /** Brand or generic name matched (rule 5). */
   nameMatched: boolean;
+  /** A stated dosage form could not be confirmed; at most `partial`. */
+  formBlocksVerified: boolean;
 }
 
 /**
@@ -107,60 +113,107 @@ function compareStrength(labelValue: string, strengthForm: string): Outcome {
   return strengthsEqual(a, b) ? 'matched' : 'conflict';
 }
 
-/** Recognised dosage-form words and their canonical form. `film-coated` alone names no form. */
-const FORM_WORDS: Record<string, string> = {
-  tablet: 'tablet',
-  tablets: 'tablet',
-  capsule: 'capsule',
-  capsules: 'capsule',
-  caplet: 'caplet',
-  caplets: 'caplet',
-  syrup: 'syrup',
-  suspension: 'suspension',
-  cream: 'cream',
-  ointment: 'ointment',
-  drops: 'drops',
-  solution: 'solution',
-  injection: 'injection',
-};
+/** Strength words skipped when looking for form text in `500 mg/5 mL Suspension`. */
+const STRENGTH_WORDS = new Set([
+  'mg',
+  'mcg',
+  'μg',
+  'ug',
+  'g',
+  'gram',
+  'grams',
+  'milligram',
+  'milligrams',
+  'microgram',
+  'micrograms',
+  'ml',
+  'l',
+  'iu',
+  'per',
+  'x',
+]);
 
-function formSet(s: string): Set<string> {
+interface FormReading {
+  /** Canonical forms named, e.g. `tablet`, `eye drops`. */
+  forms: Set<string>;
+  /** Some word is neither a form word, a modifier nor part of the strength. */
+  unrecognised: boolean;
+}
+
+/**
+ * Reads the form words in free text using the shared vocabulary in
+ * parsers.ts. Returns null when the text holds no form text at all (only
+ * numbers and strength units, such as `500 mg`).
+ */
+function readForm(text: string): FormReading | null {
+  const words = text
+    .normalize('NFKC')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}-]+/u)
+    .filter((w) => /\p{L}/u.test(w) && !/\p{N}/u.test(w) && !STRENGTH_WORDS.has(w));
+  if (words.length === 0) return null;
   const forms = new Set<string>();
-  for (const word of s.toLowerCase().split(/[^\p{L}-]+/u)) {
-    const form = FORM_WORDS[word];
-    if (form !== undefined) forms.add(form);
+  let unrecognised = false;
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i] ?? '';
+    if (DOSAGE_FORM_MODIFIERS.has(word)) continue;
+    const next = words[i + 1];
+    if (DROPS_QUALIFIERS.has(word) && next !== undefined && formOf(next) === 'drops') {
+      forms.add(`${word} drops`);
+      i++;
+      continue;
+    }
+    const form = formOf(word);
+    if (form === undefined) unrecognised = true;
+    else forms.add(form);
   }
-  return forms;
+  return { forms, unrecognised };
 }
 
-/** Spec rule 3: a side with no recognisable form word leaves the form `missing`. */
-function compareDosageForm(labelValue: string, strengthForm: string): Outcome {
-  const a = formSet(labelValue);
-  const b = formSet(strengthForm);
-  if (a.size === 0 || b.size === 0) return 'missing';
-  return setsEqual(a, b) ? 'matched' : 'conflict';
+const formOf = (word: string): string | undefined =>
+  Object.hasOwn(DOSAGE_FORM_WORDS, word) ? DOSAGE_FORM_WORDS[word] : undefined;
+
+interface FormComparison {
+  outcome: Outcome;
+  /** The form could not be confirmed although it was stated, so `verified` is out of reach. */
+  blocksVerified: boolean;
 }
 
-/** The record's original text that a label field is compared against. */
-function referenceText(record: ReferenceRecord, key: FieldKey): string | null {
-  switch (key) {
-    case 'brandName':
-      return record.brandName;
-    case 'genericNames':
-      return record.genericName;
-    case 'strength':
-    case 'dosageForm':
-      return record.strengthForm;
-    default:
-      return null;
+/**
+ * Dosage form, label `dosageForm` against the form text in `strengthForm`.
+ * - Both sides name recognised forms and the forms differ: conflict.
+ * - The registry text has no form text at all, or the label states no form:
+ *   `missing`, and `verified` stays reachable (spec rule 3).
+ * - Any other doubt (an unclear label value, a word we do not recognise such
+ *   as `Effervescent` or `Pessary`): `missing`, capped at `partial`.
+ */
+function compareDosageForm(label: ExtractedLabel, record: ReferenceRecord): FormComparison {
+  const stated = label.fields.some(
+    (f) => f.key === 'dosageForm' && f.value !== null && f.value.trim() !== '',
+  );
+  if (!stated) return { outcome: 'missing', blocksVerified: false };
+  const ref = record.strengthForm === null ? null : readForm(record.strengthForm);
+  if (ref === null) return { outcome: 'missing', blocksVerified: false };
+  const labelValue = clearValue(label, 'dosageForm');
+  const lab = labelValue === null ? null : readForm(labelValue);
+  if (lab === null) return { outcome: 'missing', blocksVerified: true };
+  if (lab.forms.size > 0 && ref.forms.size > 0 && !setsEqual(lab.forms, ref.forms)) {
+    return { outcome: 'conflict', blocksVerified: true };
   }
+  if (lab.unrecognised || ref.unrecognised || lab.forms.size === 0 || ref.forms.size === 0) {
+    return { outcome: 'missing', blocksVerified: true };
+  }
+  return { outcome: 'matched', blocksVerified: false };
 }
 
-const COMPARATORS: readonly [FieldKey, (labelValue: string, ref: string) => Outcome][] = [
-  ['brandName', compareBrand],
-  ['genericNames', compareGeneric],
-  ['strength', compareStrength],
-  ['dosageForm', compareDosageForm],
+const COMPARATORS: readonly [
+  FieldKey,
+  (record: ReferenceRecord) => string | null,
+  (labelValue: string, ref: string) => Outcome,
+][] = [
+  ['brandName', (r) => r.brandName, compareBrand],
+  ['genericNames', (r) => r.genericName, compareGeneric],
+  ['strength', (r) => r.strengthForm, compareStrength],
 ];
 
 function evaluate(
@@ -173,19 +226,36 @@ function evaluate(
   // Rule 2 compares only brand, generic, strength and form; the registration
   // number counts only when rule 1 selected the record by it.
   outcomes.set('registrationNumber', registrationMatched ? 'matched' : 'missing');
-  for (const [key, compare] of COMPARATORS) {
+  for (const [key, referenceText, compare] of COMPARATORS) {
     const labelValue = clearValue(label, key);
-    const ref = referenceText(record, key);
+    const ref = referenceText(record);
     const outcome = labelValue === null || ref === null ? 'missing' : compare(labelValue, ref);
     outcomes.set(key, outcome);
     if (outcome === 'conflict' && labelValue !== null && ref !== null) {
       conflicts.push({ key, labelValue, referenceValue: ref });
     }
   }
+  const form = compareDosageForm(label, record);
+  outcomes.set('dosageForm', form.outcome);
+  const labelForm = clearValue(label, 'dosageForm');
+  if (form.outcome === 'conflict' && labelForm !== null && record.strengthForm !== null) {
+    conflicts.push({
+      key: 'dosageForm',
+      labelValue: labelForm,
+      referenceValue: record.strengthForm,
+    });
+  }
   const score = [...outcomes.values()].filter((o) => o === 'matched').length;
   const nameMatched =
     outcomes.get('brandName') === 'matched' || outcomes.get('genericNames') === 'matched';
-  return { record, outcomes, conflicts, score, nameMatched };
+  return {
+    record,
+    outcomes,
+    conflicts,
+    score,
+    nameMatched,
+    formBlocksVerified: form.blocksVerified,
+  };
 }
 
 const is = (e: Evaluation, key: FieldKey, outcome: Outcome) => e.outcomes.get(key) === outcome;
@@ -194,6 +264,7 @@ const is = (e: Evaluation, key: FieldKey, outcome: Outcome) => e.outcomes.get(ke
 function isVerified(e: Evaluation): boolean {
   return (
     e.conflicts.length === 0 &&
+    !e.formBlocksVerified &&
     is(e, 'registrationNumber', 'matched') &&
     is(e, 'brandName', 'matched') &&
     is(e, 'strength', 'matched')
@@ -221,8 +292,46 @@ function bestOf(evaluations: Evaluation[]): Evaluation[] {
   return evaluations.filter((e) => e.score === top);
 }
 
-function withRecords(base: Omit<MatchAssessment, 'limitations'>): MatchAssessment {
-  return { ...base, limitations: base.candidates.length > 0 ? [EXPIRY_NOTE] : [] };
+function withNotes(
+  base: Omit<MatchAssessment, 'limitations'>,
+  notes: readonly string[],
+): MatchAssessment {
+  const expiry = base.candidates.length > 0 ? [EXPIRY_NOTE] : [];
+  return { ...base, limitations: [...expiry, ...notes] };
+}
+
+/**
+ * A `conflicting` result over one or more records: every conflict is listed
+ * (identical entries once), and a field counts as matched only if it matched
+ * on every listed record.
+ */
+function conflictResult(
+  evaluations: Evaluation[],
+  advisories: MatchAssessment['advisories'],
+  notes: readonly string[],
+): MatchAssessment {
+  const conflicting: FieldConflict[] = [];
+  for (const c of evaluations.flatMap((e) => e.conflicts)) {
+    const seen = conflicting.some(
+      (x) =>
+        x.key === c.key && x.labelValue === c.labelValue && x.referenceValue === c.referenceValue,
+    );
+    if (!seen) conflicting.push(c);
+  }
+  const matched = COMPARED.filter((k) => evaluations.every((e) => is(e, k, 'matched')));
+  return withNotes(
+    {
+      status: 'conflicting',
+      matched,
+      conflicting,
+      missing: COMPARED.filter(
+        (k) => !matched.includes(k) && !conflicting.some((c) => c.key === k),
+      ),
+      candidates: evaluations.map((e) => e.record),
+      advisories,
+    },
+    notes,
+  );
 }
 
 export function assessMatch(label: ExtractedLabel, search: ReferenceSearchResult): MatchAssessment {
@@ -244,9 +353,16 @@ export function assessMatch(label: ExtractedLabel, search: ReferenceSearchResult
       : search.records.filter((r) => normalizeRegistrationNumber(r.registrationNumber) === reg);
 
   let relevant: Evaluation[];
+  let notes: string[] = [];
   if (byReg.length > 0) {
     relevant = byReg.map((r) => evaluate(label, r, true));
+    // Rule 6 on the rule 1 path: every record under this number speaks for
+    // the pack, so a conflict on any of them is never outweighed by a fit.
+    const conflicted = relevant.filter((e) => e.conflicts.length > 0);
+    if (conflicted.length > 0) return conflictResult(conflicted, advisories, notes);
   } else {
+    // A clear number on the pack that the registry does not hold is worth saying.
+    if (labelReg !== null) notes = [REG_NOT_FOUND_NOTE];
     // Rule 2: a name search can return other products. A record is about this
     // label only if its brand or generic matches; a record whose brand
     // disagrees is a different product, not a conflict.
@@ -254,8 +370,8 @@ export function assessMatch(label: ExtractedLabel, search: ReferenceSearchResult
       .map((r) => evaluate(label, r, false))
       .filter((e) => e.nameMatched && !is(e, 'brandName', 'conflict'));
   }
-  // In the rule 1 path a record with no name match can still conflict.
   const fitting = relevant.filter((e) => e.nameMatched && e.conflicts.length === 0);
+  // Only reachable on the rule 2 path, where a fit may outrank a conflict.
   const conflicting = relevant.filter((e) => e.conflicts.length > 0);
 
   if (fitting.length > 0) {
@@ -264,50 +380,48 @@ export function assessMatch(label: ExtractedLabel, search: ReferenceSearchResult
     // outrank a conflicting record (rule 6).
     if (best.length > 1 && (conflicting.length === 0 || best.some(isPartial))) {
       const shared = COMPARED.filter((k) => best.every((e) => is(e, k, 'matched')));
-      return withRecords({
-        status: 'ambiguous',
-        matched: shared,
-        conflicting: [],
-        missing: COMPARED.filter((k) => !shared.includes(k)),
-        candidates: best.map((e) => e.record),
-        advisories,
-      });
+      return withNotes(
+        {
+          status: 'ambiguous',
+          matched: shared,
+          conflicting: [],
+          missing: COMPARED.filter((k) => !shared.includes(k)),
+          candidates: best.map((e) => e.record),
+          advisories,
+        },
+        notes,
+      );
     }
     const [chosen] = best;
     if (best.length === 1 && chosen !== undefined && isPartial(chosen)) {
-      return withRecords({
-        status: isVerified(chosen) ? 'verified' : 'partial',
-        matched: keysWith(chosen, 'matched'),
-        conflicting: [],
-        missing: keysWith(chosen, 'missing'),
-        candidates: [chosen.record],
-        advisories,
-      });
+      return withNotes(
+        {
+          status: isVerified(chosen) ? 'verified' : 'partial',
+          matched: keysWith(chosen, 'matched'),
+          conflicting: [],
+          missing: keysWith(chosen, 'missing'),
+          candidates: [chosen.record],
+          advisories,
+        },
+        notes,
+      );
     }
   }
 
   // Rule 6: with no record that positively fits, a conflict outranks no_match.
-  if (conflicting.length > 0) {
-    const [chosen] = bestOf(conflicting);
-    if (chosen !== undefined) {
-      return withRecords({
-        status: 'conflicting',
-        matched: keysWith(chosen, 'matched'),
-        conflicting: chosen.conflicts,
-        missing: keysWith(chosen, 'missing'),
-        candidates: [chosen.record],
-        advisories,
-      });
-    }
-  }
+  const [worst] = conflicting.length > 0 ? bestOf(conflicting) : [];
+  if (worst !== undefined) return conflictResult([worst], advisories, notes);
 
   // Rule 8. `missing` lists the compared fields the label itself could not supply.
-  return withRecords({
-    status: 'no_match',
-    matched: [],
-    conflicting: [],
-    missing: COMPARED.filter((k) => clearValue(label, k) === null),
-    candidates: [],
-    advisories,
-  });
+  return withNotes(
+    {
+      status: 'no_match',
+      matched: [],
+      conflicting: [],
+      missing: COMPARED.filter((k) => clearValue(label, k) === null),
+      candidates: [],
+      advisories,
+    },
+    notes,
+  );
 }

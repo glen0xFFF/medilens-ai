@@ -44,22 +44,54 @@ const THOUSANDS = /^[1-9]\d?(?:,\d{3})+$/;
 const NUMBER_GAP = /\p{N}(?=([^\p{L}\p{N}]+)\p{N})/gu;
 /**
  * The only accepted joins between two numbers (an allowlist, not a
- * blocklist): whitespace, a glued decimal point (`0.5`), or a closing bracket
+ * blocklist): whitespace, a glued decimal point (`0.5`), or closing brackets
  * glued to the left number and followed by whitespace (`(Vitamin D3) 400 IU`).
- * Valid thousands commas are removed before this runs. Anything else, such as
- * a decimal comma (`0,5`), a fraction (`1/2`, `½` → `1⁄2`), a range (`1-2`,
- * `1~2`), a ratio (`3:5`), an operator (`1×2`, `1÷2`) or a foreign decimal
- * mark (`0·5`, `0。5`), means we cannot tell which part is the amount. A `/`
- * after a unit (`250 mg/5 mL`) is not between two numbers, so it is allowed.
+ * Each such bracket must also pass `closesWordGroup`. Valid thousands commas
+ * are removed before this runs. Anything else, such as a decimal comma
+ * (`0,5`), a fraction (`1/2`, `½` → `1⁄2`), a range (`1-2`, `1~2`), a ratio
+ * (`3:5`), an operator (`1×2`, `1÷2`) or a foreign decimal mark (`0·5`,
+ * `0。5`), means we cannot tell which part is the amount. A `/` after a unit
+ * (`250 mg/5 mL`) is not between two numbers, so it is allowed.
  */
-const ACCEPTED_JOIN = /^(?:\s+|\.|[)\]]\s+)$/u;
+const ACCEPTED_JOIN = /^(?:\s+|\.|[)\]]+\s+)$/u;
 /** Format characters (zero-width space, soft hyphen, BOM, ...) are rejected, never stripped. */
 const FORMAT_CHAR = /\p{Cf}/u;
+/** A word of two or more letters; the `x` of a pack grid such as `(10x1)` is not one. */
+const WORD = /\p{L}{2}/u;
+
+/**
+ * True when the bracket at `text[at]` closes a group of the same bracket type
+ * opened earlier in `text`, and that group holds a word (`(Vitamin D3)`). An
+ * unbalanced bracket (`10x1) 2 mg`) or a group of only numbers and pack-grid
+ * letters (`(10x1) 2 mg`) does not.
+ */
+function closesWordGroup(text: string, at: number): boolean {
+  const close = text[at];
+  const open = close === ')' ? '(' : '[';
+  let depth = 0;
+  for (let j = at - 1; j >= 0; j--) {
+    if (text[j] === close) depth++;
+    else if (text[j] === open) {
+      if (depth === 0) return WORD.test(text.slice(j + 1, at));
+      depth--;
+    }
+  }
+  return false;
+}
+
+/** True when `gap`, found at `text[start]`, is an accepted join between two numbers. */
+function isAcceptedJoin(text: string, start: number, gap: string): boolean {
+  if (!ACCEPTED_JOIN.test(gap)) return false;
+  for (let k = 0; k < gap.length; k++) {
+    if ((gap[k] === ')' || gap[k] === ']') && !closesWordGroup(text, start + k)) return false;
+  }
+  return true;
+}
 
 /** True when some pair of numbers in `text` is joined by anything but an accepted join. */
 function hasUnacceptedJoin(text: string): boolean {
   for (const m of text.matchAll(NUMBER_GAP)) {
-    if (!ACCEPTED_JOIN.test(m[1] ?? '')) return true;
+    if (!isAcceptedJoin(text, m.index + m[0].length, m[1] ?? '')) return true;
   }
   return false;
 }
@@ -126,18 +158,22 @@ const blank = (match: string) => ' '.repeat(match.length);
  * `‰`, i.e. something that could be the unit of the number just before it,
  * or when a slash is skipped on the way. A digit or a blanked strength is
  * safe only when the gap before it is empty or an accepted join
- * (`10 tablets ÷ 2 mg` is not). The end of the string is safe.
+ * (`10 tablets ÷ 2 mg` is not). The end of the string is safe. `text` is the
+ * unblanked input (same length as `s`), used to check bracket groups.
  */
-function followedByUnitLikeText(s: string, from: number): boolean {
+function followedByUnitLikeText(s: string, from: number, text: string): boolean {
   let i = from;
   for (;;) {
     const skipped = FOLLOWER_SKIP.exec(s.slice(i))?.[0] ?? '';
     if (SLASH_LIKE.test(skipped)) return true;
+    const start = i;
     i += skipped.length;
     const rest = s.slice(i);
     if (rest === '') return false;
     // A digit or blanked strength is next: the gap must be an accepted join.
-    if (!UNIT_LIKE_START.test(rest)) return skipped !== '' && !ACCEPTED_JOIN.test(skipped);
+    if (!UNIT_LIKE_START.test(rest)) {
+      return skipped !== '' && !isAcceptedJoin(text, start, skipped);
+    }
     const word = FOLLOWER_WORD.exec(rest);
     if (word === null) return true;
     i += word[0].length;
@@ -148,11 +184,11 @@ function followedByUnitLikeText(s: string, from: number): boolean {
  * Blanks every match of an allowlisted pattern, or returns null if any match
  * is followed by unit-like text (the parse must then fail closed).
  */
-function blankAllowlisted(residual: string, pattern: RegExp): string | null {
+function blankAllowlisted(residual: string, pattern: RegExp, text: string): string | null {
   let out = residual;
   for (const m of residual.matchAll(pattern)) {
     const end = m.index + m[0].length;
-    if (followedByUnitLikeText(residual, end)) return null;
+    if (followedByUnitLikeText(residual, end, text)) return null;
     out = out.slice(0, m.index) + blank(m[0]) + out.slice(end);
   }
   return out;
@@ -212,7 +248,7 @@ export function parseStrength(s: string): Strength[] | null {
   }
 
   for (const pattern of [PACK_GRID, COUNT_WORD, VITAMIN_NAME]) {
-    const next = blankAllowlisted(residual, pattern);
+    const next = blankAllowlisted(residual, pattern, text);
     if (next === null) return null;
     residual = next;
   }
@@ -285,27 +321,62 @@ export function normalizeRegistrationNumber(s: string): string | null {
   return REG_RE.test(cleaned) ? cleaned : null;
 }
 
-const DOSAGE_FORM_WORDS = new Set([
-  'tablet',
-  'tablets',
-  'capsule',
-  'capsules',
-  'caplet',
-  'syrup',
-  'suspension',
-  'cream',
-  'ointment',
-  'drops',
-  'solution',
-  'injection',
-  'film-coated',
-]);
+/**
+ * The one dosage-form vocabulary: lower-case word → canonical form. The
+ * matcher compares canonical forms, and `normalizeName` drops every word here
+ * (and every modifier) from names. Edit this list, never a copy of it.
+ */
+export const DOSAGE_FORM_WORDS: Readonly<Record<string, string>> = {
+  tablet: 'tablet',
+  tablets: 'tablet',
+  capsule: 'capsule',
+  capsules: 'capsule',
+  // A softgel is a soft gelatin capsule.
+  softgel: 'capsule',
+  softgels: 'capsule',
+  caplet: 'caplet',
+  caplets: 'caplet',
+  syrup: 'syrup',
+  elixir: 'elixir',
+  suspension: 'suspension',
+  solution: 'solution',
+  cream: 'cream',
+  ointment: 'ointment',
+  gel: 'gel',
+  lotion: 'lotion',
+  drop: 'drops',
+  drops: 'drops',
+  injection: 'injection',
+  powder: 'powder',
+  granule: 'granules',
+  granules: 'granules',
+  sachet: 'sachet',
+  sachets: 'sachet',
+  suppository: 'suppository',
+  suppositories: 'suppository',
+  spray: 'spray',
+  lozenge: 'lozenge',
+  lozenges: 'lozenge',
+  patch: 'patch',
+  patches: 'patch',
+  inhaler: 'inhaler',
+};
+/** Words that qualify a form without changing it: a film-coated tablet is a tablet. */
+export const DOSAGE_FORM_MODIFIERS: ReadonlySet<string> = new Set(['film-coated']);
+/**
+ * Words that make `drops` a different form (`eye drops` is not `ear drops`).
+ * `normalizeName` keeps them, because they also occur in brand names.
+ */
+export const DROPS_QUALIFIERS: ReadonlySet<string> = new Set(['eye', 'ear', 'nasal']);
+
+const isFormWord = (word: string) =>
+  Object.hasOwn(DOSAGE_FORM_WORDS, word) || DOSAGE_FORM_MODIFIERS.has(word);
 
 export function normalizeName(s: string): string {
   return s
     .toLowerCase()
     .replace(/[®™]/g, ' ')
     .split(/\s+/)
-    .filter((word) => word !== '' && !DOSAGE_FORM_WORDS.has(word))
+    .filter((word) => word !== '' && !isFormWord(word))
     .join(' ');
 }

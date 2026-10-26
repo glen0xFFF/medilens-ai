@@ -13,6 +13,7 @@ import type { ReferenceSearchResult } from '../../src/providers/types';
 const EXPIRY_NOTE = "Registration expiry is not the product's expiry date.";
 const UNAVAILABLE_NOTE = 'Registry lookup unavailable; nothing was verified.';
 const NOT_ATTEMPTED_NOTE = 'Registry lookup was not attempted.';
+const REG_NOT_FOUND_NOTE = 'The registration number on the pack was not found in the registry.';
 
 type FieldSpec = string | [value: string | null, legibility: Legibility];
 
@@ -338,10 +339,119 @@ describe('assessMatch: comparison details', () => {
     ]);
   });
 
-  test('label dosage form with no recognisable form word is missing', () => {
+  test('label dosage form with no recognisable form word is missing and blocks verified', () => {
     const result = assess(fullLabel({ dosageForm: 'Oral' }), ok([record()]));
+    expect(result.status).toBe('partial');
+    expect(result.missing).toContain('dosageForm');
+  });
+
+  test.each([
+    'Suppository',
+    'Gel',
+    'Eye Drop',
+    'Eye Drops',
+    'Drops',
+    'Lozenge',
+    'Sachet',
+    'Spray',
+    'Powder',
+    'Granules',
+    'Lotion',
+    'Softgel',
+    'Elixir',
+    'Patch',
+    'Inhaler',
+  ])('label form %s against registry 500 mg Tablet is a conflict', (form) => {
+    const result = assess(fullLabel({ dosageForm: form }), ok([record()]));
+    expect(result.status).toBe('conflicting');
+    expect(result.conflicting).toEqual([
+      { key: 'dosageForm', labelValue: form, referenceValue: '500 mg Tablet' },
+    ]);
+  });
+
+  test.each([
+    '500 mg Suppository',
+    '500 mg Granules',
+    '500 mg Gel',
+    '500 mg Oral Drops',
+    '500 mg Softgel',
+    '500 mg Powder',
+    '500 mg Lozenge',
+  ])('label form Tablet against registry %s is a conflict', (strengthForm) => {
+    const result = assess(fullLabel({ dosageForm: 'Tablet' }), ok([record({ strengthForm })]));
+    expect(result.status).toBe('conflicting');
+    expect(result.conflicting.map((c) => c.key)).toEqual(['dosageForm']);
+  });
+
+  test.each([
+    ['Effervescent Tablet', '500 mg Tablet'],
+    ['Pessary', '500 mg Tablet'],
+    ['Tablet', '500 mg Pessary'],
+    ['Tablet', '500 mg Chewable Tablet'],
+    ['Film Coated Tablet', '500 mg Tablet'],
+  ])('unrecognised form text (label %s, registry %s) caps the status at partial', (form, sf) => {
+    const result = assess(fullLabel({ dosageForm: form }), ok([record({ strengthForm: sf })]));
+    expect(result.status).toBe('partial');
+    expect(result.missing).toContain('dosageForm');
+    expect(result.conflicting).toEqual([]);
+  });
+
+  test('a stated label form that is not clear caps the status at partial', () => {
+    const result = assess(fullLabel({ dosageForm: ['Tablet', 'partial'] }), ok([record()]));
+    expect(result.status).toBe('partial');
+    expect(result.missing).toContain('dosageForm');
+  });
+
+  test.each([
+    ['Eye Drops', '0.5% Eye Drops', 'verified'],
+    ['Ear Drops', '0.5% Eye Drops', 'conflicting'],
+    ['Eye Drops', '0.5% Drops', 'conflicting'],
+  ])('qualified drops: label %s vs registry %s -> %s', (form, strengthForm, status) => {
+    const result = assess(
+      fullLabel({ dosageForm: form, strength: '0.5%' }),
+      ok([record({ strengthForm })]),
+    );
+    expect(result.status).toBe(status);
+  });
+
+  test('registry text with no form text leaves verified reachable (rule 3)', () => {
+    const result = assess(
+      fullLabel({ dosageForm: 'Suppository' }),
+      ok([record({ strengthForm: '500 mg' })]),
+    );
     expect(result.status).toBe('verified');
     expect(result.missing).toContain('dosageForm');
+  });
+
+  test('rule 1+6: a conflicting record under the same registration number is not hidden', () => {
+    const fits = record();
+    const otherBrand = record({ brandName: 'Tempra' });
+    const otherStrength = record({ strengthForm: '250 mg Tablet' });
+    const result = assess(fullLabel(), ok([fits, otherBrand, otherStrength]));
+    expect(result.status).toBe('conflicting');
+    expect(result.conflicting).toEqual([
+      { key: 'brandName', labelValue: 'Biogesic', referenceValue: 'Tempra' },
+      { key: 'strength', labelValue: '500 mg', referenceValue: '250 mg Tablet' },
+    ]);
+    expect(result.candidates).toEqual(expect.arrayContaining([otherBrand, otherStrength]));
+    expect(result.limitations).toContain(EXPIRY_NOTE);
+  });
+
+  test('rule 1+6: a form-conflicting sibling under the same registration number', () => {
+    const result = assess(
+      fullLabel({ dosageForm: 'Tablet' }),
+      ok([record(), record({ strengthForm: '500 mg Capsule' })]),
+    );
+    expect(result.status).toBe('conflicting');
+    expect(result.conflicting.map((c) => c.key)).toEqual(['dosageForm']);
+  });
+
+  test('rule 2: a fitting record still beats a conflicting one found by name', () => {
+    const fits = record({ registrationNumber: 'DR-XY11111' });
+    const other = record({ registrationNumber: 'DR-XY22222', strengthForm: '250 mg Tablet' });
+    const result = assess(label({ brandName: 'Biogesic', strength: '500 mg' }), ok([other, fits]));
+    expect(result.status).toBe('partial');
+    expect(result.candidates).toEqual([fits]);
   });
 
   test.each([
@@ -389,6 +499,26 @@ describe('assessMatch: comparison details', () => {
     const result = assess(fullLabel({ registrationNumber: 'DR-XY99999' }), ok([record()]));
     expect(result.status).toBe('partial');
     expect(result.missing).toContain('registrationNumber');
+    expect(result.limitations).toContain(REG_NOT_FOUND_NOTE);
+  });
+
+  test('the reg-not-found note also applies to a rule 2 no_match', () => {
+    const result = assess(fullLabel({ registrationNumber: 'DR-XY99999' }), ok([]));
+    expect(result.status).toBe('no_match');
+    expect(result.limitations).toEqual([REG_NOT_FOUND_NOTE]);
+  });
+
+  test.each<[string, FieldSpec | undefined]>([
+    ['found by number', 'DR-XY12345'],
+    ['not clear', ['DR-XY99999', 'partial']],
+    ['absent', undefined],
+  ])('no reg-not-found note when the number is %s', (_, reg) => {
+    const l =
+      reg === undefined
+        ? label({ brandName: 'Biogesic', strength: '500 mg' })
+        : fullLabel({ registrationNumber: reg });
+    const result = assess(l, ok([record()]));
+    expect(result.limitations).not.toContain(REG_NOT_FOUND_NOTE);
   });
 
   test('registration numbers compare after normalisation', () => {

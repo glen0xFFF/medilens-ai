@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
+  DOSAGE_FORM_MODIFIERS,
+  DOSAGE_FORM_WORDS,
   normalizeName,
   normalizeRegistrationNumber,
   parseStrength,
@@ -388,7 +390,7 @@ describe('parseStrength', () => {
       ['10x0˙5 mg', '5 mg'],
       ['Drug B12~5 mg', '5 mg'],
       ['Drug 10 tablets ÷ 2 mg', '2 mg'],
-      ['10x0​,5 mg', '5 mg'],
+      ['10x0\u200b,5 mg', '5 mg'],
       // Extras: spaced joiners, a bracket opening between numbers, a joiner glued to the right.
       ['10x1 ~ 2 mg', '2 mg'],
       ['10 x 1 * 2 mg', '2 mg'],
@@ -396,24 +398,39 @@ describe('parseStrength', () => {
       ['10x1 )2 mg', '2 mg'],
       ['Drug 10 tablets ~2 mg', '2 mg'],
       ['Drug B12 ÷ 5 mg', '5 mg'],
+      // A closing bracket is accepted only when it closes an earlier group that holds a word.
+      ['10x1) 2 mg', '2 mg'],
+      ['(10x1) 2 mg', '2 mg'],
+      ['10 sachets) 2 mg', '2 mg'],
+      ['10x1] 2 mg', '2 mg'],
+      ['(10x1] 2 mg', '2 mg'],
+      ['B12) 5 mg', '5 mg'],
+      ['(B12) 5 mg', '5 mg'],
+      ['Vitamin B12) 5 mg', '5 mg'],
     ])('%s -> null (never equal to %s)', (input, misread) => {
       const parsed = parseStrength(input);
       expect(parsed).toBeNull();
       expect(strengthsEqual(parsed, parseStrength(misread))).toBe(false);
     });
 
-    test.each([['500​ mg'], ['Para​cetamol 500 mg'], ['500 mg­'], ['﻿500 mg'], ['500 mg⁠']])(
-      'any format character fails closed: %j',
-      (input) => {
-        expect(parseStrength(input)).toBeNull();
-      },
-    );
+    test.each([
+      ['500\u200b mg'],
+      ['Para\u200bcetamol 500 mg'],
+      ['500 mg\u00ad'],
+      ['\ufeff500 mg'],
+      ['500 mg\u2060'],
+    ])('any format character fails closed: %j', (input) => {
+      expect(parseStrength(input)).toBeNull();
+    });
 
     test.each([
       ['0.5 mg', [{ amount: 0.5, unit: 'mg' }]],
       ['1,000.5 mg', [{ amount: 1000.5, unit: 'mg' }]],
       ['250 mg/5 mL', [{ amount: 250, unit: 'mg', per: { amount: 5, unit: 'mL' } }]],
       ['Cholecalciferol (Vitamin D3) 400 IU', [{ amount: 400, unit: 'IU' }]],
+      ['Cholecalciferol [Vitamin D3] 400 IU', [{ amount: 400, unit: 'IU' }]],
+      ['(Cholecalciferol (Vitamin D3)) 400 IU', [{ amount: 400, unit: 'IU' }]],
+      ['(10 sachets) 2 mg', [{ amount: 2, unit: 'mg' }]],
       [
         'Vitamin B1 100 mg + B6 5 mg',
         [
@@ -576,7 +593,21 @@ describe('normalizeName', () => {
     ['Ascof Lagundi Syrup', 'ascof lagundi'],
     ['Alaxan FR Film-Coated Tablets', 'alaxan fr'],
     ['Paracelin®500', 'paracelin 500'],
+    ['Voltaren Gel', 'voltaren'],
+    ['Strepsils Lozenges', 'strepsils'],
+    ['Enervon Caplets', 'enervon'],
+    ['Eye Mo Eye Drops', 'eye mo eye'],
   ])('%s -> %s', (input, expected) => {
     expect(normalizeName(input)).toBe(expected);
+  });
+
+  test('drops every word of the shared dosage-form vocabulary', () => {
+    const words = [...Object.keys(DOSAGE_FORM_WORDS), ...DOSAGE_FORM_MODIFIERS];
+    expect(words).toEqual(
+      expect.arrayContaining(['drop', 'gel', 'suppository', 'softgel', 'caplets', 'film-coated']),
+    );
+    for (const word of words) {
+      expect(normalizeName(`Brand ${word}`)).toBe('brand');
+    }
   });
 });
