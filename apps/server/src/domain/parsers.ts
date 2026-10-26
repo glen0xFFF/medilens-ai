@@ -39,24 +39,18 @@ const THOUSANDS = /^\d{1,2}(?:,\d{3})+$/;
  */
 const DOTTED_THOUSANDS = /(?<![\d.])[1-9]\d{0,2}\.\d{3}(?!\d)\s*[a-zµμ%]/i;
 
-/** A number followed by a word, left over once the recognised strengths are blanked out. */
-const RESIDUAL = /(?<![\d.a-z])\d+(?:\.\d+)?\s*([a-zµμ%]+)/gi;
-/** Fail closed: the only words allowed after a leftover number. Anything else may be a unit. */
-const NON_UNIT_WORDS = new Set([
-  'tablet',
-  'tablets',
-  'capsule',
-  'capsules',
-  'caplet',
-  'caplets',
-  'sachet',
-  'sachets',
-  'each',
-  'x',
-  'forte',
-  'plus',
-  'and',
-]);
+/*
+ * Allowlisted non-strength patterns. After the strengths are blanked out these
+ * are blanked too, and any digit still left means the string held something we
+ * did not understand, so the whole parse fails closed.
+ */
+/** A pack grid such as `10 x 10` or `10x10`. */
+const PACK_GRID = /(?<![\d.])\d+\s*x\s*\d+(?![\d.])/gi;
+/** A count followed by an allowlisted word, e.g. `10 tablets`, `2 x`, `500 Forte`. */
+const COUNT_WORD =
+  /(?<![\d.])\d+\s*(?:tablets?|capsules?|caplets?|sachets?|each|x|forte)(?![a-z])/gi;
+/** Vitamin names whose digits are not amounts, e.g. `B12`, `D3`. */
+const VITAMIN_NAME = /(?<![a-z\d])(?:b(?:1|2|3|5|6|7|9|12)|d2|d3|k1|k2)(?![a-z\d])/gi;
 
 const UNIT_MAP: Record<string, StrengthUnit> = {
   mcg: 'mcg',
@@ -74,21 +68,27 @@ const UNIT_MAP: Record<string, StrengthUnit> = {
 };
 const PER_UNIT_MAP: Record<string, PerUnit> = { ml: 'mL', g: 'g', l: 'L' };
 
+const blank = (match: string) => ' '.repeat(match.length);
+
 /**
- * Parses every strength in `s`. Fails closed: returns null when nothing is
- * found, and also when anything cannot be fully understood (an unknown `per`
- * unit, a number followed by a word that is not a known non-unit word, an
- * ambiguous comma or dot number). Silently dropping part of a strength could
- * make two different products compare equal.
+ * Parses every strength in `s` and fails closed. The invariant is that every
+ * digit in the input must be consumed, either by a recognised strength or by
+ * an allowlisted non-strength pattern (pack counts, vitamin names). If any
+ * digit is left over, or a strength has an unknown `per`, or the number is an
+ * ambiguous `1.000`, the result is null. Silently dropping part of a strength
+ * could make two different products compare equal.
  */
 export function parseStrength(s: string): Strength[] | null {
-  let text = s.replace(/[µμ]g/gi, 'mcg');
+  // NFKC folds full-width `ｍｇ`, the `㎎` ligature and NBSP into plain text.
+  let text = s.normalize('NFKC').replace(/[µμ]g/gi, 'mcg');
 
+  // A digit-consumed `1.000 mg` would read as 1 mg, so it is rejected explicitly.
   if (DOTTED_THOUSANDS.test(text)) return null;
-  for (const [token] of text.matchAll(COMMA_NUMBER)) {
-    if (!THOUSANDS.test(token)) return null;
-  }
-  text = text.replace(COMMA_NUMBER, (token) => token.replace(/,/g, ''));
+  // Only valid thousands groupings lose their commas. Anything else keeps the
+  // comma, so its leading digits are left over and the invariant rejects it.
+  text = text.replace(COMMA_NUMBER, (token) =>
+    THOUSANDS.test(token) ? token.replace(/,/g, '') : token,
+  );
 
   const out: Strength[] = [];
   let residual = text;
@@ -99,7 +99,7 @@ export function parseStrength(s: string): Strength[] | null {
     if (sep && !(sep[1] === '/' && STARTS_WITH_STRENGTH.test(text.slice(end + sep[0].length)))) {
       return null;
     }
-    residual = residual.slice(0, m.index) + ' '.repeat(m[0].length) + residual.slice(end);
+    residual = residual.slice(0, m.index) + blank(m[0]) + residual.slice(end);
 
     const [, amountStr, unitStr, perAmountStr, perUnitStr] = m;
     const unit = UNIT_MAP[(unitStr ?? '').toLowerCase()];
@@ -116,9 +116,12 @@ export function parseStrength(s: string): Strength[] | null {
     out.push(entry);
   }
 
-  for (const [, word] of residual.matchAll(RESIDUAL)) {
-    if (!NON_UNIT_WORDS.has((word ?? '').toLowerCase())) return null;
-  }
+  residual = residual
+    .replace(PACK_GRID, blank)
+    .replace(COUNT_WORD, blank)
+    .replace(VITAMIN_NAME, blank);
+  if (/\d/.test(residual)) return null;
+
   return out.length > 0 ? out : null;
 }
 

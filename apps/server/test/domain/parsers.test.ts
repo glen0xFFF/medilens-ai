@@ -92,7 +92,6 @@ describe('parseStrength', () => {
     test.each([
       ['Paracetamol 500 mg 10 Tablets', [{ amount: 500, unit: 'mg' }]],
       ['Neozep 500 Forte 10 mg', [{ amount: 10, unit: 'mg' }]],
-      ['Box of 100, 500 mg', [{ amount: 500, unit: 'mg' }]],
     ])('plain words and unitless numbers are not rejected: %s', (input, expected) => {
       expect(parseStrength(input)).toEqual(expected);
     });
@@ -123,6 +122,75 @@ describe('parseStrength', () => {
       ['500 mg 1 caplet each', [{ amount: 500, unit: 'mg' }]],
       ['10 sachets plus 2 sachet and 500 mg', [{ amount: 500, unit: 'mg' }]],
     ])('allowlisted words pass: %s', (input, expected) => {
+      expect(parseStrength(input)).toEqual(expected);
+    });
+  });
+
+  describe('every digit must be consumed by a recognised strength', () => {
+    test.each([
+      ['500 mg + 1.000.000 IU', '500 mg'],
+      ['500 mg + 2.000.000 IU', '500 mg'],
+      ['Paracetamol 500 mg + Caffeine 65-mg', '500 mg'],
+      ['500 mg + 10 (mmol)', '500 mg'],
+      ["500 mg + 10 'units'", '500 mg'],
+      ['500 mg + 10 ㎎', '500 mg'],
+      ['500 mg + 10 мг', '500 mg'],
+      ['500 mg + 10 ｍｇ', '500 mg'],
+      ['500 mg + .5 mmol', '500 mg'],
+      ['500 mg + 10.5.3 mmol', '500 mg'],
+      ['1 500 mg', '500 mg'],
+      ['1 500 mg', '500 mg'],
+      ['Calcium 600mg+Vitamin D400IU', '600 mg'],
+    ])('%s is not equal to %s', (a, b) => {
+      expect(strengthsEqual(parseStrength(a), parseStrength(b))).toBe(false);
+    });
+
+    test.each([
+      ['500 mg + 1.000.000 IU'],
+      ['2.000.000 IU'],
+      ['Paracetamol 500 mg + Caffeine 65-mg'],
+      ['500 mg + 10 (mmol)'],
+      ["500 mg + 10 'units'"],
+      ['500 mg + 10 мг'],
+      ['500 mg + .5 mmol'],
+      ['500 mg + 10.5.3 mmol'],
+      ['1 500 mg'],
+      ['1 500 mg'],
+      ['Calcium 600mg+Vitamin D400IU'],
+      ['Box of 100, 500 mg'],
+    ])('%s -> null', (input) => {
+      expect(parseStrength(input)).toBeNull();
+    });
+
+    test.each([
+      // NFKC turns the ㎎ ligature and full-width ｍｇ into plain mg.
+      [
+        '500 mg + 10 ㎎',
+        [
+          { amount: 500, unit: 'mg' },
+          { amount: 10, unit: 'mg' },
+        ],
+      ],
+      [
+        '500 mg + 10 ｍｇ',
+        [
+          { amount: 500, unit: 'mg' },
+          { amount: 10, unit: 'mg' },
+        ],
+      ],
+      ['Vitamin B12 500 mcg', [{ amount: 500, unit: 'mcg' }]],
+      ['Vitamin D3 400 IU', [{ amount: 400, unit: 'IU' }]],
+      [
+        'Vitamin B1 100 mg + B6 5 mg + B12 50 mcg',
+        [
+          { amount: 100, unit: 'mg' },
+          { amount: 5, unit: 'mg' },
+          { amount: 50, unit: 'mcg' },
+        ],
+      ],
+      ['500 mg 10x10', [{ amount: 500, unit: 'mg' }]],
+      ['2 x 500 mg', [{ amount: 500, unit: 'mg' }]],
+    ])('%s', (input, expected) => {
       expect(parseStrength(input)).toEqual(expected);
     });
   });
