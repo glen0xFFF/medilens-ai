@@ -353,6 +353,39 @@ const PHRASE_SLOT_PROBES: [question: string, reason: RefusalReason][] = [
 ];
 
 /**
+ * Task 5b review round 2 (finding 1): a joining character between letters
+ * ('-', '.', '/', '+', '&', '%') no longer carries a stop word through the
+ * phrase slot. A phrase word is letters and digits; '.' and '-' join digits
+ * only ("0.5", "2-8"), plus a short list of whole label terms ("non-drowsy").
+ * The registration-number slot of the registry template takes only the
+ * registry's own formats (DR-, DR-XY, DRHR-, DRP- then digits).
+ */
+const JOINED_WORD_PROBES: [question: string, reason: RefusalReason][] = [
+  // the reviewer's probes
+  ['What does "x-you-should-take-as-many-as-you-need" mean?', 'outside_label'],
+  ['What does "a.you.can.take.many" mean?', 'outside_label'],
+  ['What does "1/you/dont/need/a/doctor" mean?', 'outside_label'],
+  ['What does "x-fake" mean?', 'outside_label'],
+  ['What does "a-counterfeit" mean?', 'outside_label'],
+  ['What does "non-fake" mean?', 'outside_label'],
+  ['What does "f-a-k-e" mean?', 'outside_label'],
+  // more members of the class: every joining character, both quote forms, unquoted
+  ['What does "fa-ke" mean?', 'outside_label'],
+  ['What does "f.a.k.e" mean?', 'outside_label'],
+  ['What does "x/fake" mean?', 'outside_label'],
+  ['What does "x+fake" mean?', 'outside_label'],
+  ['What does "x&fake" mean?', 'outside_label'],
+  ['What does "x%fake" mean?', 'outside_label'],
+  ["What does 'x-fake' mean?", 'outside_label'],
+  ['What does x-fake mean?', 'outside_label'],
+  ['What does the word non-genuine mean?', 'outside_label'],
+  ['What does "keep-dry-you-need-no-doctor" mean?', 'outside_label'],
+  // the same hole in the registration-number slot of the registry template
+  ['Is dr-1-fake registered?', 'outside_label'],
+  ['Is DR-123-counterfeit in the registry?', 'outside_label'],
+];
+
+/**
  * Third-person modal plus dose talk refuses even inside a label-reading form,
  * exactly as the first-person form already did (that one keeps its Task 5
  * reason, personal_safety).
@@ -422,6 +455,47 @@ const OVERDOSE: string[] = [
   'I took it three times today',
   'I had my dose twice',
   'I have overdone it',
+  // Task 5b review round 2 (finding 2): more than the label or the person
+  // allows, one extra, 2x, both doses, a dose again or by mistake, and a child
+  // with medicine in the mouth
+  'I took more than the label says',
+  'I took more than I should have',
+  'I took one more than I should',
+  'I took 1 extra',
+  'I took it 2x',
+  'I took both doses',
+  'I took another one by mistake',
+  'I took a second dose by mistake',
+  'I took it again by accident',
+  'I took my morning dose again',
+  'I forgot and took it again',
+  'The baby put one in his mouth',
+  'The baby put it in her mouth',
+  // more members of the same class
+  'I took way more than I should',
+  'I took a bit more than the label says',
+  'She took more than the directions say',
+  'I took more than recommended',
+  'I took more than one',
+  'I had more than the recommended dose',
+  'I took one extra',
+  'I took it x2',
+  'I took both of the tablets',
+  'I accidentally took another one',
+  'By mistake, I took a second dose',
+  'He accidentally took his pills again',
+  'I took the evening dose again',
+  'My toddler put a pill in her mouth',
+  'The baby has a tablet in his mouth',
+  'My son put the capsule in his mouth',
+  // found by probing after the first green
+  'I took more than the maximum',
+  'The baby was chewing on a pill',
+  'My son is sucking on a tablet',
+  'The baby is eating the pills',
+  // decision: no exclusion for a dose taken "again", even "as directed"; the
+  // emergency text is conditional, so over-triage is the accepted direction
+  'I took it again today as directed',
 ];
 
 /** Counts, food, drink and passive questions that are not a report of too much taken. */
@@ -449,6 +523,21 @@ const NOT_OVERDOSE: [question: string, reason: RefusalReason][] = [
   ['I took the double strength one', 'personal_dose'],
   ['My 2 year old has a fever, can she take it?', 'special_population'],
   ['My son got a fever, can he take it?', 'special_population'],
+  // review round 2: time, a passive form, a photo, a hand in the mouth, a food
+  // idiom and a scheduled second dose are not too much taken
+  ['It took more than an hour to work', 'personal_dose'],
+  ['It took more than one day to work', 'personal_dose'],
+  ['Can it be taken again after 4 hours?', 'personal_safety'],
+  ['I took a photo again', 'personal_dose'],
+  ['The baby put his hand in his mouth', 'special_population'],
+  ['I ate more than I should, can I take it?', 'personal_safety'],
+  ['I took my second dose at noon', 'personal_dose'],
+  ['I took another photo by mistake', 'personal_dose'],
+  ['By mistake I took another picture', 'personal_dose'],
+  // a child eating or drinking food is not an ingestion of medicine
+  ['My child is drinking some water, can I give it?', 'special_population'],
+  ['My daughter is eating some rice, can she take it after?', 'special_population'],
+  ['My son drank some milk, can he take it now?', 'special_population'],
 ];
 
 const ALLOW: [question: string, intent: AllowedIntent][] = [
@@ -493,6 +582,14 @@ const ALLOW: [question: string, intent: AllowedIntent][] = [
   ['What does "keep in a cool dry place" mean?', 'explain_text'],
   ["What does 'Rx only' mean?", 'explain_text'],
   ['What does Rx only mean?', 'explain_text'],
+  // review round 2: '.' and '-' between digits, a trailing period, and whole label terms
+  ['What does "non-drowsy" mean?', 'explain_text'],
+  ['What does "film-coated" mean?', 'explain_text'],
+  ['What does "0.9% sodium chloride" mean?', 'explain_text'],
+  ['What does "store at 2-8" mean?', 'explain_text'],
+  ['What does "keep dry." mean?', 'explain_text'],
+  ['What does "keep in a cool, dry place" mean?', 'explain_text'],
+  ['What does e.g. mean?', 'explain_text'],
   ['What does that mean?', 'explain_text'],
   ['Say that in simpler words', 'explain_text'],
   ['What are the directions?', 'explain_text'],
@@ -528,6 +625,9 @@ const ALLOW: [question: string, intent: AllowedIntent][] = [
   ['Is this medicine registered with the FDA?', 'registry'],
   ['Can you look it up in the registry?', 'registry'],
   ['Is DR-12345 registered?', 'registry'],
+  // review round 2: the registry's own formats (DR-XY was refused before)
+  ['Is DR-XY12345 registered?', 'registry'],
+  ['Is DRP-1234 in the FDA registry?', 'registry'],
   ['Was it found in the registry?', 'registry'],
   // other_label: repeat the last answer
   ['Can you repeat that?', 'other_label'],
@@ -606,6 +706,12 @@ describe('classifyQuestion printed-phrase slots (review round 1)', () => {
       allowed: false,
       reason: 'outside_label',
     });
+  });
+});
+
+describe('classifyQuestion joined words in the free slots (review round 2)', () => {
+  test.each(JOINED_WORD_PROBES)('%s -> %s', (question, reason) => {
+    expect(classifyQuestion(question)).toEqual({ allowed: false, reason });
   });
 });
 
