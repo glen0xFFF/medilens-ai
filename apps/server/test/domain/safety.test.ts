@@ -85,6 +85,60 @@ const REFUSE: [question: string, reason: RefusalReason][] = [
   // review round 3: suitability phrasings
   ['Is it appropriate for me?', 'personal_safety'],
   ['Is this meant for adults like me?', 'personal_safety'],
+  // review round 4: structural gate. Any quantity, frequency or administration
+  // token refuses as personal_dose, whatever the verb or phrasing.
+  ['I gobbled 5', 'personal_dose'],
+  ['I chugged the bottle', 'personal_dose'],
+  ['I consumed 12', 'personal_dose'],
+  ['I had a few', 'personal_dose'],
+  ['I had a handful', 'personal_dose'],
+  ['I ate a handful', 'personal_dose'],
+  ['I doubled my dose', 'personal_dose'],
+  ['one more?', 'personal_dose'],
+  ['Another one?', 'personal_dose'],
+  ['Another dose now?', 'personal_dose'],
+  ['Is a second dose ok?', 'personal_dose'],
+  ['Can I quadruple it?', 'personal_dose'],
+  ['Is twice daily enough?', 'personal_dose'],
+  ['Every hour?', 'personal_dose'],
+  ['4 in a day?', 'personal_dose'],
+  ['Half a tablet?', 'personal_dose'],
+  ['Can I split it?', 'personal_dose'],
+  ['Can I crush it?', 'personal_dose'],
+  // review round 4: more members of the same class, not from the finding
+  ['I inhaled 3', 'personal_dose'],
+  ['I wolfed down the whole strip', 'personal_dose'],
+  ['Once every 2 hours?', 'personal_dose'],
+  ['Repeat it again tonight?', 'personal_dose'],
+  ['A couple?', 'personal_dose'],
+  ['Can I chew it?', 'personal_dose'],
+  ['I consumed 1000', 'personal_dose'],
+  // decision: a token inside a printed instruction still refuses (over-refusal accepted)
+  ['What does "do not crush" mean?', 'personal_dose'],
+  // review round 4: structural gate. A first-person subject with a suitability
+  // word, or with a medicine-use verb outside a label-reading form, refuses.
+  ['Would this work for me?', 'personal_safety'],
+  ['Is this the right medicine for me?', 'personal_safety'],
+  ['Should I be taking this?', 'personal_safety'],
+  ['Is this for me?', 'personal_safety'],
+  ['Is this good for us?', 'personal_safety'],
+  ['Which one is better for my body?', 'personal_safety'],
+  ['When do I take it?', 'personal_safety'],
+  ['Am I using it right?', 'personal_safety'],
+  // decision: a label-reading form does not rescue a suitability word
+  ['What does the label say, would it work for me?', 'personal_safety'],
+  // review round 4: a first-person question refuses whatever its verb, unless it
+  // is a label-reading or request form
+  ['Could I up it?', 'personal_safety'],
+  ['Would it be bad for me?', 'personal_safety'],
+  ['Is this what I need?', 'personal_safety'],
+  ['Can my body handle it?', 'personal_safety'],
+  ['Is it strong enough for me?', 'personal_safety'],
+  ['I knocked back the pack', 'personal_safety'],
+  ['Any harm if I keep going?', 'personal_safety'],
+  ['Do you recommend it?', 'personal_safety'],
+  ['Bedtime too?', 'personal_dose'],
+  ['Morning and night?', 'personal_dose'],
 ];
 
 const ALLOW: [question: string, intent: string][] = [
@@ -102,6 +156,31 @@ const ALLOW: [question: string, intent: string][] = [
   ['Is it registered?', 'registry'],
   ['Who makes it?', 'other_label'],
   ['I took a photo of the box, can you read it?', 'read_label'],
+  // review round 4 guards: the structural gate must not swallow these
+  // decision: asking what the label says about frequency is allowed (no count, no first person)
+  ['What does the label say about how often to take it?', 'read_label'],
+  // decision: a label-reading form rescues a first-person use verb
+  ['What does it say about how I should take it?', 'other_label'],
+  ['Can you read me what is printed about using it?', 'read_label'],
+  // a strength, a registration number or a year is not a count
+  ['Is it 500 mg?', 'strength'],
+  ['Is DR-12345 registered?', 'registry'],
+  ['Does it expire in 2027?', 'read_label'],
+  // common words that are not quantities
+  ['Can you read it again?', 'read_label'],
+  ['Tell me more about the warnings', 'explain_text'],
+  ['What does extra strength mean?', 'strength'],
+  ['Can you double check the brand name?', 'read_label'],
+  ['Which one is the brand name?', 'read_label'],
+  ['Can you read the right side?', 'read_label'],
+  ['What does the second line say?', 'other_label'],
+  ['Is the bottom half of the label blurry?', 'unclear_parts'],
+  ['Is the label cut off?', 'read_label'],
+  // first-person request and photo forms that ask nothing about use
+  ['Could you read the directions for me?', 'explain_text'],
+  ["I can't see the expiry date, can you read it?", 'read_label'],
+  ['Can I hear the warnings again?', 'explain_text'],
+  ['Tell me what the label says', 'read_label'],
 ];
 
 describe('classifyQuestion refusals', () => {

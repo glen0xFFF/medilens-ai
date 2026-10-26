@@ -184,6 +184,91 @@ const REFUSALS: readonly [RefusalReason, readonly RegExp[]][] = [
   ],
 ];
 
+/**
+ * Structural gate, checked after the named refusal lists (review round 4).
+ * Instead of listing dosing phrasings one at a time, any question carrying a
+ * quantity, frequency or administration token refuses as personal_dose,
+ * whatever its verb. A token inside a printed instruction ("what does 'do not
+ * crush' mean?") also refuses: over-refusal is the accepted direction.
+ */
+const QUANTITY_TOKENS: readonly RegExp[] = [
+  // a count: digits that are not a strength ("500 mg"), a registration
+  // number ("DR-12345"), a date ("12/2027") or a year ("2027")
+  /(?<![\w./-])(?!(?:19|20)\d\d\b)\d+(?:\.\d+)?(?![\w/-]|\.\d| ?(?:mg|mcg|[µμ]g|g|ml|iu|units?)\b| ?%)/,
+  /\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|couple)\b/,
+  // "one", but not "this one" / "which one"
+  /(?<!\b(?:this|that|which|the|each|any|every|no|some|other|first|last) )\bone\b/,
+  /\ba few\b/,
+  /\bhandfuls?\b/,
+  /\bbunch\b/,
+  /\b(?:a lot|lots|several|plenty|loads)\b/,
+  // "more", but not "tell me more" / "more about" / "more slowly"
+  /(?<!\b(?:tell (?:me|us)|say|explain|read) (?:a bit |a little |some )?)\bmore\b(?! (?:about|info|information|details?|clearly|slowly|simply|simple|loudly)\b)/,
+  /\banother\b/,
+  /\bextra\b(?! strength)/,
+  /\bsecond\b(?! (?:line|word|page|side|part|paragraph|panel|row|sentence|item|name|photo|picture|image|label|half)\b)/,
+  // "again", but not "read it again" / "say that again"
+  /(?<!\b(?:read|say|repeat that|explain|tell|speak|said|play|hear|listen)\b.*)\bagain\b/,
+  /\bevery (?:\w+ )?(?:hours?|hrs?|day|night|morning|evening|meal)\b/,
+  /\b(?:hourly|daily|nightly|weekly)\b/,
+  // times of day: "morning and night?", "bedtime too?"
+  /\b(?:mornings?|nights?|tonight|bedtime|evenings?|noon|midday|midnight)\b/,
+  /\bin (?:a|one|the same) day\b/,
+  /\b(?:a|per|each) (?:day|night|hour)\b/,
+  /\b(?:once|twice|thrice)\b/,
+  // "half", but not "the bottom half" / "half of the label"
+  /(?<!\b(?:top|bottom|left|right|upper|lower|other|first|second|back|front) )\b(?:half|halves)\b(?! of the (?:label|pack|box|photo|picture|image|text|page))/,
+  /\b(?:split|splits|splitting|crush|crushes|crushed|crushing|chew|chews|chewed|chewing|break|breaking)\b/,
+  /\bcut(?:ting)?\b(?! off)/,
+  // double / triple / quadruple and inflections, but not "double check"
+  /\b(?:doubl|tripl|quadrupl)(?:e|es|ed|ing)\b(?![ -]check)/,
+  // first-person consumption of a whole container with any verb ("i chugged the bottle")
+  /\bi (?!(?:opened|bought|purchased|photographed|scanned|checked|found|received|got|have|see|saw|read|want|need|hold|held|keep|kept|lost|dropped|threw|open|am)\b)\w+(?: down| through| off)? (?:the |a |an |my |all |all of |half |half of )*(?:whole |entire |full |rest of the )?(?:bottle|pack|box|strip|blister|packet|jar|tub|sachets?)\b/,
+];
+
+/**
+ * A first-person subject makes the question about the asker's own use. Such a
+ * question refuses by default, whatever its verb ("could i up it?", "can my
+ * body handle it?", "is it strong enough for me?"); only the explicit
+ * label-reading and request forms below let it through.
+ */
+const PERSONAL_SUBJECT = /\b(?:i|me|my|myself|mine|im|ive|id|we|us|our)\b/;
+/** Suitability words: with a first-person subject these refuse even inside a label-reading form. */
+const SUITABILITY =
+  /\b(?:works?|working|worked|good|better|best|bad|worse|safe|safer|appropriate|meant|suitable|helps?|need|needs|enough|handle)\b|\bright\b(?! (?:side|corner|edge|hand|part|panel|of)\b)/;
+/** "should i", "can we", "do i": a first-person modal question asks what to do. */
+const MODAL_SUBJECT =
+  /\b(?:can|could|should|would|may|might|must|shall|do|did|will|am|is it ok if) (?:i|we)\b(?! (?:hear|see|read|listen|know what (?:it|the \w+) says)\b)/;
+/** Medicine-use verbs: a request form does not rescue these; only a label-reading form does. */
+const USE_VERB =
+  /\b(?:take|takes|taking|took|use|uses|using|drink|drinking|swallow|swallowing|eat|eating|give|giving|apply|applying)\b|\bhave (?:it|this|one|these|them|some)\b/;
+/** Explicit label-reading forms: asking what the pack says, not what to do. */
+const LABEL_READING: readonly RegExp[] = [
+  /\bwhat (?:does|do|did|is|was)\b.*\b(?:say|says|said|mean|means|printed|written)\b/,
+  /\b(?:can|could|would|will|please) (?:you )?read\b/,
+  /\bread (?:me |out |aloud |back )?(?:the|this|that|what|it)\b/,
+  /\b(?:printed|written) (?:on|in|about)\b/,
+];
+/** Request and photo forms that carry a first-person word but ask nothing about use. */
+const REQUEST_FORMS: readonly RegExp[] = [
+  /\b(?:tell|show|give) (?:me|us)\b/,
+  /\b(?:can|could|may) (?:i|we) (?:hear|see|read|listen|know what (?:it|the \w+) says)\b/,
+  /\bi (?:can't|cant|cannot|can not|couldn't|couldnt) (?:see|read|find|make out|hear)\b/,
+  /\bi (?:took|sent|uploaded|scanned|have) (?:a|the|this|another|my) (?:photos?|pictures?|pics?|images?|scans?)\b/,
+];
+
+function structuralRefusal(text: string): RefusalReason | null {
+  if (QUANTITY_TOKENS.some((p) => p.test(text))) return 'personal_dose';
+  if (/\b(?:is|are) (?:this|it|these|they) (?:\w+ )?for (?:me|us)\b/.test(text))
+    return 'personal_safety';
+  if (/\b(?:recommend|advise|advice|suggest)\w*/.test(text)) return 'personal_safety';
+  if (!PERSONAL_SUBJECT.test(text)) return null;
+  if (SUITABILITY.test(text) || MODAL_SUBJECT.test(text)) return 'personal_safety';
+  if (LABEL_READING.some((p) => p.test(text))) return null;
+  if (!USE_VERB.test(text) && REQUEST_FORMS.some((p) => p.test(text))) return null;
+  return 'personal_safety';
+}
+
 /** Checked in this order after no refusal matched; default `other_label`. */
 const INTENTS: readonly [AllowedIntent, readonly RegExp[]][] = [
   [
@@ -235,6 +320,8 @@ export function classifyQuestion(q: string): QuestionClass {
   for (const [reason, patterns] of REFUSALS) {
     if (patterns.some((p) => p.test(text))) return { allowed: false, reason };
   }
+  const structural = structuralRefusal(text);
+  if (structural !== null) return { allowed: false, reason: structural };
   for (const [intent, patterns] of INTENTS) {
     if (patterns.some((p) => p.test(text))) return { allowed: true, intent };
   }
