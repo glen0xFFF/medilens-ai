@@ -166,7 +166,7 @@ Note: `LABEL_UNREADABLE`, `NO_RELIABLE_MATCH`, `CONFLICTING_MATCH`, `REFERENCE_U
 1. Registration number read `clear` and found exactly → candidate set = that record.
 2. Else search by brand (then generic) name; candidates compared on brand, generic, strength (numeric amount+unit), dosage form.
 3. `verified` (my call, strict): registration number `clear` and matches **and** brand `clear` and matches **and** strength `clear` and matches **and** no field conflicts. Dosage form must match when both sides state it; if the registry text has no comparable form it goes to `missing` and does not block `verified`. Anything less → at most `partial`.
-4. `partial`: no conflicts, and at least brand-or-generic **plus** strength matched with `clear` legibility. Less than that → `no_match` (if no candidate fits) or `ambiguous`.
+4. `partial`: no conflicts, and either (a) brand-or-generic **plus** strength matched with `clear` legibility, or (b) registration number `clear` and matched exactly **plus** brand-or-generic matched (identity established; an unclear strength is then spoken as unclear). Less than that → `no_match` (if no candidate fits) or `ambiguous`. *(Amended 2026-10-27, controller ruling during Task 4.)*
 5. A candidate "fits" when brand or generic name matches and it has no conflicting field.
 6. `conflicting`: any compared field disagrees (e.g. label 500 mg, record 250 mg) — conflict listed, strength spoken with a warning. Conflict outranks every other status.
 7. `ambiguous`: >1 candidate fits with equal matched-field count → list them, choose none.
