@@ -17,10 +17,53 @@ export interface Strength {
 const NUMBER = String.raw`(\d+(?:\.\d+)?)`;
 // Unit must not be followed by another letter, so `500 gel` and `5 mgx` do not parse.
 const UNIT = String.raw`(mcg|mg|g|ml|iu|%)(?![a-z])`;
-const PER = String.raw`(?:\s*\/\s*(\d+(?:\.\d+)?)?\s*(ml|g|l)(?![a-z]))?`;
-// Lookbehind stops a match starting in the middle of a number or a word (e.g. `B12mg`),
-// or after a decimal comma (`1,5 mg` must not read as `5 mg`).
-const STRENGTH_RE = new RegExp(String.raw`(?<![\d.a-z]|\d,)${NUMBER}\s*${UNIT}${PER}`, 'gi');
+const PER_SEP = String.raw`\s*(?:\/|per(?![a-z]))\s*`;
+const PER = String.raw`(?:${PER_SEP}(\d+(?:\.\d+)?)?\s*(ml|g|l)(?![a-z]))?`;
+// Lookbehind stops a match starting in the middle of a number or a word (e.g. `B12mg`).
+const STRENGTH_RE = new RegExp(String.raw`(?<![\d.a-z])${NUMBER}\s*${UNIT}${PER}`, 'gi');
+const STARTS_WITH_STRENGTH = new RegExp(String.raw`^${NUMBER}\s*${UNIT}`, 'i');
+/** A `/` or `per` directly after a strength, i.e. a concentration we did not recognise. */
+const DANGLING_SEP = /^\s*(\/|per(?![a-z]))\s*/i;
+
+/** Digit runs joined by commas, e.g. `1,000` or `500,125`. */
+const COMMA_NUMBER = /\d+(?:,\d+)+/g;
+/**
+ * Accepted thousands grouping. The leading group is 1-2 digits on purpose:
+ * `500,125` has the same shape as a 3-digit-led thousands number but is more
+ * likely two merged strengths, so anything that ambiguous is rejected.
+ */
+const THOUSANDS = /^\d{1,2}(?:,\d{3})+$/;
+
+/** Number followed by letters, left over once the recognised strengths are blanked out. */
+const RESIDUAL = /(?<![\d.a-z])\d+(?:\.\d+)?(\s*)([a-zµμ%]+)/gi;
+/** Unit-like words that may follow a number after a space but are not supported strength units. */
+const UNSUPPORTED_UNITS = new Set([
+  'mmol',
+  'mol',
+  'meq',
+  'eq',
+  'kg',
+  'cc',
+  'tsp',
+  'tbsp',
+  'l',
+  'dl',
+  'ul',
+  'µl',
+  'μl',
+  'mcl',
+  'ng',
+  'u',
+  'unit',
+  'units',
+  'mu',
+  'ppm',
+  'oz',
+  'gr',
+  'grain',
+  'grains',
+  'lb',
+]);
 
 const UNIT_MAP: Record<string, StrengthUnit> = {
   mcg: 'mcg',
@@ -32,14 +75,31 @@ const UNIT_MAP: Record<string, StrengthUnit> = {
 };
 const PER_UNIT_MAP: Record<string, PerUnit> = { ml: 'mL', g: 'g', l: 'L' };
 
+/**
+ * Parses every strength in `s`. Returns null when nothing is found, and also
+ * when anything strength-like cannot be understood (an unknown `per` unit,
+ * an unsupported unit such as mmol, an ambiguous comma number): silently
+ * dropping part of a strength could make two different products compare equal.
+ */
 export function parseStrength(s: string): Strength[] | null {
-  const text = s
-    .replace(/[µμ]g/gi, 'mcg')
-    // Thousands separators: `1,000` -> `1000` (a comma followed by exactly three digits).
-    .replace(/(\d),(?=\d{3}(?!\d))/g, '$1');
+  let text = s.replace(/[µμ]g/gi, 'mcg');
+
+  for (const [token] of text.matchAll(COMMA_NUMBER)) {
+    if (!THOUSANDS.test(token)) return null;
+  }
+  text = text.replace(COMMA_NUMBER, (token) => token.replace(/,/g, ''));
 
   const out: Strength[] = [];
+  let residual = text;
   for (const m of text.matchAll(STRENGTH_RE)) {
+    const end = m.index + m[0].length;
+    const sep = DANGLING_SEP.exec(text.slice(end));
+    // Only `500mg/125mg` (a slash between two strengths) is allowed to follow a strength.
+    if (sep && !(sep[1] === '/' && STARTS_WITH_STRENGTH.test(text.slice(end + sep[0].length)))) {
+      return null;
+    }
+    residual = residual.slice(0, m.index) + ' '.repeat(m[0].length) + residual.slice(end);
+
     const [, amountStr, unitStr, perAmountStr, perUnitStr] = m;
     const unit = UNIT_MAP[(unitStr ?? '').toLowerCase()];
     if (amountStr === undefined || unit === undefined) continue;
@@ -54,6 +114,11 @@ export function parseStrength(s: string): Strength[] | null {
       }
     }
     out.push(entry);
+  }
+
+  for (const [, space, word] of residual.matchAll(RESIDUAL)) {
+    // Letters glued to a number (`10mmol`) are always unit-like; after a space only known units are.
+    if (space === '' || UNSUPPORTED_UNITS.has((word ?? '').toLowerCase())) return null;
   }
   return out.length > 0 ? out : null;
 }

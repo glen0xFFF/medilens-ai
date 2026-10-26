@@ -49,6 +49,75 @@ describe('parseStrength', () => {
     },
   );
 
+  describe('per as a word', () => {
+    test.each([
+      ['500 mg per 5 mL', [{ amount: 500, unit: 'mg', per: { amount: 5, unit: 'mL' } }]],
+      ['500 mg PER 5 ml', [{ amount: 500, unit: 'mg', per: { amount: 5, unit: 'mL' } }]],
+      ['50 mg per mL', [{ amount: 50, unit: 'mg', per: { amount: 1, unit: 'mL' } }]],
+    ])('%s', (input, expected) => {
+      expect(parseStrength(input)).toEqual(expected);
+    });
+
+    test('500 mg per 5 mL equals 500 mg/5 mL', () => {
+      expect(strengthsEqual(parseStrength('500 mg per 5 mL'), parseStrength('500 mg/5 mL'))).toBe(
+        true,
+      );
+    });
+  });
+
+  describe('unrecognised text is rejected, not dropped', () => {
+    test.each([
+      ['250 mg/tsp'],
+      ['250 mg/5 cc'],
+      ['2 mg/kg'],
+      ['250 mg per tsp'],
+      ['250 mg per 5 cc'],
+      ['Potassium 500 mg + Magnesium 10 mmol'],
+      ['500 mg + 10mmol'],
+      ['500 mg + 5 mEq'],
+      ['500 mg + 2 kg'],
+    ])('%s -> null', (input) => {
+      expect(parseStrength(input)).toBeNull();
+    });
+
+    test.each([
+      ['250 mg/tsp', '250 mg'],
+      ['250 mg/5 cc', '250 mg'],
+      ['2 mg/kg', '2 mg'],
+      ['Potassium 500 mg + Magnesium 10 mmol', '500 mg'],
+    ])('strengthsEqual(%s, %s) is false', (a, b) => {
+      expect(strengthsEqual(parseStrength(a), parseStrength(b))).toBe(false);
+    });
+
+    test.each([
+      ['Paracetamol 500 mg 10 Tablets', [{ amount: 500, unit: 'mg' }]],
+      ['Neozep 500 Forte 10 mg', [{ amount: 10, unit: 'mg' }]],
+      ['Box of 100, 500 mg', [{ amount: 500, unit: 'mg' }]],
+    ])('plain words and unitless numbers are not rejected: %s', (input, expected) => {
+      expect(parseStrength(input)).toEqual(expected);
+    });
+  });
+
+  describe('thousands separators', () => {
+    test.each([
+      ['1,000 mg', [{ amount: 1000, unit: 'mg' }]],
+      ['10,000 IU', [{ amount: 10000, unit: 'IU' }]],
+      ['1,000,000 IU', [{ amount: 1000000, unit: 'IU' }]],
+      ['1,000.5 mg', [{ amount: 1000.5, unit: 'mg' }]],
+    ])('%s', (input, expected) => {
+      expect(parseStrength(input)).toEqual(expected);
+    });
+
+    // A 3-digit leading group is indistinguishable from two merged strengths
+    // (`500,125 mg`), so it is rejected rather than guessed.
+    test.each([['500,125 mg'], ['125,000 IU'], ['1,00 mg'], ['1,0000 mg']])(
+      '%s -> null',
+      (input) => {
+        expect(parseStrength(input)).toBeNull();
+      },
+    );
+  });
+
   test('does not report a per for a plain strength', () => {
     expect(parseStrength('500mg')?.[0]).not.toHaveProperty('per');
   });
