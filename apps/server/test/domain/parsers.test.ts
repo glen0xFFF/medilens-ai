@@ -195,6 +195,82 @@ describe('parseStrength', () => {
     });
   });
 
+  describe('allowlisted patterns never consume a unit-bearing number', () => {
+    // Each of these hides a second amount behind a pack grid, a count word,
+    // a vitamin name or a non-ASCII digit. Null or "not equal" is required.
+    test.each([
+      // Pack grid glued to, or spaced from, a unit.
+      ['Paracetamol 500 mg + Caffeine 1x65mg'],
+      ['500 mg + 10x10mg'],
+      ['500 mg + 2 x65mg'],
+      ['500 mg + 10 X10 IU'],
+      ['500 mg + 2x5 mmol'],
+      ['500 mg + 10 x 10 mmol'],
+      ['500 mg + 10X65MG'],
+      ['500 mg + 10x65-mg'],
+      ['500 mg + 2 x 65 (mg)'],
+      ['500 mg + 10x10%'],
+      ['500 mg + 10 x 10 μmol'],
+      ['500 mg + 10 x 10 units'],
+      ['500 mg + 10x10 x mg'],
+      // Count word followed by a unit.
+      ['500 mg + 65 x mg'],
+      ['500 mg + 65 each mg'],
+      ['500 mg + 65 X MG'],
+      ['500 mg + 65 x %'],
+      ['500 mg + 65 forte mg'],
+      ['500 mg + 65 x tablets mg'],
+      ['500 mg + 65 tablets x mg'],
+      ['500 mg + 65 x and mg'],
+      ['500 mg + mg65 x'],
+      // Vitamin name followed by a unit.
+      ['500 mg + B12 mg'],
+      ['500 mg + B12%'],
+      ['500 mg + D3 IU'],
+      // Non-ASCII decimal digits.
+      ['500 mg + ١٠ mg'],
+      ['500 mg + ১০ mmol'],
+      ['500 mg + ٦٥mg'],
+      ['500 mg + १० mg'],
+    ])('%s is null or not equal to 500 mg', (input) => {
+      const parsed = parseStrength(input);
+      expect(parsed === null || !strengthsEqual(parsed, parseStrength('500 mg'))).toBe(true);
+    });
+
+    test.each([
+      ['0.5 mg', [{ amount: 0.5, unit: 'mg' }]],
+      ['0.125 mg', [{ amount: 0.125, unit: 'mg' }]],
+      ['1,000 mg', [{ amount: 1000, unit: 'mg' }]],
+      ['Paracetamol 500 mg 10 tablets', [{ amount: 500, unit: 'mg' }]],
+      ['B12 500 mcg', [{ amount: 500, unit: 'mcg' }]],
+      [
+        'Vitamin D3 1000 IU + 500 mg',
+        [
+          { amount: 1000, unit: 'IU' },
+          { amount: 500, unit: 'mg' },
+        ],
+      ],
+      ['500 mg 10 x 10 tablets', [{ amount: 500, unit: 'mg' }]],
+      ['10 x 10 tablets 500 mg', [{ amount: 500, unit: 'mg' }]],
+      ['Paracetamol 500 mg, 10 x 10 tablets', [{ amount: 500, unit: 'mg' }]],
+      ['2 x 500 mg Paracetamol', [{ amount: 500, unit: 'mg' }]],
+      ['Cholecalciferol (Vitamin D3) 400 IU', [{ amount: 400, unit: 'IU' }]],
+    ])('still parses: %s', (input, expected) => {
+      expect(parseStrength(input)).toEqual(expected);
+    });
+
+    test('an input cannot forge the internal strength marker', () => {
+      const mark = String.fromCharCode(0xe000);
+      expect(parseStrength(`500 mg + 65 x${mark}mg`)).toBeNull();
+    });
+
+    test('500 mg per 5 mL still equals 500 mg/5 mL', () => {
+      expect(strengthsEqual(parseStrength('500 mg per 5 mL'), parseStrength('500 mg/5 mL'))).toBe(
+        true,
+      );
+    });
+  });
+
   describe('spelled-out units', () => {
     test.each([
       ['10 micrograms', [{ amount: 10, unit: 'mcg' }]],

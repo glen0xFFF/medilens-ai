@@ -40,17 +40,34 @@ const THOUSANDS = /^\d{1,2}(?:,\d{3})+$/;
 const DOTTED_THOUSANDS = /(?<![\d.])[1-9]\d{0,2}\.\d{3}(?!\d)\s*[a-zµμ%]/i;
 
 /*
- * Allowlisted non-strength patterns. After the strengths are blanked out these
- * are blanked too, and any digit still left means the string held something we
- * did not understand, so the whole parse fails closed.
+ * Allowlisted non-strength patterns. They run only on what is left after the
+ * strengths are blanked out. A match is accepted only if no unit-like text
+ * follows it (see `followedByUnitLikeText`), otherwise it could swallow the
+ * number of an unrecognised strength such as `1x65mg` or `65 x mg`. Any
+ * numeric character still left means the string held something we did not
+ * understand, so the whole parse fails closed.
  */
 /** A pack grid such as `10 x 10` or `10x10`. */
-const PACK_GRID = /(?<![\d.])\d+\s*x\s*\d+(?![\d.])/gi;
+const PACK_GRID = /(?<![\p{L}\p{N}.])\d+\s*x\s*\d+(?![\p{N}.])/giu;
 /** A count followed by an allowlisted word, e.g. `10 tablets`, `2 x`, `500 Forte`. */
 const COUNT_WORD =
-  /(?<![\d.])\d+\s*(?:tablets?|capsules?|caplets?|sachets?|each|x|forte)(?![a-z])/gi;
+  /(?<![\p{L}\p{N}.])\d+\s*(?:tablets?|capsules?|caplets?|sachets?|each|x|forte)(?![\p{L}\p{N}])/giu;
 /** Vitamin names whose digits are not amounts, e.g. `B12`, `D3`. */
-const VITAMIN_NAME = /(?<![a-z\d])(?:b(?:1|2|3|5|6|7|9|12)|d2|d3|k1|k2)(?![a-z\d])/gi;
+const VITAMIN_NAME = /(?<![\p{L}\p{N}])(?:b(?:1|2|3|5|6|7|9|12)|d2|d3|k1|k2)(?![\p{L}\p{N}])/giu;
+/**
+ * Words that may follow an allowlisted match: the count words plus the
+ * connectors `plus` and `and`. Any other word, `%` or `‰` counts as unit-like.
+ */
+const FOLLOWER_WORD =
+  /^(?:tablets?|capsules?|caplets?|sachets?|each|x|forte|plus|and)(?![\p{L}\p{N}])/iu;
+/**
+ * Characters skipped while looking for what follows a match. Digits, letters,
+ * `%`, `‰` and the strength marker stop the scan.
+ */
+const FOLLOWER_SKIP = /^[^\p{L}\p{N}%‰\uE000]*/u;
+const UNIT_LIKE_START = /^[\p{L}%‰]/u;
+/** Private-use character that marks where a recognised strength was blanked out. */
+const STRENGTH_MARK = '\uE000';
 
 const UNIT_MAP: Record<string, StrengthUnit> = {
   mcg: 'mcg',
@@ -71,6 +88,38 @@ const PER_UNIT_MAP: Record<string, PerUnit> = { ml: 'mL', g: 'g', l: 'L' };
 const blank = (match: string) => ' '.repeat(match.length);
 
 /**
+ * True when the text after `from` starts (past spaces and punctuation, and
+ * past any chain of allowed follower words) with a letter, `%` or `‰`, i.e.
+ * something that could be the unit of the number just before it. A digit, a
+ * blanked strength or the end of the string is safe.
+ */
+function followedByUnitLikeText(s: string, from: number): boolean {
+  let i = from;
+  for (;;) {
+    i += FOLLOWER_SKIP.exec(s.slice(i))?.[0].length ?? 0;
+    const rest = s.slice(i);
+    if (!UNIT_LIKE_START.test(rest)) return false;
+    const word = FOLLOWER_WORD.exec(rest);
+    if (word === null) return true;
+    i += word[0].length;
+  }
+}
+
+/**
+ * Blanks every match of an allowlisted pattern, or returns null if any match
+ * is followed by unit-like text (the parse must then fail closed).
+ */
+function blankAllowlisted(residual: string, pattern: RegExp): string | null {
+  let out = residual;
+  for (const m of residual.matchAll(pattern)) {
+    const end = m.index + m[0].length;
+    if (followedByUnitLikeText(residual, end)) return null;
+    out = out.slice(0, m.index) + blank(m[0]) + out.slice(end);
+  }
+  return out;
+}
+
+/**
  * Parses every strength in `s` and fails closed. The invariant is that every
  * digit in the input must be consumed, either by a recognised strength or by
  * an allowlisted non-strength pattern (pack counts, vitamin names). If any
@@ -81,6 +130,8 @@ const blank = (match: string) => ' '.repeat(match.length);
 export function parseStrength(s: string): Strength[] | null {
   // NFKC folds full-width `ｍｇ`, the `㎎` ligature and NBSP into plain text.
   let text = s.normalize('NFKC').replace(/[µμ]g/gi, 'mcg');
+  // The strength marker must not be forgeable from the input.
+  if (text.includes(STRENGTH_MARK)) return null;
 
   // A digit-consumed `1.000 mg` would read as 1 mg, so it is rejected explicitly.
   if (DOTTED_THOUSANDS.test(text)) return null;
@@ -99,7 +150,7 @@ export function parseStrength(s: string): Strength[] | null {
     if (sep && !(sep[1] === '/' && STARTS_WITH_STRENGTH.test(text.slice(end + sep[0].length)))) {
       return null;
     }
-    residual = residual.slice(0, m.index) + blank(m[0]) + residual.slice(end);
+    residual = residual.slice(0, m.index) + STRENGTH_MARK.repeat(m[0].length) + residual.slice(end);
 
     const [, amountStr, unitStr, perAmountStr, perUnitStr] = m;
     const unit = UNIT_MAP[(unitStr ?? '').toLowerCase()];
@@ -116,11 +167,13 @@ export function parseStrength(s: string): Strength[] | null {
     out.push(entry);
   }
 
-  residual = residual
-    .replace(PACK_GRID, blank)
-    .replace(COUNT_WORD, blank)
-    .replace(VITAMIN_NAME, blank);
-  if (/\d/.test(residual)) return null;
+  for (const pattern of [PACK_GRID, COUNT_WORD, VITAMIN_NAME]) {
+    const next = blankAllowlisted(residual, pattern);
+    if (next === null) return null;
+    residual = next;
+  }
+  // `\p{N}` also catches digits that `\d` misses, e.g. Arabic-Indic `١٠` or Bengali `১০`.
+  if (/\p{N}/u.test(residual)) return null;
 
   return out.length > 0 ? out : null;
 }
