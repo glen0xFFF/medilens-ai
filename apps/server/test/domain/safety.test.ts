@@ -29,6 +29,26 @@ const REFUSE: [question: string, reason: RefusalReason][] = [
   ['IS IT SAFE?', 'personal_safety'],
   ["I'm allergic to penicillin, is that a problem?", 'personal_safety'],
   ['Can I use this?', 'personal_safety'],
+  // review round 1: dosing or suitability for someone else
+  ['Can my husband take two at once?', 'personal_dose'],
+  ['Can she take it?', 'personal_safety'],
+  ['Can my wife take this?', 'personal_safety'],
+  ['Should my grandma take this?', 'special_population'],
+  // review round 1: personal quantity
+  ['Is 3 tablets too much?', 'personal_dose'],
+  ['Is 4 tablets a day okay?', 'personal_dose'],
+  ["What's the maximum I can take?", 'personal_dose'],
+  ['What is the dose per kg?', 'personal_dose'],
+  ['Would 1000 mg be fine for me?', 'personal_dose'],
+  ['Mg per kg?', 'personal_dose'],
+  // review round 1: overdose
+  ['I took 5 tablets, will I be ok?', 'personal_dose'],
+  ['I accidentally took too many', 'personal_dose'],
+  ['What happens if I take more than the label says?', 'personal_dose'],
+  // review round 1: suitability for a condition
+  ['Is it ok with my high blood pressure?', 'personal_safety'],
+  ['I have diabetes, can this be used?', 'personal_safety'],
+  ['Can this be taken by diabetics?', 'personal_safety'],
 ];
 
 const ALLOW: [question: string, intent: string][] = [
@@ -45,6 +65,7 @@ const ALLOW: [question: string, intent: string][] = [
   ['What did the FDA registry say?', 'registry'],
   ['Is it registered?', 'registry'],
   ['Who makes it?', 'other_label'],
+  ['I took a photo of the box, can you read it?', 'read_label'],
 ];
 
 describe('classifyQuestion refusals', () => {

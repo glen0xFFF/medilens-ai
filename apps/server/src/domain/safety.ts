@@ -34,6 +34,11 @@ export const REFUSAL_TEXT: Record<RefusalReason, string> = {
 };
 
 const PILL = String.raw`(?:pills?|tablets?|capsules?|caplets?|tabs?)`;
+/** Who the question is about: me, someone else, or a group ("diabetics"). */
+const SUBJECT = String.raw`(?:i|you|he|she|we|they|someone|anyone|my \w+|\w+s)`;
+const COUNT = String.raw`(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|half|a)`;
+const AMOUNT_UNIT = String.raw`(?:${PILL}|mg|mcg|ml|g|doses?|teaspoons?|tsp|tablespoons?|tbsp|spoons?|drops?|sachets?)`;
+const CONDITION = String.raw`(?:diabet\w*|blood pressure|hypertensi\w*|kidneys?|renal|liver|heart|asthma\w*|ulcers?)`;
 const LOOKS = String.raw`(?:white|yellow|pink|blue|red|orange|green|brown|purple|grey|gray|black|round|oval|oblong|small|big|large|tiny|loose|scored|coated|shiny)`;
 
 /** Checked in this order; the first matching reason wins. */
@@ -59,6 +64,7 @@ const REFUSALS: readonly [RefusalReason, readonly RegExp[]][] = [
       /\b(?:son|daughter|grand(?:son|daughter|child))\b/,
       /\b\d+ ?-?(?:years?|yrs?|months?|mos?) ?-?old\b/,
       /\b(?:elderly|seniors?|old people|older people)\b/,
+      /\b(?:grand(?:ma|pa|mother|father|parents?)|lol[ao])\b/,
       /\bwhat age\b/,
       /\bage\b/,
       /\b(?:buntis|sanggol|anak|bata)\b/,
@@ -96,7 +102,19 @@ const REFUSALS: readonly [RefusalReason, readonly RegExp[]][] = [
       /\b(?:dose|dosage) (?:for|should|do)\b/,
       /\bwhat dose\b/,
       /\b(?:double|extra|more) (?:dose|tablets?|pills?)\b/,
-      /\boverdose\b/,
+      /\boverdos/,
+      /\btoo (?:much|many)\b/,
+      /\b(?:maximum|max)\b/,
+      /\bat once\b/,
+      // "took" means a dose was taken, except "took a photo"
+      /\btook (?!(?:a |an |another |the |this |my )?(?:photos?|pictures?|pics?|images?|shots?|snaps?)\b)/,
+      /\bmore than (?:the label|the box|the pack|it says|directed|recommended|prescribed|printed|stated|written)/,
+      /\bper (?:kg|kgs|kilos?|kilograms?|pounds?|lbs?)\b/,
+      /\bmg ?\/ ?kg\b/,
+      // "is 4 tablets a day okay?", "would 1000 mg be fine?"
+      new RegExp(
+        String.raw`\b${COUNT} ?${AMOUNT_UNIT}\b.*\b(?:ok|okay|fine|alright|all right|enough|too|safe|good|normal)\b`,
+      ),
       /\bilang?\b/,
     ],
   ],
@@ -122,8 +140,14 @@ const REFUSALS: readonly [RefusalReason, readonly RegExp[]][] = [
       /\ballerg/,
       /\bside effects?\b.*\b(?:i|me|my)\b/,
       /\b(?:i|me|my)\b.*\bside effects?\b/,
-      /\bcan i (?:take|use|have|drink|swallow|give)\b/,
-      /\bshould i (?:take|use|be worried|worry)\b/,
+      // "can my husband take", "should she use", "can diabetics take"
+      new RegExp(
+        String.raw`\b(?:can|could|should|may|must) ${SUBJECT} (?:still )?(?:take|use|have|drink|swallow|give)\b`,
+      ),
+      /\bshould i (?:be worried|worry)\b/,
+      /\b(?:can|could|should|may) (?:it|this|these|they|i|we) be (?:taken|used|given)\b/,
+      /\b(?:fine|ok|okay|alright|all right|good) (?:for me|for us|with my)\b/,
+      new RegExp(String.raw`\b${CONDITION}`),
       /\b(?:is|are) (?:it|this|these|they) (?:ok|okay|alright|all right|fine) (?:for|to)\b/,
       /\bwill (?:it|this) (?:hurt|harm|affect) me\b/,
       /\bstill (?:take|use)\b/,

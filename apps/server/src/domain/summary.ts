@@ -82,8 +82,14 @@ export interface SummaryInput {
   pipelineState: PipelineState;
 }
 
+/**
+ * A spoken segment: plain text, or a value with a lead that must be repeated
+ * (as `continued`) on every chunk the body is split into.
+ */
+type Segment = string | { lead: string; continued: string; body: string };
+
 export function buildSummary(input: SummaryInput): Explanation {
-  const segments: string[] = [];
+  const segments: Segment[] = [];
   const safetyNotices: string[] = [];
   const supportingFields: FieldKey[] = [];
 
@@ -114,7 +120,7 @@ export function buildSummary(input: SummaryInput): Explanation {
   segments.push(FINAL_LINE);
   safetyNotices.push(FINAL_LINE);
 
-  const spokenChunks = segments.flatMap(chunk);
+  const spokenChunks = segments.flatMap(chunkSegment);
   return {
     displayText: spokenChunks.join('\n'),
     spokenChunks,
@@ -126,7 +132,7 @@ export function buildSummary(input: SummaryInput): Explanation {
 function labelSegments(
   label: ExtractedLabel,
   match: MatchAssessment,
-  segments: string[],
+  segments: Segment[],
   safetyNotices: string[],
   supportingFields: FieldKey[],
 ): void {
@@ -172,12 +178,27 @@ function labelSegments(
     safetyNotices.push(ADVISORY_SENTENCE);
   }
 
-  const directions = spoken('directions');
-  if (directions) segments.push(`Directions as printed: ${sentence(directions)}`);
-  const warnings = spoken('warnings');
-  if (warnings) segments.push(`Warnings as printed: ${sentence(warnings)}`);
-  const expiry = spoken('expiryDate');
-  if (expiry) segments.push(`Expiry date printed on the pack: ${sentence(expiry)}`);
+  // Printed text: a non-clear value is introduced by the marker, and the marker
+  // is repeated on every chunk the value is split into, so no part of a partly
+  // unclear dose or instruction is ever read as certain.
+  const printed = (key: FieldKey, title: string, short: string): void => {
+    const f = fields.get(key);
+    const value = f?.value?.trim();
+    if (!f || !value) return;
+    if (!supportingFields.includes(key)) supportingFields.push(key);
+    if (f.legibility === 'clear') {
+      segments.push(`${title}: ${sentence(value)}`);
+    } else {
+      segments.push({
+        lead: `${title}, partly unclear:`,
+        continued: `${short} continued, partly unclear:`,
+        body: sentence(value),
+      });
+    }
+  };
+  printed('directions', 'Directions as printed', 'Directions');
+  printed('warnings', 'Warnings as printed', 'Warnings');
+  printed('expiryDate', 'Expiry date printed on the pack', 'Expiry date');
 
   const unclear = FIELD_ORDER.filter((k) => {
     const f = fields.get(k);
@@ -204,14 +225,26 @@ function sentence(text: string): string {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
-/** Split one segment into chunks of at most MAX_CHUNK chars, at sentence then word boundaries. */
-function chunk(segment: string): string[] {
+function chunkSegment(segment: Segment): string[] {
+  if (typeof segment === 'string') return chunk(segment, MAX_CHUNK);
+  const lead = segment.lead.trim();
+  const continued = segment.continued.trim();
+  const budget = MAX_CHUNK - Math.max(lead.length, continued.length) - 1;
+  return chunk(segment.body, budget).map((c, i) => `${i === 0 ? lead : continued} ${c}`);
+}
+
+/**
+ * Split text into chunks of at most `max` chars, at sentence then word
+ * boundaries. A sentence ends only at [.!?] followed by whitespace and an
+ * uppercase letter, so "2.5 mL" or "e.g. a cup" is never split apart.
+ */
+function chunk(segment: string, max: number): string[] {
   const text = segment.replace(/\s+/g, ' ').trim();
-  if (text.length <= MAX_CHUNK) return text ? [text] : [];
+  if (text.length <= max) return text ? [text] : [];
   const sentences = text
-    .match(/[^.!?]+(?:[.!?]+|$)/g)
-    ?.map((s) => s.trim())
-    .filter(Boolean) ?? [text];
+    .split(/(?<=[.!?])\s+(?=[A-Z])/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   const out: string[] = [];
   let current = '';
   const flush = () => {
@@ -219,9 +252,9 @@ function chunk(segment: string): string[] {
     current = '';
   };
   for (const s of sentences) {
-    const pieces = s.length <= MAX_CHUNK ? [s] : splitWords(s);
+    const pieces = s.length <= max ? [s] : splitWords(s, max);
     for (const p of pieces) {
-      if (current && current.length + 1 + p.length > MAX_CHUNK) flush();
+      if (current && current.length + 1 + p.length > max) flush();
       current = current ? `${current} ${p}` : p;
     }
   }
@@ -229,14 +262,14 @@ function chunk(segment: string): string[] {
   return out;
 }
 
-function splitWords(s: string): string[] {
+function splitWords(s: string, max: number): string[] {
   const out: string[] = [];
   let current = '';
   for (const word of s.split(' ')) {
     // a single unbroken run longer than the limit is hard-cut
-    for (let i = 0; i < word.length; i += MAX_CHUNK) {
-      const w = word.slice(i, i + MAX_CHUNK);
-      if (current && current.length + 1 + w.length > MAX_CHUNK) {
+    for (let i = 0; i < word.length; i += max) {
+      const w = word.slice(i, i + max);
+      if (current && current.length + 1 + w.length > max) {
         out.push(current);
         current = '';
       }

@@ -351,6 +351,44 @@ describe('buildSummary — template content', () => {
     expect(spoken(e)).toContain('word119');
   });
 
+  test('a decimal dose in long printed text is never split at its decimal point', () => {
+    const filler = Array.from(
+      { length: 10 },
+      () => 'Keep this medicine out of the reach of children and store below thirty degrees.',
+    ).join(' ');
+    const directions = `${filler} Adults: take 2.5 mL every 6 hours. ${filler}`;
+    const e = summary({ label: label({ brandName: 'Fevrinol', directions }) });
+    for (const c of e.spokenChunks) expect(c.length).toBeLessThanOrEqual(400);
+    expect(e.spokenChunks.some((c) => c.includes('Adults: take 2.5 mL every 6 hours.'))).toBe(
+      true,
+    );
+    expect(spoken(e)).not.toContain('2. 5');
+  });
+
+  test('every chunk of a long partly unclear value carries the unclear marker', () => {
+    const directions = Array.from(
+      { length: 12 },
+      (_, i) => `Step ${i + 1}: shake well and take 2.5 mL using the cup provided.`,
+    ).join(' ');
+    const e = summary({ label: label({ brandName: 'Fevrinol', directions: [directions, 'partial'] }) });
+    const carrying = e.spokenChunks.filter((c) => /Step \d+/.test(c));
+    expect(carrying.length).toBeGreaterThan(1);
+    for (const c of carrying) {
+      expect(c.length).toBeLessThanOrEqual(400);
+      expect(c).toMatch(/unclear/);
+    }
+    // the marker comes before the value, not after it
+    const first = carrying[0] ?? '';
+    expect(first.indexOf('unclear')).toBeLessThan(first.indexOf('Step 1'));
+  });
+
+  test('a short partly unclear directions value is introduced by the marker', () => {
+    const e = summary({
+      label: label({ brandName: 'Fevrinol', directions: ['Take 2.5 mL twice daily', 'partial'] }),
+    });
+    expect(spoken(e)).toContain('Directions as printed, partly unclear: Take 2.5 mL twice daily.');
+  });
+
   test('displayText carries every spoken chunk', () => {
     const e = summary({ isDemo: true });
     for (const c of e.spokenChunks) expect(e.displayText).toContain(c);
