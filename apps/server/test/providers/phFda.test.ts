@@ -103,17 +103,59 @@ describe('createPhFdaProvider', () => {
     expect(calls[0]?.init?.method ?? 'GET').toBe('GET');
   });
 
-  test('queries the registration number first and stops when it finds records', async () => {
+  test('queries the registration number first; a hit keeps its records and spends fetch 2 on advisories', async () => {
     const { provider, calls } = setup(ok());
     const r = await provider.search({ registrationNumber: 'dr-xy 99001', name: 'Paracelin' }, {});
     expect(r.kind).toBe('ok');
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe('https://verification.fda.gov.ph/api/search?q=DR-XY99001');
+    expect(calls.map((c) => c.url)).toEqual([
+      'https://verification.fda.gov.ph/api/search?q=DR-XY99001',
+      'https://verification.fda.gov.ph/api/search?q=paracelin',
+    ]);
     if (r.kind === 'ok') {
       expect(r.records[0]?.sourceUrl).toBe('https://verification.fda.gov.ph/?search=DR-XY99001');
-      // Brand comes from the query name.
+      // The same advisory in both responses is reported once.
       expect(r.advisories).toHaveLength(1);
+      expect(r.advisoriesUnchecked).toBeUndefined();
     }
+  });
+
+  test('reg hit with fdawebsite: [] still surfaces the counterfeit advisory from the name lookup', async () => {
+    const regOnly = JSON.stringify({ ...JSON.parse(FIXTURE), fdawebsite: [] });
+    const nameBody = JSON.stringify({ ...JSON.parse(FIXTURE), cdrr: [] });
+    const { provider, calls } = setup(ok(regOnly), ok(nameBody));
+    const r = await provider.search({ registrationNumber: 'DR-XY99001', name: 'Paracelin' }, {});
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.url).toBe('https://verification.fda.gov.ph/api/search?q=paracelin');
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    // Records come from the registration hit only.
+    expect(r.records).toHaveLength(2);
+    expect(r.records.every((x) => x.sourceUrl.endsWith('?search=DR-XY99001'))).toBe(true);
+    expect(r.advisories).toHaveLength(1);
+    expect(r.advisories[0]?.title).toMatch(/Counterfeit/);
+  });
+
+  test('reg hit on a registration-only query uses the record brand for the advisory fetch', async () => {
+    const regOnly = JSON.stringify({ ...JSON.parse(FIXTURE), fdawebsite: [] });
+    const { provider, calls } = setup(ok(regOnly), ok());
+    const r = await provider.search({ registrationNumber: 'DR-XY99001' }, {});
+    expect(calls.map((c) => c.url)).toEqual([
+      'https://verification.fda.gov.ph/api/search?q=DR-XY99001',
+      'https://verification.fda.gov.ph/api/search?q=paracelin',
+    ]);
+    expect(r.kind === 'ok' && r.advisories.length).toBe(1);
+  });
+
+  test('reg hit but the advisory fetch fails → ok records, flagged advisoriesUnchecked', async () => {
+    const regOnly = JSON.stringify({ ...JSON.parse(FIXTURE), fdawebsite: [] });
+    const { provider, calls } = setup(ok(regOnly), { status: 503, body: 'down' });
+    const r = await provider.search({ registrationNumber: 'DR-XY99001', name: 'Paracelin' }, {});
+    expect(calls).toHaveLength(2);
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    expect(r.records).toHaveLength(2);
+    expect(r.advisories).toEqual([]);
+    expect(r.advisoriesUnchecked).toBe(true);
   });
 
   test('falls back to the name when the registration number finds nothing; at most 2 fetches', async () => {

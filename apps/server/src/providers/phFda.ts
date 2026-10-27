@@ -1,7 +1,8 @@
 /**
  * Live PH FDA registry lookup (spec §2, §5.4). Backend-only, honest
  * User-Agent, 5 s timeout, 24 h cache of successful responses, at most two
- * fetches per search (registration number first, then name).
+ * fetches per search: registration number first, then the name (for records
+ * when the number found nothing, or for advisories only when it did).
  *
  * Response field names, confirmed against one real response on 2026-10-27
  * (`GET /api/search?q=biogesic`, first 4 KB):
@@ -166,32 +167,63 @@ export function createPhFdaProvider(deps: PhFdaDeps): ReferenceProvider {
       const terms = [reg, name].filter((t): t is string => t !== null && t !== '');
       if (terms.length === 0) return { kind: 'not_attempted' };
 
-      // At most two fetches: the first term with records wins.
-      let found: TermResult = { records: [], advisories: [] };
-      for (const term of terms) {
-        const out = await fetchTerm(term);
-        if (!out.ok) return { kind: 'unavailable', reason: out.reason };
-        found = out.value;
-        if (found.records.length > 0) break;
+      // At most two fetches. Registration number first; if it finds nothing,
+      // the name. Advisory pages are keyed by product name, so a registration
+      // hit spends the second fetch on a name term for advisories only.
+      const first = await fetchTerm(terms[0] as string);
+      if (!first.ok) return { kind: 'unavailable', reason: first.reason };
+      const found = first.value;
+      const advisoryPool: Advisory[] = [...found.advisories];
+      let advisoriesUnchecked = false;
+
+      // Brands of the first lookup's records. Only a registration hit makes
+      // them this pack's brand; a name search can return other products.
+      const recordBrands = [
+        ...new Set(
+          found.records
+            .map((r) => (r.brandName === null ? '' : normalizeName(r.brandName)))
+            .filter((b) => b !== ''),
+        ),
+      ];
+      let records = found.records;
+
+      if (reg !== null && terms[0] === reg) {
+        if (found.records.length === 0) {
+          if (name !== '') {
+            const second = await fetchTerm(name);
+            if (!second.ok) return { kind: 'unavailable', reason: second.reason };
+            records = second.value.records;
+            advisoryPool.push(...second.value.advisories);
+          }
+        } else {
+          const advisoryTerm = name !== '' ? name : recordBrands[0];
+          if (advisoryTerm === undefined) {
+            advisoriesUnchecked = true;
+          } else {
+            const second = await fetchTerm(advisoryTerm);
+            // Records stay from the registration hit; a failed advisory
+            // lookup is flagged, never silently read as "no advisory".
+            if (second.ok) advisoryPool.push(...second.value.advisories);
+            else advisoriesUnchecked = true;
+          }
+        }
       }
 
-      const brands =
-        name !== ''
-          ? [name]
-          : [
-              ...new Set(
-                found.records
-                  .map((r) => (r.brandName === null ? '' : normalizeName(r.brandName)))
-                  .filter((b) => b !== ''),
-              ),
-            ];
-      const advisories = found.advisories
-        .filter((a) => {
-          const title = a.title.toLowerCase();
-          return brands.some((b) => title.includes(b));
-        })
-        .map((a) => ({ ...a }));
-      return { kind: 'ok', records: found.records.map((r) => ({ ...r })), advisories };
+      const regHit = reg !== null && terms[0] === reg && found.records.length > 0;
+      const brands = [...new Set([...(name !== '' ? [name] : []), ...(regHit ? recordBrands : [])])];
+      const advisories: Advisory[] = [];
+      for (const a of advisoryPool) {
+        const title = a.title.toLowerCase();
+        if (!brands.some((b) => title.includes(b))) continue;
+        if (advisories.some((x) => x.title === a.title && x.url === a.url)) continue;
+        advisories.push({ ...a });
+      }
+      return {
+        kind: 'ok',
+        records: records.map((r) => ({ ...r })),
+        advisories,
+        ...(advisoriesUnchecked ? { advisoriesUnchecked: true as const } : {}),
+      };
     },
   };
 }

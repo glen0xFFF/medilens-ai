@@ -197,6 +197,24 @@ describe('assessMatch', () => {
     expect(result.advisories).toEqual([ADVISORY]);
   });
 
+  test('rule 11: advisories that could not be checked add a limitation, for any ok status', () => {
+    const unchecked: ReferenceSearchResult = {
+      kind: 'ok',
+      records: [record()],
+      advisories: [],
+      advisoriesUnchecked: true,
+    };
+    const result = assess(fullLabel(), unchecked);
+    expect(result.limitations).toContain(
+      'FDA safety advisories for this product could not be checked.',
+    );
+    const none = assess(fullLabel(), { ...unchecked, records: [] });
+    expect(none.limitations).toContain('FDA safety advisories for this product could not be checked.');
+    expect(assess(fullLabel(), ok([record()])).limitations).not.toContain(
+      'FDA safety advisories for this product could not be checked.',
+    );
+  });
+
   test('rule 11: advisories pass through unchanged for any status', () => {
     expect(assess(fullLabel(), ok([], [ADVISORY])).advisories).toEqual([ADVISORY]);
     expect(

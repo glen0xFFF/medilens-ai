@@ -27,6 +27,8 @@ const EXPIRY_NOTE = "Registration expiry is not the product's expiry date.";
 const UNAVAILABLE_NOTE = 'Registry lookup unavailable; nothing was verified.';
 const NOT_ATTEMPTED_NOTE = 'Registry lookup was not attempted.';
 export const REG_NOT_FOUND_NOTE = 'The registration number on the pack was not found in the registry.';
+export const ADVISORIES_UNCHECKED_NOTE =
+  'FDA safety advisories for this product could not be checked.';
 
 /** The label fields the matcher compares, in the order they are reported. */
 const COMPARED: readonly FieldKey[] = [
@@ -379,7 +381,9 @@ export function assessMatch(label: ExtractedLabel, search: ReferenceSearchResult
       : search.records.filter((r) => normalizeRegistrationNumber(r.registrationNumber) === reg);
 
   let relevant: Evaluation[];
-  let notes: string[] = [];
+  // Rule 11: an advisory lookup that failed is said, so `[]` is never read as "no advisory".
+  const advisoryNotes = search.advisoriesUnchecked === true ? [ADVISORIES_UNCHECKED_NOTE] : [];
+  let notes: string[] = [...advisoryNotes];
   // Rule 1 with several records under one number: any record that cannot be
   // confirmed (unrecognised form, unparseable strength, no brand) is
   // unresolved evidence for the same registration, so `verified` is out.
@@ -393,7 +397,7 @@ export function assessMatch(label: ExtractedLabel, search: ReferenceSearchResult
     unresolvedSibling = relevant.length > 1 && !relevant.every(isVerified);
   } else {
     // A clear number on the pack that the registry does not hold is worth saying.
-    if (labelReg !== null) notes = [REG_NOT_FOUND_NOTE];
+    if (labelReg !== null) notes = [REG_NOT_FOUND_NOTE, ...advisoryNotes];
     // Rule 2: a name search can return other products. A record is about this
     // label only if its brand or generic matches; a record whose brand
     // disagrees is a different product, not a conflict.

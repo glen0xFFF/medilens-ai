@@ -319,6 +319,12 @@ describe('buildSummary — template content', () => {
     expect(text).not.toContain('Registration expiry');
   });
 
+  test('advisories-unchecked limitation is spoken', () => {
+    const note = 'FDA safety advisories for this product could not be checked.';
+    const text = spoken(summary({ match: match('verified', { limitations: [note] }) }));
+    expect(text).toContain(note);
+  });
+
   test('pack expiry is spoken as printed on the pack', () => {
     expect(spoken(summary())).toMatch(/Expiry date printed on the pack: 2028-03\./);
   });

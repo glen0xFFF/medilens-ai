@@ -3,7 +3,13 @@ import type { AllowedIntent } from '../domain/safety';
 
 /** Outcome of a registry lookup, as handed to the matcher. */
 export type ReferenceSearchResult =
-  | { kind: 'ok'; records: ReferenceRecord[]; advisories: { title: string; url: string }[] }
+  | {
+      kind: 'ok';
+      records: ReferenceRecord[];
+      advisories: { title: string; url: string }[];
+      /** True when the advisory lookup failed: `advisories: []` then means "unknown", not "none". */
+      advisoriesUnchecked?: true;
+    }
   | { kind: 'unavailable'; reason: string }
   | { kind: 'not_attempted' };
 

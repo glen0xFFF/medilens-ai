@@ -14,7 +14,7 @@ import type {
   QualityReason,
   QualityReport,
 } from '@medilens/contracts';
-import { REG_NOT_FOUND_NOTE } from './matcher';
+import { ADVISORIES_UNCHECKED_NOTE, REG_NOT_FOUND_NOTE } from './matcher';
 
 export const FINAL_LINE = 'Confirm with your pharmacist or doctor.';
 export const ADVISORY_SENTENCE =
@@ -172,6 +172,9 @@ function labelSegments(
   if (verification.length > 0) segments.push(verification.join(' '));
   if (match.status === 'conflicting') safetyNotices.push(...verification);
   if (match.limitations.includes(REG_NOT_FOUND_NOTE)) segments.push(REG_NOT_FOUND_NOTE);
+  if (match.limitations.includes(ADVISORIES_UNCHECKED_NOTE)) {
+    segments.push(ADVISORIES_UNCHECKED_NOTE);
+  }
 
   // registry advisory (any status)
   if (match.advisories.length > 0) {
