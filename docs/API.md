@@ -34,7 +34,7 @@ The Node routes (`/health`, `POST /labels/analyze`, `/labels/:id/explain`, `/ref
 | GET | `/api/v1/analyses/{id}/references` | — | `{candidates, advisories, limitations, checkedAt}`; `checkedAt` is null for demo data and when the registry was not reached |
 | DELETE | `/api/v1/analyses/{id}` | — | `204`; the result and events are dropped |
 | GET | `/api/v1/demo/scenarios` | — | `[{id, title, presetQuestion?}]`; only s7 has `presetQuestion`, which the app shows as a button on that result's ask screen |
-| POST | `/api/v1/demo/scenarios` | `{scenarioId: string}` | `202 {id, status: "processing"}`; always available, whatever the providers and the budget |
+| POST | `/api/v1/demo/scenarios` | `{scenarioId: string}` | `202 {id, status: "processing"}`; available whatever the providers and the budget, but it shares the worker queue: `503 RATE_LIMITED` with `Retry-After` when the queue is full |
 | GET | `/api/v1/questions/presets` | — | `string[]` of preset questions |
 
 ### POST /analyses
@@ -75,7 +75,7 @@ instead (every 750 ms). A live read takes about 40 to 120 polls, so a poll (or t
 fetch) that fails for a passing reason (no network, a 15 s timeout, a `429`, or a `5xx` whose body
 is not this API's error body, such as a proxy's page) is retried after 1.5 s, 3 s and then 6 s, or
 after the `429`'s `Retry-After` when that is longer (capped at 30 s). The app gives up after 3
-such failures in a row; an answered poll starts the count again. When the app gives up on an
+such failures in a row; only a polling round with no failure starts the count again. When the app gives up on an
 analysis the server may still be running (retries used up, an answer it cannot read, or the user
 leaving), it sends a best-effort `DELETE /analyses/{id}`, which stops the server's work. A failed
 analysis and a `404 NOT_FOUND` end the wait without a delete (`apps/mobile/src/api/client.ts`,

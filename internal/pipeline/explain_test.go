@@ -699,3 +699,16 @@ func TestExplainForAllEightDemoScenarios(t *testing.T) {
 		}
 	}
 }
+
+// Final-review re-review M1 residual: every invisible rune the safety gate
+// strips (format, default-ignorable, variation selectors) is stripped here too.
+func TestMentionsFakeFoldedStripsDefaultIgnorables(t *testing.T) {
+	for _, s := range []string{"fa͏ke", "fak️e", "fa᠋ke", "counterㅤfeit"} {
+		if !MentionsFakeFolded(s) {
+			t.Errorf("MentionsFakeFolded(%q) = false, want true", s)
+		}
+	}
+	if MentionsFakeFolded("Keep it somewhere cool.") {
+		t.Error("plain text flagged")
+	}
+}

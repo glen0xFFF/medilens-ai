@@ -825,6 +825,9 @@ var notPrintableASCII = re("NOT_PRINTABLE_ASCII", `[^\x20-\x7e]`)
 // point the subtraction removes is Cf, so the union with \p{Cf} is
 // Cf + Other_Default_Ignorable_Code_Point + Variation_Selector. Checked per
 // code point against V8 by TestJSUnicodeTables.
+// IsInvisible reports the runes the safety gate strips before matching.
+func IsInvisible(r rune) bool { return isInvisible(r) }
+
 func isInvisible(r rune) bool {
 	return unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) ||
 		unicode.Is(unicode.Variation_Selector, r)

@@ -3,7 +3,6 @@ package pipeline
 import (
 	"context"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
@@ -249,7 +248,8 @@ func MentionsFake(text string) bool {
 
 // MentionsFakeFolded is MentionsFake on text a client sends (final review
 // M1, the speak route): on the text as given, and on its NFKC form with
-// format characters (soft hyphen, zero-width space and the like) removed,
+// the safety gate's invisible runes (format, default-ignorable, variation
+// selectors) removed,
 // so a fullwidth or split "fake" is caught too. The fixed sentences are
 // ASCII, so folding never turns them into a refusal.
 func MentionsFakeFolded(text string) bool {
@@ -257,7 +257,7 @@ func MentionsFakeFolded(text string) bool {
 		return true
 	}
 	folded := norm.NFKC.String(strings.Map(func(r rune) rune {
-		if unicode.Is(unicode.Cf, r) {
+		if domain.IsInvisible(r) {
 			return -1
 		}
 		return r

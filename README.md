@@ -20,7 +20,7 @@ verification status. When MediLens cannot read something clearly, it says so ins
 The server side is written in **Go**: a REST + SSE API (`services/api`) and a separate
 **MCP server** (`services/mcp`) that exposes the same pipeline as six safety-gated tools (one of
 them, `extract_medication_label`, creates a transient analysis and, with Muse Spark, makes a
-charged Meta call; the others only read). The original Node/Express server was ported to Go test
+charged Meta call; `explain_verified_label` can also make a charged Muse Spark call on a live result; the others only read). The original Node/Express server was ported to Go test
 for test and retired once the Go build reproduced its recorded behaviour: the parity corpora pass
 in full, image metrics are within the stated tolerance, and the HTTP layer's differences are
 documented (see [Parity](#parity-with-the-node-build)). It is kept at the git tag

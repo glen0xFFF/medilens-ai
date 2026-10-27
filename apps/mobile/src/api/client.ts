@@ -284,7 +284,7 @@ export function createApiClient(baseUrl: string, fetchImpl: FetchLike = fetch): 
    * /result polls again. A poll (or the result fetch) that fails for a
    * passing reason (ApiError.transient) is retried after a backoff of
    * 1.5 s, 3 s, then 6 s, or the server's Retry-After when longer, up to
-   * POLL_MAX_RETRIES failures in a row; any answered poll resets the count
+   * POLL_MAX_RETRIES failures in a row; only a round with no failure resets the count
    * (final review I1). Any other error ends the wait. Each request keeps
    * its own 15 s timeout; the server ends every analysis (each provider call
    * has its own timeout, and an analysis it no longer has is NOT_FOUND).

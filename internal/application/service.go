@@ -560,8 +560,9 @@ func (s *Service) Explain(ctx context.Context, id, question string) (contracts.A
 // Speak returns text for the device's speech engine: the stored spoken
 // summary, or an answer text cut by the same splitter. The answer text is
 // the client's own; one that says "fake" or "counterfeit" outside the fixed
-// sentences is refused (final review M1), so no server path speaks those
-// words except the fixed advisory and no-match sentences.
+// sentences is refused (final review M1). This is best effort: homoglyph or
+// spaced spellings and other client text still pass, so the app speaks only
+// texts the server produced.
 func (s *Service) Speak(id string, target SpeakTarget, text string) (Speech, error) {
 	r, err := s.completed(id)
 	if err != nil {
