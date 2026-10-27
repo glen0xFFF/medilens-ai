@@ -6,4 +6,7 @@ go 1.27
 // they are not part of this module.
 ignore node_modules
 
-require golang.org/x/text v0.43.0
+require (
+	golang.org/x/image v0.47.0
+	golang.org/x/text v0.43.0
+)

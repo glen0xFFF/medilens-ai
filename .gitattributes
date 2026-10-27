@@ -7,3 +7,5 @@ go.sum text eol=lf
 internal/domain/testdata/*.jsonl -text
 internal/domain/testdata/*.json -text
 internal/jsregex/testdata/*.jsonl -text
+# Image parity set (task G5): binary images and the recorded reference, byte for byte
+fixtures/parity/images/** -text

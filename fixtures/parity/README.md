@@ -140,3 +140,28 @@ These come from `scripts/parity/probes.parity.ts`. All of it is synthetic DEMO D
 | `answers_casefold.json` | The `iu` RegExp semantics the phrase lookup relies on, per code point: which code points `/^[\p{L}\p{N}]$/iu` matches, and, for every code point with a case mapping, which others a `/^\u{c}$/iu` literal matches. |
 | `answers_regexps.json` | The source and flags of every RegExp V8 ran inside the summary and answer functions below. The Go test checks that each pattern answers.go compiles from a TS source is one of them, with the same flags. |
 | `answers_unicode.jsonl` | Corpus-format lines for `findPhraseInFields`, `explainQuote`, `composeExplainAnswer`, `explanationAllowed`, `explanationFits`, `quoteExplainable`, `answerFromLabel` and `buildSummary` on non-ASCII inputs: case-fold variants (Kelvin sign, long s, final sigma, ypogegrammeni, dotted and dotless i, sharp s, Deseret), NFKC compatibility forms, format characters, typographic quotes and dashes, and long printed values with astral characters (UTF-16 lengths in the 400-unit chunker). A probe whose result would contain a lone surrogate is not recorded. |
+
+## Image parity (task G5)
+
+`npx tsx scripts/parity/record-images.ts` writes `fixtures/parity/images/`: synthetic images and `reference.json`, which records what the Node imaging code (`apps/server/src/imaging`, sharp 0.35.5 / libvips 8.18.7) returns for each of them. Every image is synthetic: text-like block patterns, solid colours and gradients. None is a real medicine photo. The image bytes are deterministic. Metric floats are rounded to 10 significant digits, because sharp varies by about 1e-13 between runs. After task G12, re-recording needs `git checkout node-fallback-v1` first.
+
+Per image, `reference.json` holds:
+
+- `validate`: `validateImage` as returned;
+- `assess`: `assessQuality` on the upload itself, or null (16-bit, alpha, rejected, and the large images);
+- `normalized`: `normalizeImage`, then `assessQuality` on the JPEG it returns (what the pipeline measures), with the output size, channel count and `grid`, the 4x4 block means of its greyscale.
+
+`fit` lists input sizes with the size sharp's fit-inside resize gives them: rounding edge cases plus a seeded sample.
+
+| Images | What they cover |
+|---|---|
+| `sharp`, `blurred`, `dark`, `glare`, `blue`, `green`, `wide` (3000x1000), `orient6.jpg`, `sharp.gif`, `huge.png` (7000x7000) | the Node tests' own images (`apps/server/test/helpers/images.ts`) |
+| `sharp.png`, `sharp.webp`, `sharp-lossless.webp`, `progressive.jpg`, `grey16.png`, `alpha.png`, `tiny.jpg` (1x1) | formats and decoder paths |
+| `colour.*`, `colour-444.jpg`, `colour-p3.jpg`, `sharp-p3.jpg`, `cmyk.jpg` | colour to grey conversion, chroma subsampling, ICC profiles |
+| `orient6.png`, `orient6.webp`, `cells-o1.jpg` to `cells-o8.jpg` | EXIF orientation in PNG and WebP, and all eight orientations (block means) |
+| `tall.jpg`, `large-*` | the resize: Lanczos3, JPEG shrink-on-load (1/2, 1/4, 1/8), libvips' box shrink, and libwebp's scaled decode for WebP over 2048 |
+
+The Go test (`internal/imaging/parity_test.go`) requires sharpness within 0.5, luminance within 0.5 and glare within 0.005, with the same `ok` and `reasons`. It also requires the same output size and block means within 3 grey levels. Two images are listed as known gaps, each with a bound just above the measured difference and the verdict still exactly equal:
+
+- `cmyk.jpg`: sharp converts CMYK through lcms with libvips' CMYK profile, and Go has no ICC support;
+- `colour-p3.jpg`: the block means of its saturated corner, for the same reason. Its metrics are within the tolerance.
