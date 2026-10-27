@@ -1,5 +1,5 @@
-import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useIsFocused, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef } from 'react';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import { useApi } from '../../src/api/ApiContext';
 import { BigButton } from '../../src/components/BigButton';
@@ -25,6 +25,29 @@ export default function ResultScreen() {
   const theme = useTheme();
   const client = useApi();
 
+  const navigation = useNavigation();
+
+  // Go port spec §7: once the user leaves this result, the server's copy is
+  // dropped now rather than at its 15-minute expiry. expo-router 58's
+  // navigation core has no `beforeRemove`; its `removed` event fires only when
+  // this route is actually popped (Back to home, Android hardware back, the
+  // back gesture, a retake), never when fields, sources or ask are pushed on
+  // top, and never on a StrictMode simulated unmount. It fires after the
+  // screen unmounts, so the listener uses only the closure and a ref, and
+  // unsubscribing is deferred a microtask as the event's docs require.
+  // Best effort: leaving never waits for it or reports its failure, and it is
+  // sent at most once.
+  const deleted = useRef(false);
+  const dropServerCopy = useCallback(() => {
+    if (deleted.current || id === undefined) return;
+    deleted.current = true;
+    client.deleteAnalysis(id).catch(() => {});
+  }, [client, id]);
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('removed', dropServerCopy);
+    return () => queueMicrotask(unsubscribe);
+  }, [navigation, dropServerCopy]);
+
   const announced = useRef<string | null>(null);
   useEffect(() => {
     if (result === undefined || announced.current === result.id) return;
@@ -43,11 +66,8 @@ export default function ResultScreen() {
   }
 
   const go = (pathname: ResultRoute) => router.push({ pathname, params: { id: result.id } });
-  // Go port spec §7: done with this result, so the server's copy is dropped
-  // now rather than at its 15-minute expiry. Best effort: going home never
-  // waits for it or reports its failure.
   const home = () => {
-    client.deleteAnalysis(result.id).catch(() => {});
+    dropServerCopy();
     router.dismissTo('/');
   };
   const { explanation, match } = result;

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { renderRouter, screen, fireEvent } from 'expo-router/testing-library';
+import { router } from 'expo-router';
+import { act, renderRouter, screen, fireEvent } from 'expo-router/testing-library';
 import * as Speech from 'expo-speech';
 import { AccessibilityInfo } from 'react-native';
 import { ApiError } from '../../src/api/client';
@@ -175,6 +176,44 @@ describe('result screen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Back to home' }));
     expect(screen).toHavePathname('/');
     expect(screen.queryByText('offline')).toBeNull();
+  });
+
+  // Review round 1: Android hardware back and the back gesture also leave a
+  // result for home (analyzing builds the stack as [/, /result/{id}]).
+  it('going back to home from a scan result deletes the analysis on the server', async () => {
+    await AsyncStorage.setItem('medilens.disclaimer.v1', 'true');
+    const client = clientFor(RESULTS.s1);
+    await renderRouter(appRoutes(client), { initialUrl: '/' });
+    await act(async () => router.push({ pathname: '/result/[id]', params: { id: RESULTS.s1.id } }));
+    expect(await screen.findByText('Matches FDA registry')).toBeTruthy();
+    expect(client.deleteAnalysis).not.toHaveBeenCalled();
+    await act(async () => router.back());
+    expect(screen).toHavePathname('/');
+    expect(client.deleteAnalysis).toHaveBeenCalledWith(RESULTS.s1.id);
+    expect(client.deleteAnalysis).toHaveBeenCalledTimes(1);
+  });
+
+  it('going back from fields to the result keeps the analysis on the server', async () => {
+    const client = clientFor(RESULTS.s1);
+    await renderRouter(appRoutes(client), { initialUrl: '/' });
+    await act(async () => router.push({ pathname: '/result/[id]', params: { id: RESULTS.s1.id } }));
+    await screen.findByText('Matches FDA registry');
+    await fireEvent.press(screen.getByRole('button', { name: 'Label fields' }));
+    expect(screen).toHavePathname(`/result/${RESULTS.s1.id}/fields`);
+    await act(async () => router.back());
+    expect(screen).toHavePathname(`/result/${RESULTS.s1.id}`);
+    expect(client.deleteAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('Back to home from a scan result deletes the analysis once', async () => {
+    const client = clientFor(RESULTS.s1);
+    await renderRouter(appRoutes(client), { initialUrl: '/' });
+    await act(async () => router.push({ pathname: '/result/[id]', params: { id: RESULTS.s1.id } }));
+    await screen.findByText('Matches FDA registry');
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to home' }));
+    expect(screen).toHavePathname('/');
+    expect(client.deleteAnalysis).toHaveBeenCalledWith(RESULTS.s1.id);
+    expect(client.deleteAnalysis).toHaveBeenCalledTimes(1);
   });
 
   it('opening the fields, sources or ask screen keeps the analysis on the server', async () => {
