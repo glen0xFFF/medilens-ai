@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import { AccessibilityInfo } from 'react-native';
 import { ApiError } from '../../src/api/client';
 import { SETTINGS_KEY } from '../../src/state/settings';
@@ -44,6 +44,58 @@ describe('welcome and home', () => {
     expectPressablesLabelled(view);
     await fireEvent.press(screen.getByRole('button', { name: 'Demo mode' }));
     expect(screen).toHavePathname('/demo');
+  });
+});
+
+// Final review Minor 17: a demo-mode server answers every scan with the s1 fixture.
+const DEMO_NOTICE = 'Server is in demo mode: scans return a made-up example.';
+// Final review Minor 21: live mode sends the photos to the Meta Model API.
+const META_PHOTOS = /live mode.*photos.*Meta Model API/i;
+
+describe('server mode notice on home', () => {
+  beforeEach(async () => {
+    await AsyncStorage.setItem('medilens.disclaimer.v1', 'true');
+  });
+
+  it('says scans return a made-up example when the server is in demo mode', async () => {
+    const client = mockClient();
+    await renderRouter(appRoutes(client), { initialUrl: '/' });
+    expect(await screen.findByText(DEMO_NOTICE)).toBeTruthy();
+    expect(client.health).toHaveBeenCalled();
+  });
+
+  it('shows no notice when the server is live', async () => {
+    const client = mockClient({
+      health: jest.fn(() =>
+        Promise.resolve({ status: 'ok', version: '0.1.0', providerMode: 'live' as const }),
+      ),
+    });
+    await renderRouter(appRoutes(client), { initialUrl: '/' });
+    await screen.findByRole('button', { name: 'Scan medicine' });
+    await waitFor(() => expect(client.health).toHaveBeenCalled());
+    expect(screen.queryByText(DEMO_NOTICE)).toBeNull();
+  });
+
+  it('shows no notice when the server cannot be reached', async () => {
+    const client = mockClient({
+      health: jest.fn(() => Promise.reject(new ApiError('NETWORK', 'No connection.'))),
+    });
+    await renderRouter(appRoutes(client), { initialUrl: '/' });
+    await screen.findByRole('button', { name: 'Scan medicine' });
+    await waitFor(() => expect(client.health).toHaveBeenCalled());
+    expect(screen.queryByText(DEMO_NOTICE)).toBeNull();
+  });
+});
+
+describe('privacy wording names the Meta Model API', () => {
+  it('the first-run disclaimer says live mode sends photos to the Meta Model API', async () => {
+    await renderRouter(appRoutes(mockClient()), { initialUrl: '/' });
+    expect(await screen.findByText(META_PHOTOS)).toBeTruthy();
+  });
+
+  it.each(['/settings', '/safety'])('%s says so too', async (url) => {
+    await renderRouter(appRoutes(mockClient()), { initialUrl: url });
+    expect(await screen.findByText(META_PHOTOS)).toBeTruthy();
   });
 });
 

@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { BigButton } from '../src/components/BigButton';
 import { Body, Heading, Screen } from '../src/components/Screen';
+import { LIVE_MODE_PHOTOS } from '../src/ui/text';
 
 /** Safety and limitations: what the app does and does not do. */
 export default function Safety() {
@@ -34,6 +35,7 @@ export default function Safety() {
         Photos are sent to the MediLens server only to read the label and are not kept. Results are
         held in memory and are never saved on this phone.
       </Body>
+      <Body>{LIVE_MODE_PHOTOS}</Body>
 
       <BigButton label="Back to home" variant="secondary" onPress={() => router.dismissTo('/')} />
     </Screen>

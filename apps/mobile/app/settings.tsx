@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useApi } from '../src/api/ApiContext';
 import { BigButton } from '../src/components/BigButton';
 import { Body, Heading, Screen } from '../src/components/Screen';
+import { LIVE_MODE_PHOTOS } from '../src/ui/text';
 import {
   MAX_SPEECH_RATE,
   MIN_SPEECH_RATE,
@@ -99,6 +100,7 @@ export default function Settings() {
         are kept in memory while the app is open and are never saved on this phone; the server
         deletes its copy after 15 minutes.
       </Body>
+      <Body>{LIVE_MODE_PHOTOS}</Body>
       <Body>Only these settings and whether you have read the welcome notice are saved.</Body>
 
       <Heading>Server</Heading>

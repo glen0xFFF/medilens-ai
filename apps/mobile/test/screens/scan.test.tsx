@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCameraPermissions } from 'expo-camera';
 import { launchImageLibraryAsync } from 'expo-image-picker';
-import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import { AccessibilityInfo, Linking } from 'react-native';
 import { ApiError, type ApiErrorCode } from '../../src/api/client';
 import { RESULTS } from '../helpers/fixtures';
@@ -100,6 +100,36 @@ describe('scan screen: camera permission states', () => {
     expect(screen.queryByRole('button', { name: 'Take photo' })).toBeNull();
     expectPressablesLabelled(view);
     expect(announce).toHaveBeenCalledWith(expect.stringMatching(/camera could not be started/i));
+  });
+});
+
+describe('scan screen: server mode notice (final review Minor 17)', () => {
+  const DEMO_NOTICE = 'Server is in demo mode: scans return a made-up example.';
+  const live = () =>
+    mockClient({
+      health: jest.fn(() =>
+        Promise.resolve({ status: 'ok', version: '0.1.0', providerMode: 'live' as const }),
+      ),
+    });
+
+  it('warns on the camera screen when the server is in demo mode', async () => {
+    await openAt('/scan');
+    expect(await screen.findByTestId('camera-view')).toBeTruthy();
+    expect(await screen.findByText(DEMO_NOTICE)).toBeTruthy();
+  });
+
+  it('warns while camera access is being asked for', async () => {
+    setPermission({ granted: false, canAskAgain: true, status: 'undetermined' });
+    await openAt('/scan');
+    expect(await screen.findByText(DEMO_NOTICE)).toBeTruthy();
+  });
+
+  it('shows no notice when the server is live', async () => {
+    const client = live();
+    await openAt('/scan', client);
+    expect(await screen.findByTestId('camera-view')).toBeTruthy();
+    await waitFor(() => expect(client.health).toHaveBeenCalled());
+    expect(screen.queryByText(DEMO_NOTICE)).toBeNull();
   });
 });
 
@@ -218,6 +248,12 @@ describe('analyzing screen', () => {
     // Upload done: the prepared photos are deleted and nothing else re-reads them.
     expect(deleted.mock.calls).toEqual([[prepared(1)], [prepared(2)]]);
     expect(client.result).not.toHaveBeenCalled();
+  });
+
+  it('says live mode sends the photos to the Meta Model API (final review Minor 21)', async () => {
+    const client = mockClient({ analyze: jest.fn(() => new Promise(() => {})) });
+    await analyze(client, 1);
+    expect(await screen.findByText(/live mode.*photos.*Meta Model API/i)).toBeTruthy();
   });
 
   it('re-announces that it is still working during a long upload', async () => {

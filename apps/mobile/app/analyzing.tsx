@@ -9,7 +9,7 @@ import { BigButton } from '../src/components/BigButton';
 import { Body, Heading, Notice, Screen } from '../src/components/Screen';
 import { useResults } from '../src/state/results';
 import { useTheme } from '../src/theme/theme';
-import { analyzeErrorMessage } from '../src/ui/text';
+import { LIVE_MODE_PHOTOS, analyzeErrorMessage } from '../src/ui/text';
 
 /** How often a long upload re-announces that it is still working. */
 export const STILL_WORKING_MS = 15_000;
@@ -147,6 +147,7 @@ export default function Analyzing() {
         {status}
       </Text>
       <Body muted>The photos are sent to the MediLens server and are not stored.</Body>
+      <Body muted>{LIVE_MODE_PHOTOS}</Body>
     </Screen>
   );
 }

@@ -4,6 +4,7 @@ import { AccessibilityInfo } from 'react-native';
 import { useCaptures } from '../src/capture/captures';
 import { usePickPhotos } from '../src/capture/pick';
 import { BigButton } from '../src/components/BigButton';
+import { DemoModeNotice } from '../src/components/DemoModeNotice';
 import { Body, Heading, Notice, Screen } from '../src/components/Screen';
 import { SpeechControls } from '../src/components/SpeechControls';
 import { acknowledgeDisclaimer, isDisclaimerAcknowledged } from '../src/state/disclaimer';
@@ -99,6 +100,7 @@ function Home() {
     <Screen title="MediLens AI">
       <Heading>MediLens AI</Heading>
       <Body>Reads medicine labels aloud. Always confirm with a pharmacist or doctor.</Body>
+      <DemoModeNotice />
       {message === null ? null : <Notice>{message}</Notice>}
       <BigButton
         label="Scan medicine"

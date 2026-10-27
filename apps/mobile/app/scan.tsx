@@ -8,6 +8,7 @@ import { discardFiles } from '../src/capture/files';
 import { usePickPhotos } from '../src/capture/pick';
 import { prepareImage } from '../src/capture/prepare';
 import { BigButton } from '../src/components/BigButton';
+import { DemoModeNotice } from '../src/components/DemoModeNotice';
 import { Body, Heading, Notice, Screen } from '../src/components/Screen';
 import { useTheme } from '../src/theme/theme';
 
@@ -30,6 +31,7 @@ export default function Scan() {
   if (permission === null) {
     return (
       <Screen title="Camera">
+        <DemoModeNotice />
         <Body>Checking camera access…</Body>
       </Screen>
     );
@@ -37,6 +39,7 @@ export default function Scan() {
   if (!permission.granted && permission.canAskAgain) {
     return (
       <Screen title="Camera">
+        <DemoModeNotice />
         <Heading>Camera access</Heading>
         <Body>MediLens AI needs the camera to photograph the medicine label.</Body>
         <BigButton
@@ -51,6 +54,7 @@ export default function Scan() {
   if (!permission.granted) {
     return (
       <Screen title="Camera">
+        <DemoModeNotice />
         <Heading>Camera access is off</Heading>
         <Body>
           Turn on camera access for MediLens AI in your phone settings, or read an existing photo
@@ -68,6 +72,7 @@ export default function Scan() {
   if (unavailable) {
     return (
       <Screen title="Camera">
+        <DemoModeNotice />
         <Heading>Camera not available</Heading>
         <Body>{UNAVAILABLE}</Body>
         <GalleryAndCancel />
@@ -195,6 +200,7 @@ function Capture({ onUnavailable }: { onUnavailable(): void }) {
         onMountError={onUnavailable}
       />
       <ScrollView style={styles.controls} contentContainerStyle={styles.controlsContent}>
+        <DemoModeNotice />
         <Text
           accessibilityLiveRegion="polite"
           style={{ color: theme.colors.text, fontSize: theme.font(18), fontWeight: '700' }}

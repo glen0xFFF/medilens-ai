@@ -80,13 +80,25 @@ export function statusKeyFor(result: AnalysisResult): StatusKey {
   return result.pipelineState === 'label_unreadable' ? 'unreadable' : result.match.status;
 }
 
+/** Shown on Home and Scan when the server reports providerMode demo (final review Minor 17). */
+export const DEMO_MODE_NOTICE = 'Server is in demo mode: scans return a made-up example.';
+
+/**
+ * Final review Minor 21: where the photos go in live mode. MediLens itself
+ * keeps no photos; what the Meta Model API keeps is its own policy, so the
+ * app does not claim anything about it.
+ */
+export const LIVE_MODE_PHOTOS =
+  'In live mode, the MediLens server sends the photos to the Meta Model API to read the label.';
+
 /** First-run disclaimer, shown and spoken until the user acknowledges it. */
 export const DISCLAIMER_SENTENCES = [
   'MediLens AI reads the printed text on a medicine label aloud and checks it against the Philippine FDA registry.',
   'It is not a diagnostic tool and does not give medical advice.',
   'It does not identify loose pills.',
   'Always confirm with a pharmacist or doctor.',
-  'Photos are not stored.',
+  'Photos are not stored by MediLens AI.',
+  LIVE_MODE_PHOTOS,
 ] as const;
 
 export const GENERIC_ERROR = 'Something went wrong. Please try again.';
