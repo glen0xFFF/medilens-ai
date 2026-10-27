@@ -104,3 +104,31 @@ describe('createAppDeps', () => {
     expect(deps.meter.exhausted()).toBe(true);
   });
 });
+
+describe('final review Minor 12: a failed model request is logged by name and status only', () => {
+  test('a wrong key shows up in the logs as AuthenticationError 401, without the message', async () => {
+    const lines: string[] = [];
+    const sink = createLogger({ write: (s: string) => void lines.push(s) });
+    const denied = Object.assign(new Error('Incorrect API key provided: sk-not-a-real-key-123'), {
+      name: 'AuthenticationError',
+      status: 401,
+    });
+    const client = { create: () => Promise.reject(denied) } as unknown as ChatClient;
+    const deps = createAppDeps(loadConfig(LIVE), {
+      logger: sink,
+      now: () => T0,
+      chatClient: client,
+    });
+    const read = await deps.live?.reader.read([await sharpJpeg()], {});
+    expect(read?.ok).toBe(false);
+    expect(lines).toHaveLength(1);
+    const line = JSON.parse(lines[0] ?? '{}') as Record<string, unknown>;
+    expect(line).toMatchObject({
+      msg: 'model request failed',
+      errorName: 'AuthenticationError',
+      status: 401,
+    });
+    expect(lines[0]).not.toContain('sk-');
+    expect(lines[0]).not.toContain('Incorrect API key');
+  });
+});

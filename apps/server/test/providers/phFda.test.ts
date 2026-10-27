@@ -1,8 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { ReferenceRecordSchema } from '@medilens/contracts';
+import { AdvisorySchema, AnalysisResultSchema, ReferenceRecordSchema } from '@medilens/contracts';
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { MAX_CACHE_ENTRIES } from '../../src/config';
+import { analyzeImages } from '../../src/pipeline/analyze';
+import { createResultStore } from '../../src/pipeline/store';
 import { TtlCache } from '../../src/providers/cache';
 import { createPhFdaProvider } from '../../src/providers/phFda';
+import { sharpJpeg } from '../helpers/images';
 
 /* Synthetic PH FDA search response (DEMO DATA, fictional products). No network. */
 const FIXTURE = readFileSync(
@@ -115,7 +119,9 @@ describe('createPhFdaProvider', () => {
       expect(r.records[0]?.sourceUrl).toBe('https://verification.fda.gov.ph/?search=DR-XY99001');
       // The same advisory in both responses is reported once.
       expect(r.advisories).toHaveLength(1);
-      expect(r.advisoriesUnchecked).toBeUndefined();
+      // Final review Minor 7: the fixture's Paracelin row with a javascript:
+      // link is dropped, so advisories about this product are not all known.
+      expect(r.advisoriesUnchecked).toBe(true);
     }
   });
 
@@ -257,5 +263,152 @@ describe('createPhFdaProvider', () => {
   ])('200 JSON with %s → unavailable', async (_n, body) => {
     const { provider } = setup(ok(body));
     expect((await provider.search({ name: 'Paracelin' }, {})).kind).toBe('unavailable');
+  });
+});
+
+/* ------------------------------------------------------ final review fixes */
+
+describe('final review Minor 15: TtlCache holds at most maxEntries, oldest first out', () => {
+  test('the default cap is MAX_CACHE_ENTRIES = 500', () => {
+    expect(MAX_CACHE_ENTRIES).toBe(500);
+    const c = new TtlCache<number, number>(1000, () => 0);
+    for (let i = 0; i < 501; i++) c.set(i, i);
+    expect(c.size).toBe(500);
+    expect(c.get(0)).toBeUndefined();
+    expect(c.get(500)).toBe(500);
+  });
+
+  test('setting past the cap evicts the oldest entry', () => {
+    const c = new TtlCache<string, number>(1000, () => 0, 3);
+    c.set('a', 1);
+    c.set('b', 2);
+    c.set('c', 3);
+    c.set('d', 4);
+    expect(c.size).toBe(3);
+    expect(c.get('a')).toBeUndefined();
+    expect([c.get('b'), c.get('c'), c.get('d')]).toEqual([2, 3, 4]);
+  });
+
+  test('expired entries are swept before a live entry is evicted', () => {
+    let t = 0;
+    const c = new TtlCache<string, number>(1000, () => t, 2);
+    c.set('old', 1);
+    t = 500;
+    c.set('live', 2);
+    t = 1000; // 'old' has expired, 'live' has not
+    c.set('new', 3);
+    expect(c.get('live')).toBe(2);
+    expect(c.get('new')).toBe(3);
+  });
+
+  test('setting an existing key again makes it the newest', () => {
+    const c = new TtlCache<string, number>(1000, () => 0, 2);
+    c.set('a', 1);
+    c.set('b', 2);
+    c.set('a', 10);
+    c.set('c', 3);
+    expect(c.get('a')).toBe(10);
+    expect(c.get('b')).toBeUndefined();
+  });
+});
+
+describe('final review Minor 7: an advisory row the contract rejects is dropped, never a failed scan', () => {
+  const GOOD = { title: 'Counterfeit Paracelin notice', url: 'https://www.fda.gov.ph/ok-demo' };
+
+  test.each(['https:/www.fda.gov.ph/x', 'https://localhost/x', 'http://10.0.0.1/a'])(
+    'a row about this product with url %s is dropped and flagged; the rest is kept',
+    async (url) => {
+      const body = JSON.stringify({
+        cdrr: [],
+        fdawebsite: [{ title: 'Recall of Paracelin 500', url }, GOOD],
+      });
+      const { provider } = setup(ok(body));
+      const r = await provider.search({ name: 'Paracelin' }, {});
+      expect(r.kind).toBe('ok');
+      if (r.kind !== 'ok') return;
+      expect(r.advisories).toEqual([GOOD]);
+      for (const a of r.advisories) expect(AdvisorySchema.safeParse(a).success).toBe(true);
+      expect(r.advisoriesUnchecked).toBe(true);
+    },
+  );
+
+  test('a row about this product whose link the contract rejects flags advisories unchecked', async () => {
+    const body = JSON.stringify({
+      cdrr: [],
+      fdawebsite: [{ title: 'Counterfeit Paracelin 500 warning', url: 'https://localhost/x' }],
+    });
+    const { provider } = setup(ok(body));
+    const r = await provider.search({ name: 'Paracelin' }, {});
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    expect(r.advisories).toEqual([]);
+    expect(r.advisoriesUnchecked).toBe(true);
+  });
+
+  test('a live scan whose registry returns a bad advisory link is still a result, not a 500', async () => {
+    const body = JSON.stringify({
+      cdrr: JSON.parse(FIXTURE).cdrr,
+      fdawebsite: [{ title: 'Recall of Paracelin 500', url: 'https:/www.fda.gov.ph/x' }, GOOD],
+    });
+    const f = fakeFetch(ok(body));
+    const label = {
+      imageKind: 'label' as const,
+      fields: [
+        { key: 'brandName' as const, value: 'Paracelin', legibility: 'clear' as const },
+        { key: 'registrationNumber' as const, value: 'DR-XY99001', legibility: 'clear' as const },
+      ].map((x) => ({ ...x, evidenceText: x.value, imageIndex: 0, notes: null })),
+      rawText: 'DEMO DATA',
+      warnings: [],
+    };
+    const result = await analyzeImages([await sharpJpeg()], {
+      reader: { read: () => Promise.resolve({ ok: true, label, model: 'muse-spark-1.3' }) },
+      references: createPhFdaProvider({ fetch: f.fetch, now: () => T0, userAgent: UA }),
+      store: createResultStore(() => T0),
+      now: () => T0,
+      newId: () => 'id-1',
+      isDemo: false,
+    });
+    expect(AnalysisResultSchema.safeParse(result).success).toBe(true);
+    expect(result.match.advisories).toEqual([GOOD]);
+  });
+});
+
+describe('final review Minor 9: advisory rows that cannot be mapped are flagged, never read as none', () => {
+  test('rows with no title (unconfirmed field names) flag advisoriesUnchecked', async () => {
+    const body = JSON.stringify({
+      cdrr: [],
+      fdawebsite: [{ name: 'Counterfeit Paracelin 500', link: 'https://www.fda.gov.ph/a' }],
+    });
+    const { provider } = setup(ok(body));
+    const r = await provider.search({ name: 'Paracelin' }, {});
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    expect(r.advisories).toEqual([]);
+    expect(r.advisoriesUnchecked).toBe(true);
+  });
+
+  test('the flag is kept for a cached lookup', async () => {
+    const body = JSON.stringify({ cdrr: [], fdawebsite: [{ heading: 'Paracelin' }] });
+    const { provider, calls } = setup(ok(body));
+    await provider.search({ name: 'Paracelin' }, {});
+    const r = await provider.search({ name: 'Paracelin' }, {});
+    expect(calls).toHaveLength(1);
+    expect(r.kind === 'ok' && r.advisoriesUnchecked).toBe(true);
+  });
+
+  test('an empty fdawebsite is "no advisory", not unchecked', async () => {
+    const { provider } = setup(ok(EMPTY));
+    const r = await provider.search({ name: 'Paracelin' }, {});
+    expect(r.kind === 'ok' && r.advisoriesUnchecked).toBe(undefined);
+  });
+
+  test('rows that all map, none about this product, are "no advisory"', async () => {
+    const body = JSON.stringify({
+      cdrr: [],
+      fdawebsite: [{ title: 'Recall of Fictivex', url: 'https://www.fda.gov.ph/f' }],
+    });
+    const { provider } = setup(ok(body));
+    const r = await provider.search({ name: 'Paracelin' }, {});
+    expect(r.kind === 'ok' && r.advisoriesUnchecked).toBe(undefined);
   });
 });

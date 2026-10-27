@@ -79,6 +79,11 @@ Server (root `.env`, git-ignored; template in [.env.example](.env.example)):
 | `PUBLIC_REPO_URL` | (empty) | Repository URL used in the honest PH FDA `User-Agent`. |
 | `CORS_ORIGIN` | (empty) | Optional allowed CORS origin. |
 
+The spend meter lives in server memory: **a restart starts the day's total at zero again**, so
+the cap holds only while the process keeps running. A model call that reports no token usage
+(or times out, or fails with a 5xx) is charged a conservative 4,000 input + 4,000 output tokens.
+Requests already in flight when the cap is reached can each still finish one call.
+
 App (`apps/mobile/.env`, git-ignored; template in `apps/mobile/.env.example`):
 
 | Variable | Default | Meaning |

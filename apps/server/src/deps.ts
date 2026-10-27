@@ -14,6 +14,7 @@ import {
   createMuseSparkAnswerer,
   createMuseSparkLabelReader,
   type ChatClient,
+  type ModelRequestError,
   type ModelUsage,
 } from './providers/museSpark';
 import { createPhFdaProvider } from './providers/phFda';
@@ -36,14 +37,19 @@ export function createAppDeps(config: AppConfig, opts: CreateDepsOptions): AppDe
     if (key === undefined || key === '') throw new Error('MODEL_API_KEY is required in live mode.');
     const client = opts.chatClient ?? createMetaClient(key);
     const onUsage = (usage: ModelUsage): void => meter.record(usage);
+    // final review Minor 12: a wrong key or a 429 is visible in the logs, by
+    // error name and HTTP status only; the message can echo request details
+    const onError = ({ errorName, status }: ModelRequestError): void => {
+      opts.logger.warn({ errorName, status }, 'model request failed');
+    };
     live = {
-      reader: createMuseSparkLabelReader(client, { onUsage }),
+      reader: createMuseSparkLabelReader(client, { onUsage, onError }),
       references: createPhFdaProvider({
         fetch: opts.fetch ?? ((input, init) => fetch(input, init)),
         now,
         userAgent: userAgent(config),
       }),
-      answerer: createMuseSparkAnswerer(client, { onUsage }),
+      answerer: createMuseSparkAnswerer(client, { onUsage, onError }),
     };
   }
 

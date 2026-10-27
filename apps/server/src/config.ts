@@ -27,6 +27,13 @@ export const MAX_IMAGE_PIXELS = 40_000_000;
 /** How long an analysis result stays retrievable for follow-up calls (15 min, memory only). */
 export const RESULT_TTL_MS = 15 * 60 * 1000;
 
+/**
+ * Most entries an in-memory cache or the result store holds; past it the
+ * oldest entry goes first (final review Minor 15), so memory stays bounded
+ * whatever the request rate.
+ */
+export const MAX_CACHE_ENTRIES = 500;
+
 /* ------------------------------------------------------------ environment */
 
 /** Reported by GET /health; keep in step with apps/server/package.json. */

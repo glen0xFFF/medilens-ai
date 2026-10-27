@@ -7,6 +7,7 @@ import {
   type ReferenceRecord,
 } from '@medilens/contracts';
 import { describe, expect, test } from 'vitest';
+import { MAX_CACHE_ENTRIES } from '../../src/config';
 import { FINAL_LINE, LOOSE_PILL_SENTENCE, NOT_A_LABEL_SENTENCE } from '../../src/domain/summary';
 import {
   analyzeImages,
@@ -541,5 +542,61 @@ describe('final review I2: no transcribed value survives a loose pill, a non-med
     const { deps } = setup({});
     const result = await analyzeImages([await sharpJpeg()], deps);
     expect(result.label).toEqual(PARACELIN);
+  });
+});
+
+describe('final review Minor 15: the result store holds at most maxEntries, oldest first out', () => {
+  function result(id: string) {
+    return AnalysisResultSchema.parse({
+      id,
+      isDemo: true,
+      createdAt: new Date(T0).toISOString(),
+      expiresAt: new Date(T0 + FIFTEEN_MIN).toISOString(),
+      pipelineState: 'label_unreadable',
+      quality: { ok: false, sharpness: 1, luminance: 100, glareFraction: 0, reasons: ['BLURRY'] },
+      label: null,
+      match: {
+        status: 'not_attempted',
+        matched: [],
+        conflicting: [],
+        missing: [],
+        candidates: [],
+        advisories: [],
+        limitations: [],
+      },
+      explanation: { displayText: '', spokenChunks: [], safetyNotices: [], supportingFields: [] },
+      imageRetention: 'none',
+    });
+  }
+
+  test('the default cap is MAX_CACHE_ENTRIES (500): the 501st result evicts the first', () => {
+    const store = createResultStore(() => T0);
+    for (let i = 0; i <= MAX_CACHE_ENTRIES; i++) store.put(result(`r${i}`));
+    expect(store.size).toBe(MAX_CACHE_ENTRIES);
+    expect(store.get('r0')).toBeUndefined();
+    expect(store.get('r1')).toBeDefined();
+    expect(store.get(`r${MAX_CACHE_ENTRIES}`)).toBeDefined();
+  });
+
+  test('a custom cap evicts the oldest result first', () => {
+    const store = createResultStore(() => T0, FIFTEEN_MIN, 2);
+    store.put(result('a'));
+    store.put(result('b'));
+    store.put(result('c'));
+    expect(store.get('a')).toBeUndefined();
+    expect(store.get('b')).toBeDefined();
+    expect(store.get('c')).toBeDefined();
+  });
+
+  test('expired results are swept before a live one is evicted', () => {
+    let clock = T0;
+    const store = createResultStore(() => clock, 1000, 2);
+    store.put(result('old'));
+    clock += 500;
+    store.put(result('live'));
+    clock += 500; // 'old' has expired
+    store.put(result('new'));
+    expect(store.get('live')).toBeDefined();
+    expect(store.get('new')).toBeDefined();
   });
 });

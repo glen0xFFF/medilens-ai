@@ -14,12 +14,15 @@
  *     issuance_date, expiry_date, pharmacologic_category
  * The fdawebsite rows were beyond the 4 KB captured, so their field names are
  * NOT confirmed: `title` comes from the research memo (§4.2); the link is read
- * from the first http(s) value among url / link / permalink / guid. Confirm
- * in the live smoke test.
+ * from the first value among url / link / permalink / guid that the contract
+ * accepts. Confirm in the live smoke test. Until then (final review Minor 9),
+ * a non-empty fdawebsite list that maps to no advisory at all, or a row about
+ * this product whose link is unusable, flags `advisoriesUnchecked`, so a
+ * field-name mismatch is never read as "no advisory".
  *
  * `expiry_date` is the registration-certificate expiry, never the product's.
  */
-import { ReferenceRecordSchema, type ReferenceRecord } from '@medilens/contracts';
+import { AdvisorySchema, ReferenceRecordSchema, type ReferenceRecord } from '@medilens/contracts';
 import { normalizeName, normalizeRegistrationNumber } from '../domain/parsers';
 import { TtlCache } from './cache';
 import type {
@@ -45,8 +48,18 @@ export interface PhFdaDeps {
 }
 
 type Advisory = { title: string; url: string };
-/** One successful lookup of one term: mapped records plus every usable advisory row. */
-type TermResult = { records: ReferenceRecord[]; advisories: Advisory[] };
+/**
+ * One successful lookup of one term: mapped records, every advisory row the
+ * contract accepts, the titles of rows that had a title but no link the
+ * contract accepts, and whether a non-empty advisory list mapped to nothing
+ * at all (field names not as expected).
+ */
+type TermResult = {
+  records: ReferenceRecord[];
+  advisories: Advisory[];
+  unusableTitles: string[];
+  unmappable: boolean;
+};
 type FetchOutcome = { ok: true; value: TermResult } | { ok: false; reason: string };
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
@@ -56,15 +69,6 @@ function text(v: unknown): string | null {
   if (typeof v !== 'string') return null;
   const t = v.trim();
   return t === '' ? null : t;
-}
-
-function isHttpUrl(s: string): boolean {
-  try {
-    const u = new URL(s);
-    return u.protocol === 'https:' || u.protocol === 'http:';
-  } catch {
-    return false;
-  }
 }
 
 function mapRecord(row: unknown, term: string, checkedAt: string): ReferenceRecord | null {
@@ -84,15 +88,39 @@ function mapRecord(row: unknown, term: string, checkedAt: string): ReferenceReco
   return parsed.success ? parsed.data : null;
 }
 
-function mapAdvisory(row: unknown): Advisory | null {
+/**
+ * An advisory row as the contract's AdvisorySchema accepts it (final review
+ * Minor 7: a link `new URL()` parses but the contract rejects, such as
+ * "https:/host/x" or "https://localhost/x", would fail the whole scan), else
+ * the row's title when it has one, else nothing.
+ */
+function mapAdvisory(row: unknown): { advisory: Advisory } | { unusableTitle: string } | null {
   if (!isObject(row)) return null;
   const title = text(row.title);
   if (title === null) return null;
   for (const key of ADVISORY_URL_KEYS) {
     const url = text(row[key]);
-    if (url !== null && isHttpUrl(url)) return { title, url };
+    if (url === null) continue;
+    const parsed = AdvisorySchema.safeParse({ title, url });
+    if (parsed.success) return { advisory: parsed.data };
   }
-  return null;
+  return { unusableTitle: title };
+}
+
+function mapAdvisories(
+  rows: unknown[],
+): Pick<TermResult, 'advisories' | 'unusableTitles' | 'unmappable'> {
+  const advisories: Advisory[] = [];
+  const unusableTitles: string[] = [];
+  for (const row of rows) {
+    const m = mapAdvisory(row);
+    if (m === null) continue;
+    if ('advisory' in m) advisories.push(m.advisory);
+    else unusableTitles.push(m.unusableTitle);
+  }
+  // final review Minor 9: rows that map to nothing at all (no title under the
+  // field names assumed above) are an unknown, never "no advisory"
+  return { advisories, unusableTitles, unmappable: rows.length > 0 && advisories.length === 0 };
 }
 
 export function createPhFdaProvider(deps: PhFdaDeps): ReferenceProvider {
@@ -151,9 +179,7 @@ export function createPhFdaProvider(deps: PhFdaDeps): ReferenceProvider {
       records: json.cdrr
         .map((row) => mapRecord(row, term, checkedAt))
         .filter((r): r is ReferenceRecord => r !== null),
-      advisories: json.fdawebsite
-        .map(mapAdvisory)
-        .filter((a): a is Advisory => a !== null),
+      ...mapAdvisories(json.fdawebsite),
     };
     cache.set(term, value);
     return { ok: true, value };
@@ -174,7 +200,8 @@ export function createPhFdaProvider(deps: PhFdaDeps): ReferenceProvider {
       if (!first.ok) return { kind: 'unavailable', reason: first.reason };
       const found = first.value;
       const advisoryPool: Advisory[] = [...found.advisories];
-      let advisoriesUnchecked = false;
+      const unusablePool: string[] = [...found.unusableTitles];
+      let advisoriesUnchecked = found.unmappable;
 
       // Brands of the first lookup's records. Only a registration hit makes
       // them this pack's brand; a name search can return other products.
@@ -194,6 +221,8 @@ export function createPhFdaProvider(deps: PhFdaDeps): ReferenceProvider {
             if (!second.ok) return { kind: 'unavailable', reason: second.reason };
             records = second.value.records;
             advisoryPool.push(...second.value.advisories);
+            unusablePool.push(...second.value.unusableTitles);
+            if (second.value.unmappable) advisoriesUnchecked = true;
           }
         } else {
           const advisoryTerm = name !== '' ? name : recordBrands[0];
@@ -203,14 +232,24 @@ export function createPhFdaProvider(deps: PhFdaDeps): ReferenceProvider {
             const second = await fetchTerm(advisoryTerm);
             // Records stay from the registration hit; a failed advisory
             // lookup is flagged, never silently read as "no advisory".
-            if (second.ok) advisoryPool.push(...second.value.advisories);
-            else advisoriesUnchecked = true;
+            if (second.ok) {
+              advisoryPool.push(...second.value.advisories);
+              unusablePool.push(...second.value.unusableTitles);
+              if (second.value.unmappable) advisoriesUnchecked = true;
+            } else {
+              advisoriesUnchecked = true;
+            }
           }
         }
       }
 
       const regHit = reg !== null && terms[0] === reg && found.records.length > 0;
       const brands = [...new Set([...(name !== '' ? [name] : []), ...(regHit ? recordBrands : [])])];
+      // An advisory about this product whose link the contract rejects is
+      // dropped, so the advisories are flagged unchecked, never "none" (Minor 7).
+      if (unusablePool.some((t) => brands.some((b) => t.toLowerCase().includes(b)))) {
+        advisoriesUnchecked = true;
+      }
       const advisories: Advisory[] = [];
       for (const a of advisoryPool) {
         const title = a.title.toLowerCase();

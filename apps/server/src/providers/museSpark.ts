@@ -44,10 +44,22 @@ export interface ModelUsage {
   completion_tokens: number;
 }
 
+/** A failed model request as it may be logged: the error's class name and HTTP status only. */
+export interface ModelRequestError {
+  errorName: string;
+  status: number | null;
+}
+
 export interface MuseSparkOptions {
   model?: string;
-  /** Called after every completion that returned, before its output is checked. */
+  /**
+   * Called for every completion that returned, before its output is checked,
+   * and with USAGE_ESTIMATE for a request that may have run but reported no
+   * usage (final review Minor 11).
+   */
   onUsage?: (usage: ModelUsage) => void;
+  /** Called when a request fails, with no message text (final review Minor 12). */
+  onError?: (error: ModelRequestError) => void;
 }
 
 export const MUSE_MODEL = 'muse-spark-1.3';
@@ -56,11 +68,33 @@ const MAX_TOKENS = 4000;
 const REASONING_EFFORT = 'low';
 const MAX_IMAGES = 3;
 
+/**
+ * Final review Minor 10: the client gives up before the app's own 60 s
+ * timeout, and never retries on its own, so a slow read stops spending and
+ * "Try again" is the only retry.
+ */
+export const META_TIMEOUT_MS = 45_000;
+const META_MAX_RETRIES = 0;
+
+/**
+ * Final review Minor 11: what a call is charged when it reports no usage, so
+ * the spend meter fails closed: the full prompt and completion budgets.
+ */
+export const USAGE_ESTIMATE: Readonly<ModelUsage> = {
+  prompt_tokens: MAX_TOKENS,
+  completion_tokens: MAX_TOKENS,
+};
+
 export { ANSWER_FALLBACK_TEXT, PHRASE_NOT_FOUND_TEXT };
 
 /** The Meta Model API is OpenAI-compatible; only the chat completions surface is used. */
 export function createMetaClient(apiKey: string): ChatClient {
-  return new OpenAI({ baseURL: META_BASE_URL, apiKey }).chat.completions;
+  return new OpenAI({
+    baseURL: META_BASE_URL,
+    apiKey,
+    timeout: META_TIMEOUT_MS,
+    maxRetries: META_MAX_RETRIES,
+  }).chat.completions;
 }
 
 /* --------------------------------------------------------------- schemas */
@@ -121,19 +155,51 @@ type Attempt<T> =
  * validates the JSON content. A cut-off (finish_reason length), a refusal,
  * non-JSON or schema-invalid content is 'invalid'.
  */
+/** A token count the API reported, or the estimate when it is missing or not a count. */
+function counted(n: unknown, estimate: number): number {
+  return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : estimate;
+}
+
+/** The HTTP status of a client error, or null (a timeout or a connection error has none). */
+function statusOf(err: unknown): number | null {
+  const status = (err as { status?: unknown } | null)?.status;
+  return typeof status === 'number' ? status : null;
+}
+
+/**
+ * One request. A request that throws is reported to onError by name and
+ * status only (its message can echo request details), and is charged the
+ * usage estimate unless a 4xx status shows it was refused before it ran.
+ */
+async function create(
+  client: ChatClient,
+  params: Params,
+  opts: MuseSparkOptions,
+): Promise<OpenAI.Chat.ChatCompletion> {
+  try {
+    return await client.create(params);
+  } catch (err) {
+    const status = statusOf(err);
+    opts.onError?.({ errorName: err instanceof Error ? err.name : typeof err, status });
+    if (status === null || status < 400 || status >= 500) opts.onUsage?.({ ...USAGE_ESTIMATE });
+    throw err;
+  }
+}
+
 async function complete<T>(
   client: ChatClient,
   params: Params,
   schema: z.ZodType<T>,
-  onUsage: MuseSparkOptions['onUsage'],
+  opts: MuseSparkOptions,
 ): Promise<Attempt<T>> {
-  const res = await client.create(params);
-  if (res.usage !== undefined && res.usage !== null) {
-    onUsage?.({
-      prompt_tokens: res.usage.prompt_tokens,
-      completion_tokens: res.usage.completion_tokens,
-    });
-  }
+  const res = await create(client, params, opts);
+  // final review Minor 11: a missing usage, or a missing count in it, is
+  // charged the estimate, never zero
+  const usage = res.usage as Partial<OpenAI.CompletionUsage> | null | undefined;
+  opts.onUsage?.({
+    prompt_tokens: counted(usage?.prompt_tokens, USAGE_ESTIMATE.prompt_tokens),
+    completion_tokens: counted(usage?.completion_tokens, USAGE_ESTIMATE.completion_tokens),
+  });
   // ToS routing caveat (spec §3): a contributor model's output is never used.
   if (typeof res.model !== 'string' || /contributor/i.test(res.model)) {
     return { kind: 'contributor' };
@@ -160,11 +226,11 @@ async function completeWithRetry<T>(
   client: ChatClient,
   params: Params,
   schema: z.ZodType<T>,
-  onUsage: MuseSparkOptions['onUsage'],
+  opts: MuseSparkOptions,
 ): Promise<Attempt<T>> {
-  const first = await complete(client, params, schema, onUsage);
+  const first = await complete(client, params, schema, opts);
   if (first.kind !== 'invalid') return first;
-  return complete(client, params, schema, onUsage);
+  return complete(client, params, schema, opts);
 }
 
 function baseParams(model: string): Pick<Params, 'model' | 'reasoning_effort' | 'max_tokens'> {
@@ -230,7 +296,7 @@ export function createMuseSparkLabelReader(
       };
       let attempt: Attempt<ModelLabel>;
       try {
-        attempt = await completeWithRetry(client, params, ModelLabelSchema, opts.onUsage);
+        attempt = await completeWithRetry(client, params, ModelLabelSchema, opts);
       } catch {
         return { ok: false, code: 'OCR_FAILED', detail: 'request_failed' };
       }
@@ -296,7 +362,7 @@ export function createMuseSparkAnswerer(
       };
       let attempt: Attempt<z.infer<typeof ModelExplanationSchema>>;
       try {
-        attempt = await completeWithRetry(client, params, ModelExplanationSchema, opts.onUsage);
+        attempt = await completeWithRetry(client, params, ModelExplanationSchema, opts);
       } catch {
         return composeExplainAnswer(input, phrase, null);
       }

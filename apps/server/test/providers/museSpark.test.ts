@@ -18,12 +18,15 @@ import { FINAL_LINE } from '../../src/domain/summary';
 import { FixtureAnswerer } from '../../src/providers/fixture';
 import {
   ANSWER_FALLBACK_TEXT,
+  META_TIMEOUT_MS,
   MUSE_MODEL,
   PHRASE_NOT_FOUND_TEXT,
   createMetaClient,
   createMuseSparkAnswerer,
   createMuseSparkLabelReader,
   type ChatClient,
+  USAGE_ESTIMATE,
+  type ModelRequestError,
   type ModelUsage,
 } from '../../src/providers/museSpark';
 import { EXPLAIN_SYSTEM_PROMPT } from '../../src/providers/prompts';
@@ -671,5 +674,99 @@ describe('createMuseSparkAnswerer: explain_text', () => {
     const a = await createMuseSparkAnswerer(client).answer(input(STORAGE_Q), CTX);
     expect(a.status).toBe('answered');
     expect(a.text).toBe(QUOTE_ONLY);
+  });
+});
+
+/* ------------------------------------------------------ final review fixes */
+
+describe('final review Minor 10: the Meta client gives up at 45 s and never retries', () => {
+  test('timeout 45 000 ms and maxRetries 0 on the underlying SDK client', () => {
+    const client = createMetaClient('test-key-not-real') as unknown as {
+      _client: { timeout: number; maxRetries: number };
+    };
+    expect(META_TIMEOUT_MS).toBe(45_000);
+    expect(client._client.timeout).toBe(45_000);
+    expect(client._client.maxRetries).toBe(0);
+  });
+});
+
+describe('final review Minor 11: a call with no usage is charged a conservative estimate', () => {
+  test('the estimate is 4000 prompt and 4000 completion tokens', () => {
+    expect(USAGE_ESTIMATE).toEqual({ prompt_tokens: 4000, completion_tokens: 4000 });
+  });
+
+  test('a completion with no usage is charged the estimate', async () => {
+    const res = fixture('label-ok') as Body;
+    delete res.usage;
+    const usage: ModelUsage[] = [];
+    const { client } = fakeClient(res);
+    await createMuseSparkLabelReader(client, { onUsage: (u) => usage.push(u) }).read([JPEG], CTX);
+    expect(usage).toEqual([{ prompt_tokens: 4000, completion_tokens: 4000 }]);
+  });
+
+  test('a usage missing one count is charged the estimate for that count only', async () => {
+    const res = fixture('label-ok') as Body;
+    res.usage = { prompt_tokens: 1200 };
+    const usage: ModelUsage[] = [];
+    const { client } = fakeClient(res);
+    await createMuseSparkLabelReader(client, { onUsage: (u) => usage.push(u) }).read([JPEG], CTX);
+    expect(usage).toEqual([{ prompt_tokens: 1200, completion_tokens: 4000 }]);
+  });
+
+  test('a request that fails without a 4xx status (timeout, 5xx) may have run: charged', async () => {
+    const usage: ModelUsage[] = [];
+    const timeout = Object.assign(new Error('Request timed out.'), {
+      name: 'APIConnectionTimeoutError',
+    });
+    const { client } = fakeClient(timeout);
+    await createMuseSparkLabelReader(client, { onUsage: (u) => usage.push(u) }).read([JPEG], CTX);
+    expect(usage).toEqual([{ prompt_tokens: 4000, completion_tokens: 4000 }]);
+  });
+
+  test('a request refused with a 4xx status never ran: not charged', async () => {
+    const usage: ModelUsage[] = [];
+    const denied = Object.assign(new Error('401 bad key'), {
+      name: 'AuthenticationError',
+      status: 401,
+    });
+    const { client } = fakeClient(denied);
+    await createMuseSparkLabelReader(client, { onUsage: (u) => usage.push(u) }).read([JPEG], CTX);
+    expect(usage).toEqual([]);
+  });
+});
+
+describe('final review Minor 12: a failed model request is reported by error name and status only', () => {
+  const SECRET = 'Incorrect API key provided: sk-not-a-real-key-123';
+
+  test('the reader reports the error name and HTTP status, never the message', async () => {
+    const errors: ModelRequestError[] = [];
+    const denied = Object.assign(new Error(SECRET), { name: 'AuthenticationError', status: 401 });
+    const { client } = fakeClient(denied);
+    const r = await createMuseSparkLabelReader(client, { onError: (e) => errors.push(e) }).read(
+      [JPEG],
+      CTX,
+    );
+    expect(r).toEqual({ ok: false, code: 'OCR_FAILED', detail: 'request_failed' });
+    expect(errors).toEqual([{ errorName: 'AuthenticationError', status: 401 }]);
+    expect(JSON.stringify(errors)).not.toContain('sk-');
+  });
+
+  test('an error with no status is reported with status null', async () => {
+    const errors: ModelRequestError[] = [];
+    const { client } = fakeClient(new Error('ECONNRESET'));
+    await createMuseSparkLabelReader(client, { onError: (e) => errors.push(e) }).read([JPEG], CTX);
+    expect(errors).toEqual([{ errorName: 'Error', status: null }]);
+  });
+
+  test('the answerer reports its failed explain request the same way', async () => {
+    const errors: ModelRequestError[] = [];
+    const limited = Object.assign(new Error(SECRET), { name: 'RateLimitError', status: 429 });
+    const { client } = fakeClient(limited);
+    const a = await createMuseSparkAnswerer(client, { onError: (e) => errors.push(e) }).answer(
+      input('What does "store in a cool dry place" mean?'),
+      CTX,
+    );
+    expect(a.status).toBe('answered');
+    expect(errors).toEqual([{ errorName: 'RateLimitError', status: 429 }]);
   });
 });
