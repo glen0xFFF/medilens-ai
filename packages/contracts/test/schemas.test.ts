@@ -237,6 +237,20 @@ describe('analysis', () => {
       DemoScenarioSummarySchema.safeParse({ id: 's1-clear', title: 'Clear label' }).success,
     ).toBe(true);
   });
+
+  // Final review Minor 20: a scenario can name the question it is built to show.
+  test('DemoScenarioSummary takes an optional, non-empty presetQuestion', () => {
+    const s7 = {
+      id: 's7-unsupported-question',
+      title: 'Unsupported dosing question',
+      presetQuestion: 'How many should I take for my headache?',
+    };
+    expect(DemoScenarioSummarySchema.strict().parse(s7)).toEqual(s7);
+    expect(DemoScenarioSummarySchema.safeParse({ ...s7, presetQuestion: '' }).success).toBe(false);
+    expect(DemoScenarioSummarySchema.safeParse({ ...s7, presetQuestion: null }).success).toBe(
+      false,
+    );
+  });
 });
 
 describe('answer', () => {

@@ -18,7 +18,7 @@ them. The routes are implemented in `apps/server/src/routes/`.
 | GET | `/api/v1/labels/:id` | — | stored `AnalysisResult` (404 after 15 minutes) |
 | POST | `/api/v1/labels/:id/explain` | `{question: string}` (1–300 characters) | `Answer` |
 | GET | `/api/v1/references/:id` | — | `{candidates: ReferenceRecord[], advisories: {title, url}[], limitations: string[], checkedAt: string \| null}` |
-| GET | `/api/v1/demo/scenarios` | — | `DemoScenarioSummary[]` = `{id, title}[]` |
+| GET | `/api/v1/demo/scenarios` | — | `DemoScenarioSummary[]` = `{id, title, presetQuestion?}[]`; only s7 has `presetQuestion`, which the app shows as a button on that result's ask screen |
 | POST | `/api/v1/demo/scenario` | `{scenarioId: string}` | `AnalysisResult` with `isDemo: true` |
 | GET | `/api/v1/questions/presets` | — | `string[]` of preset questions |
 

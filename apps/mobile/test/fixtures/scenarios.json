@@ -5,6 +5,10 @@
   { "id": "s4-conflict", "title": "DEMO DATA: Label strength differs from the registry" },
   { "id": "s5-nomatch", "title": "DEMO DATA: Unknown product" },
   { "id": "s6-loose-pill", "title": "DEMO DATA: Loose pill" },
-  { "id": "s7-unsupported-question", "title": "DEMO DATA: Unsupported dosing question" },
+  {
+    "id": "s7-unsupported-question",
+    "title": "DEMO DATA: Unsupported dosing question",
+    "presetQuestion": "How many should I take for my headache?"
+  },
   { "id": "s8-registry-down", "title": "DEMO DATA: Registry unavailable" }
 ]

@@ -7,7 +7,7 @@ import { BigButton } from '../../../src/components/BigButton';
 import { DemoBanner } from '../../../src/components/DemoBanner';
 import { Body, Heading, Notice, Screen } from '../../../src/components/Screen';
 import { SpeechControls } from '../../../src/components/SpeechControls';
-import { useResult } from '../../../src/state/results';
+import { useResult, useResults } from '../../../src/state/results';
 import { useSettings } from '../../../src/state/settings';
 import { useTheme } from '../../../src/theme/theme';
 import { messageFor } from '../../../src/ui/text';
@@ -24,6 +24,9 @@ const MAX_QUESTION_LENGTH = 300;
 export default function AskScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { result } = useResult(id);
+  const { getScenarioQuestion } = useResults();
+  // The demo scenario's own question (s7), first, unless the server presets already have it.
+  const scenarioQuestion = id === undefined ? undefined : getScenarioQuestion(id);
   const client = useApi();
   const settings = useSettings();
   const theme = useTheme();
@@ -78,6 +81,15 @@ export default function AskScreen() {
       {result?.isDemo ? <DemoBanner /> : null}
       <Body>I can answer questions about what is printed on this label. Choose a question:</Body>
 
+      {scenarioQuestion === undefined || presets?.includes(scenarioQuestion) ? null : (
+        <BigButton
+          label={scenarioQuestion}
+          accessibilityHint="The question this demo example is built to show"
+          variant="secondary"
+          disabled={pending}
+          onPress={() => void ask(scenarioQuestion)}
+        />
+      )}
       {presetsError === null ? null : <Notice>{presetsError}</Notice>}
       {presets === null && presetsError === null ? <Body muted>Loading questions…</Body> : null}
       {presets?.map((p) => (

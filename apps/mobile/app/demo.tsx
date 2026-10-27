@@ -39,7 +39,7 @@ export default function Demo() {
     AccessibilityInfo.announceForAccessibility('Loading demo scenario');
     try {
       const result = await client.scenario(scenario.id);
-      saveResult(result);
+      saveResult(result, scenario.presetQuestion);
       router.push({ pathname: '/result/[id]', params: { id: result.id } });
     } catch (e) {
       const message = messageFor(e);

@@ -54,5 +54,7 @@ export type DemoScenarioRequest = z.infer<typeof DemoScenarioRequestSchema>;
 export const DemoScenarioSummarySchema = z.object({
   id: z.string().min(1),
   title: z.string(),
+  /** The question this scenario is built to show (s7), offered as a button on its result. */
+  presetQuestion: z.string().min(1).optional(),
 });
 export type DemoScenarioSummary = z.infer<typeof DemoScenarioSummarySchema>;

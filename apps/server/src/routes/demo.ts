@@ -14,7 +14,9 @@ export function demoRouter({ deps, fixtures }: RouteContext): Router {
   const router = Router();
 
   router.get('/demo/scenarios', (_req, res) => {
-    const list: DemoScenarioSummary[] = DEMO_SCENARIOS.map(({ id, title }) => ({ id, title }));
+    const list: DemoScenarioSummary[] = DEMO_SCENARIOS.map(({ id, title, presetQuestion }) =>
+      presetQuestion === undefined ? { id, title } : { id, title, presetQuestion },
+    );
     res.json(list);
   });
 

@@ -55,6 +55,22 @@ describe('GET /api/v1/demo/scenarios', () => {
       expect(s.title).toMatch(/^DEMO DATA/);
     }
   });
+
+  // Final review Minor 20: the app offers s7's question as a button on that result.
+  test('gives s7 its preset question and no other scenario one', async () => {
+    const { app } = makeApp();
+    const res = await request(app).get('/api/v1/demo/scenarios');
+    const withQuestion = res.body.filter(
+      (s: { presetQuestion?: string }) => s.presetQuestion !== undefined,
+    );
+    expect(withQuestion).toEqual([
+      {
+        id: 's7-unsupported-question',
+        title: 'DEMO DATA: Unsupported dosing question',
+        presetQuestion: 'How many should I take for my headache?',
+      },
+    ]);
+  });
 });
 
 describe('GET /api/v1/questions/presets', () => {

@@ -20,24 +20,37 @@ import { messageFor } from '../ui/text';
 
 export interface ResultsStore {
   getResult(id: string): AnalysisResult | undefined;
-  saveResult(result: AnalysisResult): void;
+  /**
+   * Keeps a result. `scenarioQuestion` is the demo scenario's own question
+   * (DemoScenarioSummary.presetQuestion), offered on that result's ask screen.
+   */
+  saveResult(result: AnalysisResult, scenarioQuestion?: string): void;
+  /** The demo scenario question saved with this result, if any. */
+  getScenarioQuestion(id: string): string | undefined;
 }
 
 const ResultsContext = createContext<ResultsStore | null>(null);
 
 export function ResultsProvider({ children }: { children: ReactNode }) {
   const results = useRef(new Map<string, AnalysisResult>());
+  const questions = useRef(new Map<string, string>());
   const [version, setVersion] = useState(0);
 
-  const saveResult = useCallback((result: AnalysisResult) => {
+  const saveResult = useCallback((result: AnalysisResult, scenarioQuestion?: string) => {
     results.current.set(result.id, result);
+    if (scenarioQuestion !== undefined) questions.current.set(result.id, scenarioQuestion);
     setVersion((v) => v + 1);
   }, []);
 
   // A new store object after each save re-renders everything reading it.
   const value = useMemo<ResultsStore>(() => {
     const map = new Map(results.current);
-    return { getResult: (id) => map.get(id), saveResult };
+    const asked = new Map(questions.current);
+    return {
+      getResult: (id) => map.get(id),
+      saveResult,
+      getScenarioQuestion: (id) => asked.get(id),
+    };
   }, [saveResult, version]);
 
   return <ResultsContext.Provider value={value}>{children}</ResultsContext.Provider>;

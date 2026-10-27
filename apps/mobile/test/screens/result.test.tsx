@@ -4,7 +4,14 @@ import * as Speech from 'expo-speech';
 import { AccessibilityInfo } from 'react-native';
 import { ApiError } from '../../src/api/client';
 import { SETTINGS_KEY } from '../../src/state/settings';
-import { ANSWERS, PRESETS, REFERENCES, RESULTS, SCENARIO_IDS } from '../helpers/fixtures';
+import {
+  ANSWERS,
+  PRESETS,
+  REFERENCES,
+  RESULTS,
+  SCENARIOS,
+  SCENARIO_IDS,
+} from '../helpers/fixtures';
 import {
   appRoutes,
   expectPressablesLabelled,
@@ -322,5 +329,43 @@ describe('demo flow', () => {
     expect(await screen.findByText('500 mg on label, 250 mg Tablet in registry')).toBeTruthy();
     expect(screen).toHavePathname(`/result/${RESULTS.s4.id}`);
     expect(client.result).not.toHaveBeenCalled();
+  });
+
+  // Final review Minor 20: s7 only works if the user knows its question, so the
+  // ask screen offers the scenario's own question as a button.
+  const S7_QUESTION = 'How many should I take for my headache?';
+
+  it('offers the s7 scenario question as a button on its ask screen', async () => {
+    expect(SCENARIOS.find((s) => s.id === 's7-unsupported-question')?.presetQuestion).toBe(
+      S7_QUESTION,
+    );
+    const client = mockClient({
+      scenario: jest.fn(() => Promise.resolve(RESULTS.s7)),
+      explain: jest.fn(() => Promise.resolve(ANSWERS.s7Refused)),
+    });
+    const view = await renderRouter(appRoutes(client), { initialUrl: '/demo' });
+    await fireEvent.press(
+      await screen.findByRole('button', { name: 'DEMO DATA: Unsupported dosing question' }),
+    );
+    await fireEvent.press(await screen.findByRole('button', { name: 'Ask a question' }));
+    expect(screen).toHavePathname(`/result/${RESULTS.s7.id}/ask`);
+    const button = await screen.findByRole('button', { name: S7_QUESTION });
+    expectPressablesLabelled(view);
+    await fireEvent.press(button);
+    expect(client.explain).toHaveBeenCalledWith(RESULTS.s7.id, S7_QUESTION);
+    expect(await screen.findByText(ANSWERS.s7Refused.text)).toBeTruthy();
+  });
+
+  it('offers no scenario question for a result that did not come from that scenario', async () => {
+    const client = mockClient({ scenario: jest.fn(() => Promise.resolve(RESULTS.s1)) });
+    await renderRouter(appRoutes(client), { initialUrl: '/demo' });
+    await fireEvent.press(
+      await screen.findByRole('button', {
+        name: 'DEMO DATA: Clear package, registration number matches',
+      }),
+    );
+    await fireEvent.press(await screen.findByRole('button', { name: 'Ask a question' }));
+    await screen.findByRole('button', { name: PRESETS[0]! });
+    expect(screen.queryByRole('button', { name: S7_QUESTION })).toBeNull();
   });
 });
