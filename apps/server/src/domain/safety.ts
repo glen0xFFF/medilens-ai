@@ -88,7 +88,11 @@ const LOOKS = String.raw`(?:white|yellow|pink|blue|red|orange|green|brown|purple
  * swallowed something; overdose, poison or lethality words. Taking exactly one
  * stays a dose question ("i took one, can i take another?"). Review round 4: a
  * caregiver who gave the amount counts as taking it ("i gave him too much"),
- * and so does a bigger dose ("a higher dose", "too high a dose").
+ * and so does a bigger dose ("a higher dose", "too high a dose"). Review round
+ * 5: a plain size word ("a large dose"), a cup or glass of a medicine, twice
+ * the dose after a food or drink verb, a second thing taken after a food
+ * clause, too much reported after the fact or not counted ("i don't know how
+ * many i took"), and an empty medicine container next to a child.
  */
 const COUNT_WORD_2PLUS = String.raw`(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|dozens?|couple|several|many|multiple|lots|loads|heaps|tons)`;
 const CONTAINER = String.raw`(?:bottles?|packs?|packets?|box(?:es)?|strips?|blisters?|jars?|tubs?|sachets?|containers?|tubes?|cartons?|vials?|syrups?|contents|supply|lot)`;
@@ -105,8 +109,11 @@ const MEDICINE_WORD = String.raw`\b(?:pills?|tablets?|tabs?|capsules?|caps|caple
  * not ("2 drinks and some pills", "2 days of tablets", "2 kids to get vitamins").
  */
 const MEDICINE_NEXT = String.raw`(?:'| (?!(?:and|or|with|then|but|so|to|of|in|on|at|for|from|after|before)\b)(?:[\w']+ ){0,2}?${MEDICINE_WORD})`;
-/** Review round 1: too much without a count ("one too many", "a double dose", "extra"); not the "extra strength" product. */
-const TOO_MUCH = String.raw`(?:one too many\b|(?:an |some |one |1 )?extra\b(?! strength)|(?:a |the |my |his |her |their )?(?:double|triple|quadruple)\b(?![ -]check| strength))`;
+/**
+ * Review round 1: too much without a count ("one too many", "a double dose",
+ * "extra"); not the "extra strength" product. Review round 5: "a little extra".
+ */
+const TOO_MUCH = String.raw`(?:one too many\b|(?:an |some |one |1 |a (?:little(?: bit)?|bit|tad) )?extra\b(?! strength)|(?:a |the |my |his |her |their )?(?:double|triple|quadruple)\b(?![ -]check| strength))`;
 /** Review round 3: an intensifier before "too much" ("way too many", "much too much", "a little too much"). */
 const INTENSIFIER = String.raw`(?:wa+y+|far|much|a lot|a bit|a little(?: bit)?|a tad|slightly|really|just|so|very|definitely|probably)`;
 /**
@@ -122,11 +129,17 @@ const TOO_OR_SO = String.raw`(?:(?:${INTENSIFIER},? ){0,3}(?:too|so) (?:much|man
  * NOT_MEDICINE word, which EXCESS excludes.
  */
 const THE_COUNT = String.raw`(?:the|these|those|my|his|her|their|our) (?:(?:last|remaining|other|first|next|extra|whole) )?(?:${COUNT_WORD_2PLUS}|(?:[2-9]|[1-9]\d+)(?:\.\d+)?(?!\.?\d))\b(?! ?(?:mg|mcg|g|ml|cc|iu|%|milligrams?|grams?)\b)`;
-const EXCESS_PREFIX = String.raw`(?:(?:like|about|around|maybe|probably|at least|over|more than|almost|nearly|roughly|perhaps) )?`;
+/** Review round 5: also "quite" ("i took quite a few"). */
+const EXCESS_PREFIX = String.raw`(?:(?:like|about|around|maybe|probably|at least|over|more than|almost|nearly|roughly|perhaps|quite) )?`;
 /** Review round 4: one dose too many ("one pill too many"); not "one drink too many". */
 const ONE_DOSE_TOO_MANY = String.raw`(?:one|1|a|an) (?:extra )?(?:dose|pill|tablet|capsule|caplet|tab|cap|spoonful|teaspoon|tablespoon|sachet) too many\b`;
-/** An amount that may be too much, except "too much" itself and a bare container. */
-const EXCESS_AMOUNT = String.raw`(?:(?:[2-9]|[1-9]\d+)(?:\.\d+)?|${COUNT_WORD_2PLUS}\b|a (?:couple|few|bunch|lot|handful|load|ton|heap|fistful|mouthful|dozen)\b|handfuls?\b|bunch(?:es)?\b|${TOO_MUCH}|all\b|(?:them|these|those) all\b|everything\b|(?:the |a |an |my |his |her |their |our )?(?:whole|entire|full|rest of the|remaining|leftover|left over) (?:\w+ )?(?:${CONTAINER}|${DOSE_FORMS}|things?|(?:sheets?|cards?|rows?) of)\b|${THE_COUNT}|a pair of (?:them|these|those|${DOSE_FORMS})\b|${ONE_DOSE_TOO_MANY}|the rest(?: of (?:it|them|these|those|mine))?\b(?! of\b))`;
+/**
+ * An amount that may be too much, except "too much" itself and a bare
+ * container. Review round 5: "plenty of" a medicine ("plenty of pills", not
+ * "plenty of water"), and part or most of a container ("a quarter of the
+ * bottle", "most of the pills", "a good chunk of the bottle").
+ */
+const EXCESS_AMOUNT = String.raw`(?:(?:[2-9]|[1-9]\d+)(?:\.\d+)?|${COUNT_WORD_2PLUS}\b|a (?:couple|few|bunch|lot|handful|load|ton|heap|fistful|mouthful|dozen|boatload|truckload|bucketload|shedload|pile|stack)\b|plenty of (?:(?:the|my|his|her|their|these|those) )?(?:[\w'-]+ ){0,2}?${MEDICINE_WORD}|(?:(?:a |one )?(?:quarter|third|fifth)|(?:two|three) (?:quarters|thirds)|most|(?:a |one )?(?:good |big |large |huge )?(?:chunk|part|portion)) of (?:the |a |an |my |his |her |their |this |that )?(?:\w+ )?(?:${CONTAINER}|${DOSE_FORMS})\b|handfuls?\b|bunch(?:es)?\b|${TOO_MUCH}|all\b|(?:them|these|those) all\b|everything\b|(?:the |a |an |my |his |her |their |our )?(?:whole|entire|full|rest of the|remaining|leftover|left over) (?:\w+ )?(?:${CONTAINER}|${DOSE_FORMS}|things?|(?:sheets?|cards?|rows?) of)\b|${THE_COUNT}|(?:a|the) pair(?: of (?:them|these|those|em|'em|${DOSE_FORMS})\b|\b(?! of\b))|${ONE_DOSE_TOO_MANY}|the rest(?: of (?:it|them|these|those|mine))?\b(?! of\b))`;
 /**
  * Not a time, a drink, a person or a photo after the amount: "it took 2 hours",
  * "i had 2 beers". Review round 4: but a person who owns the medicine is not
@@ -145,20 +158,26 @@ const EXCESS = String.raw`${EXCESS_PREFIX}(?:${EXCESS_AMOUNT}|${TOO_OR_SO}|(?:th
 const GIVEN_EXCESS = String.raw`${EXCESS_PREFIX}(?:${EXCESS_AMOUNT}|half (?:the|a|of the) (?:\w+ )?${CONTAINER}\b)${NOT_MEDICINE_AFTER}`;
 /** Past or perfect ingestion verbs, not passive ("can it be taken 2 at a time?", "is it used 3 times a day?"). */
 const NOT_PASSIVE = String.raw`(?<!\b(?:be|been|being|is|are|was|were|get|gets|got|to)(?: it| this| that| they| these| those)? )`;
-/** Review round 4: also ingested, sipped, slurped, licked, sucked, munched, drained. */
-const INGESTED = String.raw`(?:took|taken|swallowed|popped|downed|used|consumed|gobbled|chugged|gulped|guzzled|inhaled|finished|wolfed|scoffed|devoured|chewed|necked|snorted|injected|knocked|polished|ingested|sipped|slurped|licked|sucked|munched|drained)`;
+/**
+ * Review round 4: also ingested, sipped, slurped, licked, sucked, munched,
+ * drained. Review round 5: also scarfed, crunched, "tossed back", "dosed
+ * myself with", "self-medicated with" and "ended up taking"; not a bare
+ * "tossed" or "threw" ("i tossed 3 pills in the trash").
+ */
+const INGESTED = String.raw`(?:took|taken|swallowed|popped|downed|used|consumed|gobbled|chugged|gulped|guzzled|inhaled|finished|wolfed|scoffed|devoured|chewed|necked|snorted|injected|knocked|polished|ingested|sipped|slurped|licked|sucked|munched|drained|scarfed|crunched|(?:sucked|chewed|munched|nibbled) on|(?:tossed|threw|thrown) back|binged on|overindulged in|loaded up on|self[- ]medicated with|dosed (?:myself|himself|herself|themselves|ourselves|him|her|them) (?:up )?(?:with|on)|(?:ended|wound) up (?:taking|swallowing|using|popping|downing|chugging))`;
 /**
  * Food and drink verbs: "too much", "one too many", "extra" or "a double" after
  * these is usually food or alcohol, so only counts and containers count.
  */
-const INGESTED_FOOD = String.raw`(?:ate|eaten|drank|drunk|had)`;
+const INGESTED_FOOD = String.raw`(?:ate|eaten|drank|drunk|had|(?:ended|wound) up (?:having|drinking|eating))`;
 const PARTICLE = String.raw`(?: (?:down|back|off|through|up))?`;
 /**
  * Review round 4: a caregiver gave a dose ("i gave him", "she was given", "the
  * nurse administered"), but not a question about how it is given ("can it be
- * given 2 at a time?", "is it given twice a day?").
+ * given 2 at a time?", "is it given twice a day?"). Review round 5: "ended up
+ * giving".
  */
-const GAVE = String.raw`(?:\b(?:gave|administered)|(?<!\b(?:be|is|are|being|to|gets?)(?: it| this| that| they| these| those)? )\bgiven)`;
+const GAVE = String.raw`(?:\b(?:gave|administered)|(?<!\b(?:be|is|are|being|to|gets?)(?: it| this| that| they| these| those)? )\bgiven|\b(?:ended|wound) up giving)`;
 /**
  * Review round 4: who was given it, if named: a pronoun, a determiner and up to
  * four words ("my 2 year old"), or one other word such as a name. Not "me" or
@@ -168,12 +187,15 @@ const GAVE = String.raw`(?:\b(?:gave|administered)|(?<!\b(?:be|is|are|being|to|g
  * cannot swallow the thing given ("the baby the bottle", "him too much").
  */
 const RECIPIENT_WORD = String.raw`(?!(?:the|a|an|my|his|her|their|our|your|this|that|these|those|some|it|its|them|too|so|more|another|both|all|half|one|extra|double|twice)\b)[\w']+`;
-const RECIPIENT = String.raw`(?: (?:him|her|them|myself|himself|herself|themselves|(?:my|his|her|their|our|your|the|a|an) (?:${RECIPIENT_WORD} ){0,3}?${RECIPIENT_WORD}|(?!(?:me|us|up|away|back|out|in|off|birth|blood|way|rise|notice|permission|consent|instructions?|directions?|advice)\b)${RECIPIENT_WORD}))?`;
+/** Review round 5: a named recipient, required ("i gave him a large amount", but not "i gave a large amount to charity"). */
+const RECIPIENT_REQ = String.raw` (?:him|her|them|myself|himself|herself|themselves|(?:my|his|her|their|our|your|the|a|an) (?:${RECIPIENT_WORD} ){0,3}?${RECIPIENT_WORD}|(?!(?:me|us|up|away|back|out|in|off|birth|blood|way|rise|notice|permission|consent|instructions?|directions?|advice)\b)${RECIPIENT_WORD})`;
+const RECIPIENT = String.raw`(?:${RECIPIENT_REQ})?`;
 /** Review round 4: someone took it, or a caregiver gave it to someone. */
 const TOOK_VERB = String.raw`(?:${NOT_PASSIVE}\b${INGESTED}${PARTICLE}|${GAVE}${RECIPIENT})`;
 /** Review round 1: an age that stands for a person ("my 2 year old", "her 18-month-old", "my 3yo"). */
 const AGE = String.raw`(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen)[ -]?(?:(?:years?|yrs?|months?|mos?|weeks?|wks?)[ -]?old|y\.?o\.?)`;
-const CHILD = String.raw`(?:kids?|child|children|baby|babies|toddlers?|infants?|newborns?|little ones?|sons?|daughters?|grand(?:son|daughter|child|kid)s?|nephews?|nieces?|anak|bata|sanggol|${AGE})`;
+/** Review round 5: also step- and god-children, boys and girls, and a little brother or sister. */
+const CHILD = String.raw`(?:kids?|child|children|baby|babies|toddlers?|infants?|newborns?|little ones?|sons?|daughters?|grand(?:son|daughter|child|kid)s?|(?:step|god)(?:sons?|daughters?|kids?|child(?:ren)?)|boys?|girls?|(?:little|baby|younger) (?:brothers?|sisters?)|kiddos?|tots?|nephews?|nieces?|anak|bata|sanggol|${AGE})`;
 /** Up to three words between the child and the verb: "the baby may have", "is the baby ok if she". */
 const CHILD_GAP = String.raw`(?:[\w']+ ){0,3}?`;
 /** Review round 2: the -ing forms too ("the baby is chewing on a pill"). */
@@ -191,16 +213,52 @@ const TAKEN_THING = String.raw`(?:it|them|one|${TAKEN_DOSE})`;
 const REPEATED = String.raw`(?:twice|thrice|(?:two|three|four|2|3|4) times|a second time|[2-9] ?x|x ?[2-9])\b(?! ?(?:a|per|each|every) (?:day|night|week|morning|evening)\b| ?(?:daily|nightly|weekly)\b)`;
 /** Review round 4: a medicine a child took or put in the mouth. */
 const CHILD_DOSE_NOUN = String.raw`(?:pills?|tablets?|capsules?|caplets?|tabs?|caps|medicines?|medications?|meds|syrups?|drops|doses?|vitamins?|gummies|amounts?|quantit(?:y|ies))`;
-/** Review round 4: whose medicine it was ("grandma's", "his sister's", "the neighbor's"). */
-const OWNER = String.raw`(?:(?:a|an|the|my|his|her|their|our|your) )?[a-z]+'s`;
+/**
+ * Review round 5: a plain size word before an amount ("a large dose", "a big
+ * handful", "a large number of pills"), and the comparatives ("a larger amount
+ * of syrup"). SIZE_AMOUNT takes it only after "a" or "an", or before a plural
+ * noun, so a product ("the high dose one") or a condition ("my high blood
+ * pressure pill") is not an amount.
+ */
+const SIZE_WORD = String.raw`(?:large|big|high|huge|massive|excessive|enormous|giant|gigantic|hefty|heavy|whopping|great|substantial|significant|considerable|sizeable|sizable|generous|crazy|insane|ridiculous|stupid|silly|absurd|obscene|ungodly|monster|mega|astronomical|tremendous|colossal|immense|dangerous|unsafe|extreme|unknown|larger|bigger|higher|greater|heavier)`;
+const SIZE_INTENS = String.raw`(?:(?:very|really|super|quite|pretty|rather|fairly|extremely|dangerously|seriously|insanely|ridiculously|way|much|far|even|overly|excessively|unusually|abnormally|incredibly) )?`;
+/** A dose word between the size word and the noun: "a large single dose", "a big adult dose". */
+const SIZE_DOSE_MOD = String.raw`(?:(?:single|daily|extra|first|second|whole|full|adult|night|nightly|morning|evening|initial|total) )?`;
+const SIZE_NOUN = String.raw`(?:amount|number|quantity|dose|dosage|handful|fistful|spoonful|mouthful|gulp|swig|helping|portion|serving|volume)`;
+const SIZE_NOUNS = String.raw`(?:amounts|numbers|quantities|doses|dosages|handfuls|fistfuls|spoonfuls|mouthfuls|gulps|swigs|helpings|portions|servings|volumes)`;
+const SIZE_AMOUNT = String.raw`(?:(?:such )?an? ${SIZE_INTENS}${SIZE_WORD} ${SIZE_DOSE_MOD}${SIZE_NOUN}|${SIZE_INTENS}${SIZE_WORD} ${SIZE_DOSE_MOD}${SIZE_NOUNS}|a (?:great|good) deal|an? mega-?dose|mega-?doses)\b`;
+/** A size word before a dose needs nothing after it ("i had a big dose"). */
+const SIZE_DOSE = String.raw`(?:(?:such )?an? ${SIZE_INTENS}${SIZE_WORD} ${SIZE_DOSE_MOD}(?:dose|dosage)|${SIZE_INTENS}${SIZE_WORD} ${SIZE_DOSE_MOD}(?:doses|dosages))\b`;
+/**
+ * Review round 5: a cup, a glass or another drinking vessel ("a cup of cough
+ * syrup", "half a glass of the medicine", "two mugs of it"). For an adult, a
+ * capful, a shot, a swig or a sip is not on this list: a capful or a shot is
+ * the label's own dose measure ("take one capful"). For a child it counts.
+ */
+const VESSEL = String.raw`(?:cups?|cupfuls?|glass(?:es)?|glassfuls?|mugs?|mugfuls?|bottlefuls?|jugs?|pints?|tumblers?|beakers?)`;
+const VESSEL_QUANT = String.raw`(?:(?:an?|one|1|half(?: an?| of an?)?|a half|one half|a whole|a full|the whole|the full|an entire|the entire|a couple(?: of)?|a few|several|${COUNT_WORD_2PLUS}|\d+(?:\.\d+)?) )?(?:${SIZE_INTENS}(?:${SIZE_WORD}|tall|full|whole|entire) )?`;
+/** Review round 5: two or more of a measure that one dose may be ("2 shots of nyquil", "two capfuls of the syrup"). */
+const COUNTED_MEASURE = String.raw`(?:${COUNT_WORD_2PLUS}|(?:[2-9]|[1-9]\d+)(?:\.\d+)?|a (?:few|couple)(?: of)?|several) (?:shots?|shot glass(?:es)?|capfuls?|swigs?|gulps?|sips?|spoonfuls?|mouthfuls?)`;
+/** Review round 5: a child's measure of something, also a bowl or a shot glass; NOT_CHILD_FOOD decides whether it is food. */
+const CHILD_MEASURE = String.raw`${VESSEL_QUANT}(?:${VESSEL}(?: full)?|shot glass(?:es)?|bowls?|bowlfuls?|gulps?|swigs?|sips?|capfuls?|shots?|mouthfuls?|spoonfuls?|droppers?(?:fuls?)?) of`;
+/**
+ * Review round 4: whose medicine it was ("grandma's", "his sister's", "the
+ * neighbor's"). Review round 5: also hyphenated, two words, "in law" or plural
+ * ("my mother-in-law's", "my best friend's", "my mother in law's", "my
+ * grandparents'").
+ */
+const OWNER = String.raw`(?:(?:a|an|the|my|his|her|their|our|your) )?(?:[a-z][\w-]* )?[a-z][\w-]*(?: in[- ]law)?(?:'s|s')`;
 /**
  * What a child took. Review round 4: also an owner's medicine ("grandma's
  * pill", "his sister's tablet"), up to two words before the medicine with or
  * without a determiner ("my blood pressure pill", "heart pills"), and too much
  * ("drank too much", "ate way too much"); food after it is excluded by
  * NOT_CHILD_FOOD. A negation is not an object ("had no medicine today").
+ * Review round 5: a measure ("a cup of", "a big gulp of", "half a cup of"),
+ * hyphenated words ("my step-mom's pill"), and "out of" or "from" before the
+ * medicine ("drank out of the syrup bottle"; "from my water bottle" is not).
  */
-const CHILD_OBJECT = String.raw`(?:some|one|it|them|all|any|a few|a bunch|a lot|a handful|a couple|several|many|\d+|${COUNT_WORD_2PLUS}|(?:${INTENSIFIER},? ){0,3}(?:too|so) (?:much|many)|(?:a|an|the|my|his|her|their|our|your)(?: [\w']+){0,2} (?:${CHILD_DOSE_NOUN}|${CONTAINER}|spoonfuls?|sips?|bites?|bits?|pieces?)|${OWNER}(?: [\w']+){0,2} (?:${CHILD_DOSE_NOUN}|${CONTAINER})|(?!(?:no|not|never|none|zero)\b)(?:[\w']+ ){0,2}${CHILD_DOSE_NOUN})`;
+const CHILD_OBJECT = String.raw`(?:some|one|it|them|all|any|a few|a bunch|a lot|a handful|a couple|several|many|\d+|${COUNT_WORD_2PLUS}|(?:${INTENSIFIER},? ){0,3}(?:too|so) (?:much|many)|${CHILD_MEASURE}|(?:a|an|the|my|his|her|their|our|your)(?: [\w'-]+){0,2} (?:${CHILD_DOSE_NOUN}|${CONTAINER}|spoonfuls?|sips?|bites?|bits?|pieces?)|${OWNER}(?: [\w'-]+){0,2} (?:${CHILD_DOSE_NOUN}|${CONTAINER})|(?!(?:no|not|never|none|zero)\b)(?:(?:out of|from|off) )?(?:[\w'-]+ ){0,2}${CHILD_DOSE_NOUN})`;
 /**
  * Review round 2: plain food or drink after the child's object ("is drinking
  * some water", "ate some rice") is not medicine. Candy and sweets are left
@@ -233,30 +291,61 @@ const CHILD_ACCESS = String.raw`(?:got into|gotten into|got in to|got (?:a )?hol
  */
 const FOOD_MOD = String.raw`(?:orange|apple|grape|pineapple|mango|lemon|lime|coconut|chocolate|strawberry|banana|fruit|sugar|warm|cold|hot|iced|plain|fresh|breast|cow's|soy|almond|oat|whole|skim|baby|chicken|vegetable|green|black|tap|bottled|boiled|filtered|mineral|sparkling)`;
 const NOT_CHILD_FOOD = String.raw`(?! (?:of )?(?:the |his |her |their |my |your |a |an |some )?(?:${FOOD_MOD} )?${CHILD_FOOD}${FOOD_END}(?!.*(?:${MEDICINE_WORD}|\b(?:${CHILD_INGESTED}|${CHILD_ACCESS})\b)))`;
-/** Review round 4: food and drink that "too much" may be about after a food or drink verb. */
-const ADULT_FOOD = String.raw`(?:${CHILD_FOOD}|coffee|caffeine|soda|softdrinks?|coke|wine|beer|alcohol|liquor|booze|vodka|whisky|whiskey|rum|gin|tequila|pizza|cake|candy|chocolate|sweets|sugar|salt|dessert|ice cream|chips|cookies|meat|pasta|noodles|cheese|junk food|fast food)`;
+/**
+ * Review round 4: food and drink that "too much" may be about after a food or
+ * drink verb. Review round 5: more drinks and foods ("a glass of lemonade").
+ */
+const ADULT_FOOD = String.raw`(?:${CHILD_FOOD}|coffee|caffeine|soda|softdrinks?|coke|cola|wine|beer|alcohol|liquor|booze|vodka|whisky|whiskey|rum|gin|tequila|cider|champagne|lager|ale|cocktails?|punch|lemonade|smoothies?|milkshakes?|cocoa|latte|cappuccino|espresso|broth|yogh?urt|porridge|oatmeal|ice cream|ice|pizza|cake|candy|chocolate|sweets|sugar|salt|dessert|chips|cookies|biscuits|crackers|popcorn|nuts|fries|burgers?|sandwich(?:es)?|chicken|fish|eggs|salad|meat|pasta|noodles|cheese|junk food|fast food)`;
 /**
  * Review round 4: words after "too much" that start a clause or name a time, a
  * person or a feeling, not a thing taken. A time or person word followed by an
  * apostrophe or a medicine word is the owner or kind of a medicine, so it is a
  * thing taken ("too much of the kids' syrup", "too much night time medicine").
+ * Review round 5: also money and effort ("a large amount of money").
  */
-const NOT_A_THING = String.raw`(?:(?:of|the|a|an|my|his|her|their|our|your|this|that|these|those|some|and|but|so|then|or|because|cause|since|when|while|after|before|until|till|at|in|on|for|during|over|with|without|to|today|tonight|yesterday|earlier|recently|lately|again|already|now|last|lol|haha|i|he|she|we|they|you|it)\b|(?:${NOT_MEDICINE}|fun|work|homework|housework|paperwork|schoolwork|stress|pain|trouble|sleep|energy|screen)\b(?!${MEDICINE_NEXT}))`;
+const NOT_A_THING = String.raw`(?:(?:of|the|a|an|my|his|her|their|our|your|this|that|these|those|some|and|but|so|then|or|because|cause|since|when|while|after|before|until|till|at|in|on|for|during|over|with|without|to|today|tonight|yesterday|earlier|recently|lately|again|already|now|last|lol|haha|i|he|she|we|they|you|it)\b|(?:${NOT_MEDICINE}|fun|work|homework|housework|paperwork|schoolwork|stress|pain|trouble|sleep|energy|screen|money|cash|dollars?|pesos?|bucks|effort|attention|thought|patience|love|sun|sunlight|exercise)\b(?!${MEDICINE_NEXT}))`;
+/**
+ * Review round 5: what may follow a food or drink word that ends its phrase:
+ * punctuation, the end, a conjunction, a preposition, a time, a pronoun, a
+ * determiner or a modal ("too much coffee, can i...", "too much wine last
+ * night", "too much salt in my food"). Any other word after the food word
+ * makes the food word a modifier, so the phrase is not food and fails closed:
+ * "too much sugar free cough syrup", "too much chocolate ex-lax", "too much
+ * sugar-free fevrex".
+ */
+const FOOD_TAIL = String.raw`(?:and|or|but|then|so|because|cause|since|when|while|after|before|until|till|at|in|on|for|from|during|over|without|to|as|like|today|tonight|yesterday|earlier|recently|lately|again|already|now|last|this|that|these|those|lol|haha|tbh|rn|probably|maybe|honestly|though|tho|anyway|also|too|instead|every|each|per|daily|i|i'm|im|i've|ive|i'd|he|she|we|they|you|it|its|it's|me|my|his|her|their|our|your|the|a|an|can|could|should|would|will|is|was|did|do|does|am|are|were|has|have|had|may|might|must|which|who|please)`;
+/** Words that may stand before a food word inside its phrase ("warm milk", "sugar free soda", "coffee cake"). */
+const FOOD_PHRASE_MOD = String.raw`(?:${FOOD_MOD}|milk|rice|coffee|ice|beer|wine|cheese|cream|peanut|cookie|candy|egg|potato|corn|tomato|beef|pork|fish|cake|sugar[- ]free|sugarless|diet|decaf|low[- ]fat|fat[- ]free|non[- ]?fat|skimmed)`;
+/** Up to two modifiers, then a food word that ends the phrase. */
+const foodPhrase = (tail: string): string =>
+  String.raw`(?:${FOOD_PHRASE_MOD} ){0,2}${ADULT_FOOD}(?=[,.?!;:)]|-(?!\w)|$| ${tail}\b)`;
+/** After "too much": "with" does not end the phrase ("too much tea with my pills" is not plain tea). */
+const FOOD_PHRASE = foodPhrase(FOOD_TAIL);
+/** After an amount "of": "with" ends the phrase ("a glass of water with my tablet" is plain water). */
+const FOOD_PHRASE_WITH = foodPhrase(String.raw`(?:${FOOD_TAIL}|with)`);
 /**
  * Review round 4: the thing after "too much" or "so much" following a food or
  * drink verb ("too much syrup", "too much of the medicine", "too much of it").
  * It fails closed: anything other than food, drink, a time or the start of a
  * clause counts as a medicine, so a brand name keeps the emergency text ("too
- * much fevrex"). A food word followed by "of", "flavored", "mixed", "with" or
- * a medicine word is not food ("too much milk of magnesia").
+ * much fevrex"). Review round 5: a food word is food only when it ends its
+ * phrase (FOOD_PHRASE), so "too much milk of magnesia", "too much sugar free
+ * cough syrup" and "too much chocolate ex-lax" are not food.
  */
-const TOO_MUCH_THING = String.raw`(?:of (?:it|them|this|that|these|those)\b(?! (?:${FOOD_MOD} )?${ADULT_FOOD}\b| ${NOT_MEDICINE}\b)|(?:of )?(?:(?:the|my|his|her|their|our|your|this|that|these|those|some) )?(?!${NOT_A_THING}|(?:${FOOD_MOD} )?${ADULT_FOOD}\b(?! (?:of|flavou?red|mixed|with)\b| ${MEDICINE_WORD}))[a-z][\w']*)`;
+const TOO_MUCH_THING = String.raw`(?:of (?:it|them)\b|of (?:this|that|these|those)\b(?! [a-z])|(?:of )?(?:(?:the|my|his|her|their|our|your|this|that|these|those|some) )?(?!${NOT_A_THING}|${FOOD_PHRASE})[a-z][\w'-]*)`;
+/**
+ * Review round 5: what an amount is "of" ("a large amount of cough syrup", "a
+ * cup of the medicine", "of it"). Plain food or drink that ends its phrase, a
+ * time, a person or a photo is not a medicine; anything else fails closed, so
+ * a brand name keeps the emergency text ("a cup of fevrex").
+ */
+const OF_THING = String.raw`of (?:(?:it|them)\b|(?:this|that|these|those)\b(?! [a-z])|(?:(?:the|my|his|her|their|our|your|this|that|these|those|some) )?(?!${NOT_A_THING}|${FOOD_PHRASE_WITH})[a-z][\w'-]*)`;
 /**
  * Review round 3: what a child put in the mouth, also "one of my pills", "some
  * of grandma's tablets", "one of those", "a couple of them", "something",
  * and a count before the noun ("some pills", "two tablets").
  */
-const MOUTH_OBJECT = String.raw`(?:${CHILD_OBJECT}|something|(?:some|any|a few|a couple(?: of)?|several|many|${COUNT_WORD_2PLUS}|\d+) (?:[\w']+ )?(?:pills?|tablets?|capsules?|caplets?|tabs?|caps|medicines?|meds|vitamins?|gummies)|(?:the )?(?:one|some|any|a few|a couple|several|half|${COUNT_WORD_2PLUS}|\d+) of (?:them|these|those|it|mine|his|hers|theirs|ours|yours|(?:(?:the|my|his|her|their|your|our|these|those) )?(?:[\w']+ ){0,2}?(?:pills?|tablets?|capsules?|caplets?|tabs?|caps|medicines?|medications?|meds|vitamins?|gummies)))`;
+const MOUTH_OBJECT = String.raw`(?:${CHILD_OBJECT}|something|(?:some|any|a few|a couple(?: of)?|several|many|${COUNT_WORD_2PLUS}|\d+) (?:[\w'-]+ )?(?:pills?|tablets?|capsules?|caplets?|tabs?|caps|medicines?|meds|vitamins?|gummies)|(?:the )?(?:one|some|any|a few|a couple|several|half|${COUNT_WORD_2PLUS}|\d+) of (?:them|these|those|it|mine|his|hers|theirs|ours|yours|(?:(?:the|my|his|her|their|your|our|these|those) )?(?:[\w'-]+ ){0,2}?(?:pills?|tablets?|capsules?|caplets?|tabs?|caps|medicines?|medications?|meds|vitamins?|gummies)))`;
 /** "with": "i found the baby with a pill in his mouth". */
 const MOUTH_VERB = String.raw`(?:put|puts|putting|stuck|sticks?|sticking|popped|popping|placed|placing|shoved|shoving|stuffed|stuffing|had|has|having|got|holding|held|with)`;
 /** Review round 3: a child as a possessive ("the baby's got", "my son's chewing"). */
@@ -289,10 +378,23 @@ const LABEL_VERB = String.raw`(?:says?|said|recommends?|recommended|allows?|allo
 /**
  * Review round 4: a limit counted in doses ("the recommended number of
  * tablets", "the recommended number"), but not a number of anything else ("the
- * number of characters").
+ * number of characters"). Review round 5: also measures ("the recommended
+ * number of ml", "of tablespoons", "of puffs").
  */
-const NUMBER_OF = String.raw`number(?: of (?:${PILL}|caps|doses|meds|medicines|medications|spoonfuls|teaspoons|drops|sachets|times))?(?! of\b)`;
-const THAN_LABEL = String.raw`(?:(?:it|(?:the|its|my|his|her|their|our) (?:doctor|doc|pharmacist|physician|nurse)) ${LABEL_VERB}|(?:the|its|my|his|her|their|our) (?:label|pack|box|bottle|leaflet|insert|directions?|instructions?|prescription)(?: ${LABEL_VERB})?|(?:printed |written |stated )?(?:on|in) (?:the|its|my|his|her|their) (?:label|pack|box|bottle|leaflet|insert|directions|instructions|prescription)|recommended|directed|prescribed|allowed|advised|instructed|indicated|stated|printed|written|(?:the |its |my |his |her |their |our |a )?(?:(?:recommended|usual|normal|maximum|max|single|stated|printed|prescribed|daily|allowed|permitted|safe) ){0,2}(?:dose|doses|dosage|amount|allowance|intake|${NUMBER_OF})|(?:the |its )?(?:daily |recommended )?(?:maximum|max|limit))\b`;
+const NUMBER_OF = String.raw`number(?: of (?:(?:daily|individual|single|separate) )?(?:${PILL}|caps|doses|meds|medicines|medications|spoonfuls|teaspoons|tablespoons|tbsps?|tsps?|ml|mls|millilit(?:er|re)s|mg|milligrams|grams|gummies|lozenges|puffs|sprays|squirts|drops|sachets|chewables|vitamins|times))?(?! of\b)`;
+/**
+ * Review round 3: a limit word before the noun ("the recommended dose", "the
+ * daily limit"). Review round 5: also suggested, upper, labeled, right,
+ * correct and "24 hour" ("the upper limit", "the suggested dose").
+ */
+const LIMIT_ADJ = String.raw`(?:recommended|daily|maximum|max|stated|prescribed|usual|normal|safe|printed|single|allowed|permitted|suggested|upper|label|labell?ed|correct|right|proper|standard|regular|indicated|directed|advised|specified|approved|acceptable|permissible|total|adult|(?:24|twenty[- ]four)[- ]hours?)`;
+/** Review round 5: a serving, but not a serving of something ("the recommended servings of vegetables"). */
+const SERVING = String.raw`servings?\b(?! of\b)`;
+/**
+ * Review round 5: the limit nouns share LIMIT_ADJ, and "quantity", "limit",
+ * "volume" and a serving join them ("more than the allowed quantity").
+ */
+const THAN_LABEL = String.raw`(?:(?:it|(?:the|its|my|his|her|their|our) (?:doctor|doc|pharmacist|physician|nurse)) ${LABEL_VERB}|(?:the|its|my|his|her|their|our) (?:label|pack|box|bottle|leaflet|insert|directions?|instructions?|prescription)(?: ${LABEL_VERB})?|(?:printed |written |stated )?(?:on|in) (?:the|its|my|his|her|their) (?:label|pack|box|bottle|leaflet|insert|directions|instructions|prescription)|recommended|directed|prescribed|allowed|advised|instructed|indicated|stated|printed|written|(?:the |its |my |his |her |their |our |a )?(?:${LIMIT_ADJ} ){0,2}(?:dose|doses|dosage|amount|quantit(?:y|ies)|volume|${SERVING}|allowance|intake|limit|maximum|max|${NUMBER_OF}))\b`;
 /** Not after a food or drink verb: "i ate more than usual" is food. */
 const THAN_USUAL = String.raw`(?:usual|normal|normally|usually|(?:one|1)(?! (?:of )?${NOT_MEDICINE}\b))\b`;
 /** Review round 3: also "than i could handle", "than i can", "than i normally do", "than i did". */
@@ -308,19 +410,20 @@ const BOTH = String.raw`both (?:of )?(?:the |my |his |her |their |our |these |th
 /**
  * Review round 3: "both of them", "them both", a bare "both" at the end of a
  * clause or with "at once", "together", "at the same time"; after a food verb
- * this is usually food, so not there.
+ * this is usually food, so not there. Review round 5: "the both", "both of
+ * em", and a time after a bare "both" ("i took both last night").
  */
-const BOTH_THEM = String.raw`(?:(?:the )?both(?: of)? (?:them|these|those)\b|(?:them|these|those) both\b|both\b(?=${CLAUSE_END}| (?:at once|at the same time|together|in one go|one after the other)\b))`;
+const BOTH_THEM = String.raw`(?:(?:the )?both(?: of)? (?:them|these|those|em|'em)\b|(?:them|these|those|em|'em) both\b|(?:the )?both\b(?=${CLAUSE_END}| (?:at once|at the same time|together|in one go|one after the other|last night|yesterday|earlier|tonight|this (?:morning|afternoon|evening))\b))`;
 /**
  * Review round 3: over a limit ("i exceeded the dose", "i took over the
  * limit", "she went over the maximum"), but not "the maximum temperature" or
- * "went over the dosage instructions".
+ * "went over the dosage instructions". LIMIT_MOD is an amount before the limit
+ * ("the 4g limit", "the 4000 mg daily limit", "the 8 tablet limit"); review
+ * round 5: also a time ("the 24 hour limit", "the 3 day limit").
  */
-const LIMIT_ADJ = String.raw`(?:recommended|daily|maximum|max|stated|prescribed|usual|normal|safe|printed|single|allowed|permitted)`;
-/** Review round 3: an amount before the limit ("the 4g limit", "the 4000 mg daily limit", "the 8 tablet limit"). */
-const LIMIT_MOD = String.raw`(?:${LIMIT_ADJ}|\d+(?:\.\d+)? ?(?:mg|mcg|g|grams?|ml)?|mg|mcg|g|grams?|ml|${PILL}|doses?|dosage)`;
-/** Review round 4: also "allowance", "intake" and "the recommended number of tablets". */
-const LIMIT_NOUN = String.raw`(?:dose|doses|dosage|amount|limit|max(?:imum)?|allowance|intake|threshold|${NUMBER_OF})\b(?! (?:temperature|temp|storage|heat|humidity|shelf|instructions?|directions?|info\w*|sections?|chart|table|guide|label|details?|with|again)\b)`;
+const LIMIT_MOD = String.raw`(?:${LIMIT_ADJ}|\d+[ -]?(?:hours?|hrs?|h|days?)\b|\d+(?:\.\d+)? ?(?:mg|mcg|g|grams?|ml)?|mg|mcg|g|grams?|ml|${PILL}|doses?|dosage)`;
+/** Review round 4: also "allowance", "intake" and "the recommended number of tablets". Review round 5: "quantity", "volume". */
+const LIMIT_NOUN = String.raw`(?:dose|doses|dosage|amount|quantit(?:y|ies)|volume|${SERVING}|limit|max(?:imum)?|allowance|intake|threshold|${NUMBER_OF})\b(?! (?:temperature|temp|storage|heat|humidity|shelf|instructions?|directions?|info\w*|sections?|chart|table|guide|label|details?|with|again)\b)`;
 /** Review round 3: "way over", "well above", "a bit over". */
 const OVER_ADV = String.raw`(?:(?:way|well|far|much|a bit|a little|slightly|just|probably|definitely|already|now|really) )*`;
 const OVER = String.raw`${OVER_ADV}(?:over|above|beyond|past)`;
@@ -337,7 +440,8 @@ const EXTRA_DOSE_NOUN = String.raw`(?:one|dose|${PILL}|spoonful|teaspoon|sachet)
  * "she was given a second dose by mistake").
  */
 const TOOK_ANOTHER = String.raw`(?:${NOT_PASSIVE}\b${INGESTED}${PARTICLE} ${ANOTHER}(?: ${EXTRA_DOSE_NOUN})?|${NOT_PASSIVE}\b${INGESTED_FOOD} ${ANOTHER} ${EXTRA_DOSE_NOUN}|${GAVE}${RECIPIENT} ${ANOTHER}(?: ${EXTRA_DOSE_NOUN})?)\b(?! ${NOT_MEDICINE}\b)`;
-const BY_MISTAKE = String.raw`(?:by (?:mistake|accident)|accidentally|mistakenly|in error|unintentionally|without thinking)`;
+/** Review round 5: also the misspellings "accidently" and "accidentaly". */
+const BY_MISTAKE = String.raw`(?:by (?:mistake|accident)|accident(?:al+y|ly)|mistakenly|in error|unintentionally|without thinking)`;
 /** Review round 4: "gave it to him twice", "gave the syrup to my son again". */
 const TO_SOMEONE = String.raw`(?: to (?:him|her|them|(?:my|his|her|their|our|the) [\w']+(?: [\w']+)?))?`;
 /**
@@ -362,6 +466,80 @@ const BIGGER_DOSE_FOOD = biggerDose(String.raw`(?:doses?|dosages?)`);
  */
 const ONGOING = String.raw`(?:been|keep|keeps|kept|${BE_PERSON}|am i|are (?:we|they|you)|is (?:he|she|(?:my|his|her|their|the) [\w']+))`;
 const TAKING = String.raw`(?:taking|using|swallowing|popping|giving${RECIPIENT})`;
+/**
+ * Review round 5: a large amount, or a cup or glass, of a thing that is not
+ * food ("a large amount of cough syrup", "a big handful of pills", "a cup of
+ * the syrup"); "a large number of photos" and "a glass of water" are not.
+ */
+const AMOUNT_OF = String.raw`(?:${SIZE_AMOUNT}|${VESSEL_QUANT}${VESSEL}(?: full)?|${COUNTED_MEASURE}) ${OF_THING}`;
+/** After an ingestion verb a large amount may also stand alone ("i took a large amount"). */
+const SIZE_EXCESS = String.raw`(?:${AMOUNT_OF}|${SIZE_AMOUNT}(?! of\b)${NOT_MEDICINE_AFTER})`;
+/**
+ * Review round 5: after a food, drink or giving verb, a large amount must be of
+ * a thing that is not food, or more than the label, or a dose ("i drank a large
+ * amount of cough syrup", "i had a larger amount than recommended", "i had a big
+ * dose"); "i ate a large amount of rice" is food.
+ */
+const SIZE_EXCESS_FOOD = String.raw`(?:${AMOUNT_OF}|${SIZE_AMOUNT} than ${THAN_WHAT}${THAN_LABEL}|${SIZE_DOSE}(?! of\b))`;
+/** Review round 5: a multiple of an amount ("twice the dose", "double what the label says", "3x the dose"). */
+const MULTIPLE = String.raw`(?:twice|double|triple|thrice|quadruple|(?:two|three|four|five|ten|[2-9]|10) times|[2-9] ?x)`;
+const MULTIPLE_AS = String.raw`(?:as (?:much|many)(?: [\w'-]+){0,2}? as )?`;
+/**
+ * A multiple of a named dose, or of what the person usually takes ("twice as
+ * many pills as i should", "double what i usually take"); these hold after a
+ * food or drink verb too.
+ */
+const MULTIPLE_DOSE = String.raw`${MULTIPLE} (?:as (?:much|many)${MORE_DOSE} as (?:${THAN_WHAT}${THAN_LABEL}|${THAN_USUAL}|${THAN_WHAT}${THAN_PERSON})|what (?:i|he|she|we|they|you)(?:'m|'re|'s)? (?:(?:usually|normally|always|would) )?(?:take|takes|use|uses|should(?: have)? (?:take|taken|use|have)|(?:was|am|is|are|were) (?:supposed|told|meant) to (?:take|have|use)|need|needed|was prescribed|am prescribed)\b)`;
+/**
+ * What a multiple is of after a food or drink verb: the dose or the label
+ * ("twice the recommended dose", "twice as much as the label says", "double the
+ * amount"), but not food ("double the amount of rice").
+ */
+const MULTIPLE_OF = String.raw`(?:${MULTIPLE} ${MULTIPLE_AS}${THAN_WHAT}${THAN_LABEL}(?: ${OF_THING}|(?! of\b))|${MULTIPLE_DOSE})`;
+/** A plain or usual amount ("the amount", "the usual amount"). */
+const PLAIN_AMOUNT = String.raw`(?:the |my |his |her |their |our )?(?:(?:usual|normal|regular) )?(?:amount|quantity|number)\b`;
+/** The label or a prescriber after an amount ("on the label", "the label says", "recommended"). */
+const LABEL_TAIL = String.raw` (?:(?:printed |written |stated )?(?:on|in) (?:the|its|my|his|her|their) (?:label|pack|box|bottle|leaflet|insert|directions|instructions|prescription)|(?:that )?(?:the|its|my|his|her|their) (?:label|pack|box|bottle|leaflet|directions|instructions|prescription|doctor|doc|pharmacist) ${LABEL_VERB}|${LABEL_VERB})\b`;
+/**
+ * After "ate", a plain or usual amount is food unless the label is named ("i
+ * ate twice the amount" is food; "twice the amount on the label" is not).
+ */
+const MULTIPLE_OF_ATE = String.raw`(?:${MULTIPLE} ${MULTIPLE_AS}${THAN_WHAT}(?:${PLAIN_AMOUNT}${LABEL_TAIL}|(?!${PLAIN_AMOUNT})${THAN_LABEL}(?: ${OF_THING}|(?! of\b)))|${MULTIPLE_DOSE})`;
+/** Review round 5: "and", "plus" or "as well as" before a second thing taken. */
+const AND_ALSO = String.raw`,? (?:and|plus|as well as|along with|together with|&)(?: then| also)?`;
+/** A word inside a second object, never a pronoun, a determiner or a verb ("and took my pills" is a clause). */
+const OBJECT_WORD = String.raw`(?!(?:i|he|she|we|they|you|it|me|him|them|us|my|his|her|their|our|your|the|a|an|this|that|these|those|took|take|takes|taking|taken|had|have|has|having|was|were|is|are|am|be|been|can|could|should|would|will|may|might|must|did|do|does|need|needs|needed|forgot|forget|forgets|missed|skipped|got|get|gets|felt|feel|feels|went|made|make|makes|then|now|so|but)\b)[\w'-]+`;
+/**
+ * A second thing that is too much on its own: too much of a thing, an extra or
+ * double dose, two or more, a lot, all of it, a large amount. Two or more of
+ * a thing that is not food and ends the clause counts as a medicine too, so a
+ * brand name keeps the emergency text ("and 2 xanax"; "and two friends came
+ * over" is not one).
+ */
+const SECOND_EXCESS = String.raw`(?:${TOO_OR_SO} ${TOO_MUCH_THING}|${TOO_MUCH} (?:${OBJECT_WORD} )?(?:doses?|${PILL}|spoonfuls?|teaspoons?|tablespoons?)\b|(?:${COUNT_WORD_2PLUS}|(?:[2-9]|[1-9]\d+)(?:\.\d+)?|a (?:few|couple|lot|bunch|handful|load|ton|heap|fistful))(?: of)? (?:(?:the|my|his|her|their|our|these|those) )?(?!${NOT_A_THING}|${FOOD_PHRASE_WITH})[a-z][\w'-]*(?=[,.?!;]|$| (?:and|but|so|then|last|today|tonight|yesterday|earlier|too|now|at once|together|i|he|she|we|they)\b)|(?:${COUNT_WORD_2PLUS}|(?:[2-9]|[1-9]\d+)(?:\.\d+)?|a (?:few|couple|lot|bunch|handful|load|ton|heap|fistful)|all|the whole|the rest|${SIZE_AMOUNT})(?: of)? (?:(?:the|my|his|her|their|our|these|those) )?(?:${OBJECT_WORD} ){0,2}?${MEDICINE_WORD})`;
+/** After a too-much clause, "some" or a bare medicine counts too ("too much tea and medicine"). */
+const SECOND_MEDICINE = String.raw`(?:(?:some|a few|more|extra|several)(?: of)? (?:(?:the|my|his|her|their|our|these|those) )?)?(?:${OBJECT_WORD} ){0,2}?${MEDICINE_WORD}`;
+/** Review round 5: not knowing how much was taken ("i don't know how many", "i lost count of how many"). */
+const UNSURE = String.raw`(?:(?:(?:do|did|does)(?:n'?t| not)|can'?t|cannot|can not|couldn'?t|could not) (?:know|remember|recall|tell|say|count|be sure)|(?:not|un) ?sure|not certain|uncertain|no (?:idea|clue)|lost (?:count|track)|forgot|who knows)`;
+/**
+ * Review round 5: an empty medicine container ("an empty pill bottle", "an
+ * empty bottle of children's tylenol", "an empty blister pack"), but not an
+ * empty water bottle or a bare empty box.
+ */
+const EMPTY_CONTAINER = String.raw`(?:half[- ])?empty (?:(?:${OBJECT_WORD} ){0,2}?(?:blisters?(?: packs?)?|pill ?box(?:es)?|pill ?cases?|strips?|sachets?|vials?)\b|(?:[\w'-]+ ){0,2}?(?:bottles?|packs?|packets?|box(?:es)?|containers?|jars?|tubs?|tubes?) of(?! (?:(?:the|my|his|her|some) )?(?:${FOOD_MOD} )?${ADULT_FOOD}\b)|(?:[\w'-]+ )?${MEDICINE_WORD} (?:bottles?|packs?|packets?|box(?:es)?|containers?|jars?|tubs?|tubes?)\b)`;
+/** Review round 5: an ingestion reported after the fact ("after taking", "since swallowing", "after giving him"). */
+const AFTER_TAKING = String.raw`\b(?:after|since|from|following) (?:(?:accidentally|accidently|mistakenly) )?(?:taking|swallowing|using|popping|chewing|downing|ingesting|consuming|giving${RECIPIENT})`;
+/** Review round 4: asking whether too much was taken ("did i take", "did she swallow", "did i give him"). */
+const DID_TAKE = String.raw`\bdid (?:i|we|he|she|they|someone|somebody|(?:my|his|her|their|the) \w+) (?:take|swallow|use|eat|drink|have|give${RECIPIENT})`;
+/**
+ * Review round 5: an amount that is too much after taking it over time, after
+ * the fact or asked about ("i've been taking too many", "after taking double
+ * the dose", "did i take a big dose?"). The three share this one tail, so the
+ * large building blocks are compiled once.
+ */
+const EXCESS_TAIL = String.raw`(?:(?:${TOO_OR_SO}|${TOO_MUCH})${NOT_MEDICINE_AFTER}|(?:(?:way|much|far|a bit|a lot|slightly) )?${MORE_WORD}${MORE_NOUN} than (?:${THAN_WHAT}${THAN_LABEL}|(?:usual|normal|normally|usually)\b|${THAN_WHAT}${THAN_PERSON}|${THAN_MULTIPLE})|${BIGGER_DOSE}|${MULTIPLE_OF}|${SIZE_EXCESS}|${REPEATED}|(?:the |a |an |my |his |her |their )?(?:whole|entire|full|rest of the) (?:\w+ )?(?:${CONTAINER}|${DOSE_FORMS})\b|(?:all|most) of (?:it|them|the \w+|my \w+))`;
+/** Review round 5: a storage subject before a limit verb ("the temperature exceeded what the label says"). */
+const NOT_STORAGE = String.raw`(?<!\b(?:temperature|temperatures|temp|heat|humidity|storage|room|car|weather|fridge|freezer|box|pack|bottle|label|it|that|this|which) )`;
 
 const POSSIBLE_OVERDOSE: readonly RegExp[] = [
   // "i swallowed 6 of these", "she has taken too many", "i took the whole pack"
@@ -404,8 +582,10 @@ const POSSIBLE_OVERDOSE: readonly RegExp[] = [
   // was given", "two doses were given", "10 ml was given"), but not a time
   // ("the 2 pm dose was given"); one more dose only by mistake ("another dose
   // was given by mistake"), as in the active form
+  // review round 5: also a size word or a multiple ("a large dose was given",
+  // "twice the dose was given")
   new RegExp(
-    String.raw`\b(?:${TOO_MUCH}|(?:${COUNT_WORD_2PLUS}|(?:[2-9]|[1-9]\d+)(?:\.\d+)?)${NOT_MEDICINE_AFTER})(?: [\w']+){0,2}? (?:doses?|pills?|tablets?|capsules?|caplets?|spoonfuls?|teaspoons?|tablespoons?|ml|mg|sachets?)\b (?:was|were|got|has been|have been|had been|may have been|might have been) (?:given|taken|swallowed|administered)\b`,
+    String.raw`\b(?:${TOO_MUCH}|(?:${COUNT_WORD_2PLUS}|(?:[2-9]|[1-9]\d+)(?:\.\d+)?)${NOT_MEDICINE_AFTER}|an? ${SIZE_INTENS}${SIZE_WORD}|${MULTIPLE} (?:the|my|his|her|their))(?: [\w']+){0,2}? (?:doses?|pills?|tablets?|capsules?|caplets?|spoonfuls?|teaspoons?|tablespoons?|ml|mg|sachets?|amounts?|quantit(?:y|ies))\b (?:was|were|got|has been|have been|had been|may have been|might have been) (?:given|taken|swallowed|administered)\b`,
   ),
   new RegExp(
     String.raw`\b${ANOTHER}(?: ${EXTRA_DOSE_NOUN})? (?:was|were|got|has been|had been|may have been|might have been) (?:given|taken|swallowed|administered)\b(?: [\w']+){0,3}? ${BY_MISTAKE}\b`,
@@ -449,10 +629,82 @@ const POSSIBLE_OVERDOSE: readonly RegExp[] = [
   // dose", "i gave him a bigger dose", "i had a higher dose than the label says")
   new RegExp(String.raw`${TOOK_VERB} ${BIGGER_DOSE}`),
   new RegExp(String.raw`${NOT_PASSIVE}\b${INGESTED_FOOD}${PARTICLE} ${BIGGER_DOSE_FOOD}`),
-  // review round 4: too much over time or while taking it ("i've been taking
-  // too many", "i keep taking more than the label says", "am i taking too much?")
+  // review round 5: a large amount, or a cup or glass, of a thing that is not
+  // food ("i took a large dose", "i swallowed a large number of pills", "i drank
+  // a large amount of cough syrup", "i drank a cup of cough syrup", "i gave him
+  // a big dose"); without a recipient, "gave" needs a dose or a thing ("i gave
+  // a large amount to charity" is not one)
+  new RegExp(String.raw`${NOT_PASSIVE}\b${INGESTED}${PARTICLE} ${SIZE_EXCESS}`),
+  new RegExp(String.raw`${GAVE}${RECIPIENT_REQ} ${SIZE_EXCESS}`),
+  // the subject of "was given" is the recipient ("he was given a large amount")
+  new RegExp(String.raw`\b(?:was|were|been|got|get|gets) given ${SIZE_EXCESS}`),
   new RegExp(
-    String.raw`\b${ONGOING} ${TAKING}(?: (?:it|them|${TAKEN_DOSE}))? (?:(?:${TOO_OR_SO}|${TOO_MUCH})${NOT_MEDICINE_AFTER}|(?:(?:way|much|far|a bit|a lot|slightly) )?${MORE_WORD}${MORE_NOUN} than (?:${THAN_WHAT}${THAN_LABEL}|(?:usual|normal|normally|usually)\b|${THAN_WHAT}${THAN_PERSON}|${THAN_MULTIPLE})|${BIGGER_DOSE})`,
+    String.raw`(?:${NOT_PASSIVE}\b${INGESTED_FOOD}${PARTICLE}|${GAVE}) ${SIZE_EXCESS_FOOD}`,
+  ),
+  // review round 5: twice or double the dose after a food or drink verb ("i
+  // had twice the dose", "i drank double what the label says", "i had twice as
+  // much as the label says"); after "ate" a plain amount is food
+  new RegExp(
+    String.raw`${NOT_PASSIVE}\b(?:drank|drunk|had|(?:ended|wound) up (?:having|drinking))${PARTICLE} ${MULTIPLE_OF}`,
+  ),
+  new RegExp(
+    String.raw`${NOT_PASSIVE}\b(?:ate|eaten|(?:ended|wound) up eating)${PARTICLE} ${MULTIPLE_OF_ATE}`,
+  ),
+  // review round 5: a second thing taken after a food or drink clause ("i had
+  // too much cake and too many pills", "i drank too much tea and medicine", "i
+  // had a beer and too many pills"), but not a normal dose ("and took my pills")
+  new RegExp(
+    String.raw`${NOT_PASSIVE}\b${INGESTED_FOOD}${PARTICLE} (?:(?:${INTENSIFIER}|(?:too|so) much),? ){0,3}(?:too|so) (?:much|many)(?: [\w'-]+,?){0,3}?${AND_ALSO} ${SECOND_MEDICINE}`,
+  ),
+  new RegExp(
+    String.raw`${NOT_PASSIVE}\b(?:${INGESTED}|${INGESTED_FOOD})${PARTICLE}(?: [\w'-]+,?){1,5}?${AND_ALSO} ${SECOND_EXCESS}`,
+  ),
+  // review round 5: binging on a medicine ("i binged on my sleeping pills")
+  new RegExp(
+    String.raw`\b(?:binged|overindulged|loaded up)(?: (?:on|in|with))? (?:(?:the|my|his|her|their|some|all|of|these|those) ){0,3}(?:${OBJECT_WORD} ){0,2}?${MEDICINE_WORD}`,
+  ),
+  // review round 5: not knowing how much was taken ("i don't know how many i
+  // took", "i've lost count of the pills i took", "i took some, not sure how
+  // many"), but not how much to take, how much is left, or food or drink ("how
+  // much wine i had")
+  new RegExp(
+    String.raw`\b(?:${UNSURE}(?: (?:of|about|exactly|really))? how (?:many|much)(?: (?!${NOT_MEDICINE}\b|${FOOD_PHRASE_WITH})[\w'-]+){0,3}?|lost (?:count|track) of (?:(?:the|my|his|her|their|all) )?(?:[\w'-]+ ){0,2}?${MEDICINE_WORD}(?: (?:that|which))?) (?:i|he|she|we|they|you|someone|(?:my|his|her|their|the|our) [\w'-]+)(?:'ve|'d|'s| have| has| had)?(?: (?:might|may|could|must) (?:have|'ve))?(?: (?:already|actually|really|just))? (?:took|taken|had|swallowed|drank|drunk|ate|eaten|used|consumed|popped|chewed|gave|given|got)\b(?! to (?:drink|eat)\b)`,
+  ),
+  new RegExp(
+    String.raw`\b(?:${INGESTED}|${INGESTED_FOOD}|gave)\b(?: (?!${NOT_MEDICINE}\b|${FOOD_PHRASE_WITH})[\w'-]+){0,5}?,? (?:(?:and|but|so) )?(?:i'?m |i am |i )?${UNSURE}(?: (?:of|about|exactly))? how (?:many|much)\b(?! (?:to|i (?:can|should|could|may|might)|(?:[\w'-]+ )?(?:is|are|was|were) (?:left|in|still))\b)`,
+  ),
+  // review round 5: over what the label or the prescription says ("i exceeded
+  // my prescription", "i exceeded what the label says", "i went beyond the
+  // directions"), but not going over the directions (reading them) or a
+  // storage limit ("the temperature exceeded what the label says")
+  new RegExp(
+    String.raw`${NOT_STORAGE}\b(?:exceeded|surpassed|overshot|went (?:beyond|above|past)|gone (?:beyond|above|past)|${BE_PERSON} ${OVER}) ${THAN_WHAT}${THAN_LABEL}(?! (?:temperature|temp|storage|heat|humidity|light|shelf|for (?:the )?(?:storage|temperature))\b)`,
+  ),
+  // review round 5: most of it after an ingestion verb ("i took most of
+  // them"); after a food or drink verb "most of it" is food
+  new RegExp(
+    String.raw`${NOT_PASSIVE}\b${INGESTED}${PARTICLE} (?:most|nearly all|almost all|the majority|the bulk) of (?:it|them|these|those)\b`,
+  ),
+  // review round 5: a child after eating or swallowing a medicine ("my son is
+  // acting weird after eating my pills"), and an empty medicine container next
+  // to a child ("i found my toddler with an empty bottle of children's
+  // tylenol", "there is an empty blister pack next to the baby")
+  new RegExp(
+    String.raw`\b${CHILD_S}\b(?: [\w'-]+){0,8}? (?:after|since|from) (?:eating|swallowing|drinking|chewing|licking|sucking on|biting|getting into) ${CHILD_OBJECT}\b${NOT_CHILD_FOOD}`,
+  ),
+  new RegExp(
+    String.raw`\b${CHILD_S}\b(?: [\w'-]+){0,6}? (?:(?:an?|the|my|his|her|their|our) )?${EMPTY_CONTAINER}`,
+  ),
+  new RegExp(
+    String.raw`\b${EMPTY_CONTAINER}(?: [\w'-]+){0,6}? (?:(?:the|my|his|her|their|our|a) )?${CHILD}\b`,
+  ),
+  // review round 4: too much over time or while taking it ("i've been taking
+  // too many", "i keep taking more than the label says", "am i taking too
+  // much?"); review round 5: also after the fact ("i feel sick after taking
+  // too much tylenol"; not a count: "can i drive after taking two tablets?")
+  // and asked about ("did i take twice the dose?", "did i take a big dose?")
+  new RegExp(
+    String.raw`(?:\b${ONGOING} ${TAKING}|${AFTER_TAKING}|${DID_TAKE})(?: (?:it|them|one|${TAKEN_DOSE}))? ${EXCESS_TAIL}`,
   ),
   // "i took it twice", "he took his pills twice today", "i had my dose twice";
   // review round 4: "i gave him his medicine twice", "i gave it to him twice"
@@ -475,12 +727,15 @@ const POSSIBLE_OVERDOSE: readonly RegExp[] = [
   new RegExp(
     String.raw`${NOT_PASSIVE}${NOT_IT}\b${INGESTED_FOOD}${MORE_PREFIX} ${MORE_WORD}${MORE_DOSE} than (?:${THAN_WHAT}${THAN_LABEL}|${THAN_USUAL}|${THAN_WHAT}${THAN_PERSON}|${THAN_MULTIPLE})`,
   ),
-  // review round 3: "i exceeded the dose", "i took over the limit", "she went over the maximum"
-  new RegExp(String.raw`${NOT_IT}\b${OVER_LIMIT}`),
+  // review round 3: "i exceeded the dose", "i took over the limit", "she went
+  // over the maximum"; review round 5: not a storage subject ("the temperature
+  // exceeded the maximum")
+  new RegExp(String.raw`${NOT_STORAGE}\b${OVER_LIMIT}`),
   // review round 3: asking whether too much was taken ("did i take too much?",
-  // "did she take more than the label says?"); review round 4: "did i give him too much?"
+  // "did she take more than the label says?"); review round 4: "did i give him
+  // too much?" (review round 5: the other amounts are in the rule above)
   new RegExp(
-    String.raw`\bdid (?:i|we|he|she|they|someone|somebody|(?:my|his|her|their|the) \w+) (?:take|swallow|use|eat|drink|have|give${RECIPIENT})(?: (?:it|them|one|${TAKEN_DOSE}))? (?:${TOO_OR_SO}|${TOO_MUCH}|more than)`,
+    String.raw`${DID_TAKE}(?: (?:it|them|one|${TAKEN_DOSE}))? (?:${TOO_OR_SO}|${TOO_MUCH}|more than)`,
   ),
   // review round 3: "i exceeded it", "she overshot that"
   new RegExp(String.raw`${NOT_IT}\b(?:exceeded|surpassed|overshot) (?:it|that|them)\b`),
