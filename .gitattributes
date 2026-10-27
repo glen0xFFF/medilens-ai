@@ -1,1 +1,5 @@
 fixtures/parity/*.jsonl -text
+# gofmt -l fails on CRLF, and core.autocrlf=true would check Go sources out with CRLF
+*.go text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
