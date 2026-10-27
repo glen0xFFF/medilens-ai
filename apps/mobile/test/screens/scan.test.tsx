@@ -389,6 +389,46 @@ describe('analyzing screen', () => {
     expect(screen.getByText('Still reading the label. Please wait.')).toBeTruthy();
   });
 
+  // Final review M12: the reminder must not replace (or contradict) a real
+  // server stage, and a new stage restarts its 15 s wait.
+  it('keeps a real stage on screen and names it in the reminder, 15 s after the last stage', async () => {
+    jest.useFakeTimers();
+    type Options = { onStage?: (e: (typeof S1_STATUS.events)[number]) => void };
+    let report: Options['onStage'];
+    const client = mockClient({
+      analyze: jest.fn((_images: unknown, options?: Options) => {
+        report = options?.onStage;
+        return new Promise(() => {});
+      }),
+    });
+    await analyze(client, 1);
+    await screen.findByText('Sending 1 photo and reading the label. This can take up to a minute.');
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+    const checking = {
+      seq: 4,
+      stage: 'checking_references' as const,
+      label: 'Checking the registry.',
+      at: S1_STATUS.events[0]!.at,
+    };
+    await act(async () => report?.(checking));
+    expect(screen.getByText('Checking the registry.')).toBeTruthy();
+    // 15 s after the upload began, but only 5 s after the stage: no reminder yet.
+    await act(async () => {
+      jest.advanceTimersByTime(5_000);
+    });
+    expect(announce).not.toHaveBeenCalledWith('Still reading the label. Please wait.');
+    expect(announce).not.toHaveBeenCalledWith('Still working. Checking the registry.');
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+    expect(announce).toHaveBeenCalledWith('Still working. Checking the registry.');
+    expect(announce).not.toHaveBeenCalledWith('Still reading the label. Please wait.');
+    expect(screen.getByText('Checking the registry.')).toBeTruthy();
+    expect(screen.queryByText('Still reading the label. Please wait.')).toBeNull();
+  });
+
   const cases: [ApiErrorCode, RegExp][] = [
     ['IMAGE_TOO_LARGE', /too large/i],
     ['INVALID_IMAGE', /could not be opened/i],

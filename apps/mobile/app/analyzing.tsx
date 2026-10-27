@@ -12,9 +12,14 @@ import { useResults } from '../src/state/results';
 import { useTheme } from '../src/theme/theme';
 import { LIVE_MODE_PHOTOS, analyzeErrorMessage, isTerminalStage } from '../src/ui/text';
 
-/** How often a long upload re-announces that it is still working. */
+/** How long without a new stage before the screen re-announces that it is still working. */
 export const STILL_WORKING_MS = 15_000;
 const STILL_WORKING = 'Still reading the label. Please wait.';
+
+/** The reminder once the server has reported a stage: it names that stage (final review M12). */
+function stillWorkingOn(stageLabel: string) {
+  return `Still working. ${stageLabel}`;
+}
 
 function startMessage(count: number) {
   return `Sending ${count} ${count === 1 ? 'photo' : 'photos'} and reading the label. This can take up to a minute.`;
@@ -45,7 +50,7 @@ export default function Analyzing() {
   latest.current = { images, clear, saveResult };
   const mounted = useRef(true);
   const started = useRef(-1);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The analysis in flight. Leaving this screen (Back, Home) aborts it (final
   // review Minor 22): an upload still sending its photos stops there; once
   // the server has accepted it, polling stops and the client asks the server
@@ -56,7 +61,7 @@ export default function Analyzing() {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      if (timer.current !== null) clearInterval(timer.current);
+      if (timer.current !== null) clearTimeout(timer.current);
       timer.current = null;
       if (upload.current !== null) {
         upload.current.abort();
@@ -79,16 +84,35 @@ export default function Analyzing() {
     setFailure(null);
     setStatus(first);
     announce(first);
-    const interval = setInterval(() => {
-      if (!mounted.current) return;
-      setStatus(STILL_WORKING);
-      announce(STILL_WORKING);
-    }, STILL_WORKING_MS);
-    timer.current = interval;
+    // The reminder comes STILL_WORKING_MS after the start or after the last
+    // stage the server reported (final review M12). Before any stage it
+    // replaces the start message; after one, the real stage stays on screen
+    // and the reminder names it, so no step that is not running is claimed.
+    // Only this attempt's own timer is ever cleared: under StrictMode an
+    // aborted first attempt ends after the second one has started.
+    let stage: string | null = null;
+    let ended = false;
+    let reminder: ReturnType<typeof setTimeout> | null = null;
+    const remind = () => {
+      if (reminder !== null) clearTimeout(reminder);
+      reminder = setTimeout(() => {
+        if (!mounted.current || ended) return;
+        if (stage === null) {
+          setStatus(STILL_WORKING);
+          announce(STILL_WORKING);
+        } else {
+          announce(stillWorkingOn(stage));
+        }
+        remind();
+      }, STILL_WORKING_MS);
+      timer.current = reminder;
+    };
+    remind();
     /** Ends this attempt; false when it was aborted or the screen has gone. */
     const finish = () => {
-      clearInterval(interval);
-      if (timer.current === interval) timer.current = null;
+      ended = true;
+      if (reminder !== null) clearTimeout(reminder);
+      if (timer.current === reminder) timer.current = null;
       if (upload.current === controller) upload.current = null;
       return mounted.current && !controller.signal.aborted;
     };
@@ -97,8 +121,10 @@ export default function Analyzing() {
     // they arrive. The end of the analysis is announced by its outcome below.
     const onStage = (event: AnalysisEvent) => {
       if (!mounted.current || controller.signal.aborted || isTerminalStage(event.stage)) return;
+      stage = event.label;
       setStatus(event.label);
       announce(event.label);
+      remind();
     };
 
     client.analyze([...photos], { signal: controller.signal, onStage }).then(
