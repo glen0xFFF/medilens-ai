@@ -109,6 +109,8 @@ func (r *ImageRetention) UnmarshalJSON(b []byte) error {
 // AnalysisResult: analysis.ts AnalysisResultSchema. Label is nil when the
 // image failed the quality check and the reader was never called. CreatedAt
 // and ExpiresAt are ISO timestamps in the JS toISOString form (FormatTime).
+// Provenance is the Go API's optional addition (Go port spec §4); it is
+// not in the Zod schema yet, which strips unknown keys.
 type AnalysisResult struct {
 	ID             string          `json:"id"`
 	IsDemo         bool            `json:"isDemo"`
@@ -120,6 +122,16 @@ type AnalysisResult struct {
 	Match          MatchAssessment `json:"match"`
 	Explanation    Explanation     `json:"explanation"`
 	ImageRetention ImageRetention  `json:"imageRetention"`
+	Provenance     *Provenance     `json:"provenance,omitempty"`
+}
+
+// Provenance names the providers an uploaded scan was analysed with
+// (Go port spec §3, §4): Model is the model provider's model id ("mock"
+// for the mock provider) and References the reference provider
+// (REFERENCE_PROVIDER: "fixture" or "ph_fda").
+type Provenance struct {
+	Model      string `json:"model"`
+	References string `json:"references"`
 }
 
 // DemoScenarioRequest: analysis.ts DemoScenarioRequestSchema.
