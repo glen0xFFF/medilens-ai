@@ -193,6 +193,21 @@ describe('GroundTruthSchema', () => {
     expect(GroundTruthSchema.safeParse({ ...truth, strength: 'five hundred' }).success).toBe(false);
     expect(GroundTruthSchema.safeParse({ ...truth, images: [] }).success).toBe(false);
   });
+
+  it('rejects an expiryDate parseMonthYear cannot read, and still accepts null', () => {
+    const bad = GroundTruthSchema.safeParse({ ...truth, expiryDate: '03.2027' });
+    expect(bad.success).toBe(false);
+    if (!bad.success) expect(bad.error.issues[0]?.path).toEqual(['expiryDate']);
+    expect(GroundTruthSchema.safeParse({ ...truth, expiryDate: 'EXP 03/2027' }).success).toBe(true);
+    expect(GroundTruthSchema.safeParse({ ...truth, expiryDate: null }).success).toBe(true);
+  });
+
+  it('rejects a registrationNumber normalizeRegistrationNumber rejects, and still accepts null', () => {
+    const bad = GroundTruthSchema.safeParse({ ...truth, registrationNumber: 'FR-123' });
+    expect(bad.success).toBe(false);
+    if (!bad.success) expect(bad.error.issues[0]?.path).toEqual(['registrationNumber']);
+    expect(GroundTruthSchema.safeParse({ ...truth, registrationNumber: null }).success).toBe(true);
+  });
 });
 
 describe('summarize and renderResultsMarkdown', () => {

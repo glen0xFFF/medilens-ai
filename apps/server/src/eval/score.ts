@@ -32,9 +32,23 @@ export const GroundTruthSchema = z.object({
     }),
   dosageForm: z.string().trim().min(1),
   /** null when the pack prints no registration number. */
-  registrationNumber: z.string().trim().min(1).nullable(),
+  registrationNumber: z
+    .string()
+    .trim()
+    .min(1)
+    .refine((s) => normalizeRegistrationNumber(s) !== null, {
+      message: 'registrationNumber must be a recognised registration number, e.g. "DR-XY12345"',
+    })
+    .nullable(),
   /** null when the pack prints no expiry date. */
-  expiryDate: z.string().trim().min(1).nullable(),
+  expiryDate: z
+    .string()
+    .trim()
+    .min(1)
+    .refine((s) => parseMonthYear(s) !== null, {
+      message: 'expiryDate must be a month and year, e.g. "03/2027", "2027-03" or "MAR 2027"',
+    })
+    .nullable(),
 });
 export type GroundTruth = z.infer<typeof GroundTruthSchema>;
 
