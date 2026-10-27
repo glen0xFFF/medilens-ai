@@ -38,14 +38,17 @@ export type QuestionClass =
   { allowed: true; intent: AllowedIntent } | { allowed: false; reason: RefusalReason };
 
 const REDIRECT = 'Please ask a pharmacist or your doctor.';
+// Overdose reports that slip past the possible_overdose patterns land in these reasons,
+// so their texts carry the emergency safety net (controller ruling, Task 5b breaker).
+const SAFETY_NET = 'If someone has already taken too much, call 911.';
 
 export const REFUSAL_TEXT: Record<RefusalReason, string> = {
-  personal_dose: `I can't tell you how much to take. I can only read what is printed on the label. ${REDIRECT}`,
+  personal_dose: `I can't tell you how much to take. I can only read what is printed on the label. ${SAFETY_NET} ${REDIRECT}`,
   start_stop: `I can't advise you to start, stop or change a medicine. ${REDIRECT}`,
   diagnosis: `I can't diagnose symptoms or say whether this medicine treats them. ${REDIRECT}`,
-  special_population: `I can't say whether this medicine is suitable for children, older people, or during pregnancy or breastfeeding. ${REDIRECT}`,
-  interaction: `I can't check whether this medicine is safe to take with other medicines, food or alcohol. ${REDIRECT}`,
-  personal_safety: `I can't say whether this medicine is safe for you. ${REDIRECT}`,
+  special_population: `I can't say whether this medicine is suitable for children, older people, or during pregnancy or breastfeeding. ${SAFETY_NET} ${REDIRECT}`,
+  interaction: `I can't check whether this medicine is safe to take with other medicines, food or alcohol. ${SAFETY_NET} ${REDIRECT}`,
+  personal_safety: `I can't say whether this medicine is safe for you. ${SAFETY_NET} ${REDIRECT}`,
   pill_identification: `I can't identify a medicine from how a pill looks. ${REDIRECT}`,
   possible_overdose:
     'If someone may have taken too much of this medicine, call 911 or go to the nearest emergency room now.',

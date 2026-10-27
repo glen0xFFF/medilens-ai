@@ -1857,6 +1857,27 @@ describe('REFUSAL_TEXT', () => {
     expect(text.length).toBeGreaterThan(REDIRECT.length);
   });
 
+  // Controller ruling (Task 5b breaker): overdose reports that miss the possible_overdose
+  // patterns land in one of these reasons, so each carries the emergency safety net.
+  const overdoseAdjacent: RefusalReason[] = [
+    'personal_dose',
+    'personal_safety',
+    'interaction',
+    'special_population',
+  ];
+  const SAFETY_NET = 'If someone has already taken too much, call 911.';
+
+  test.each(overdoseAdjacent)('%s carries the emergency safety net before the redirect', (reason) => {
+    expect(REFUSAL_TEXT[reason].endsWith(`${SAFETY_NET} ${REDIRECT}`)).toBe(true);
+  });
+
+  test.each(['start_stop', 'diagnosis', 'pill_identification', 'outside_label'] as RefusalReason[])(
+    '%s has no emergency safety net',
+    (reason) => {
+      expect(REFUSAL_TEXT[reason]).not.toContain('911');
+    },
+  );
+
   test('possible_overdose points to emergency care', () => {
     expect(REFUSAL_TEXT.possible_overdose).toBe(
       'If someone may have taken too much of this medicine, call 911 or go to the nearest emergency room now.',
