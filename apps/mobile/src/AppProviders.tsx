@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ApiProvider } from './api/ApiContext';
 import type { ApiClient } from './api/client';
+import { CaptureProvider } from './capture/captures';
 import { ResultsProvider } from './state/results';
 import { SettingsProvider } from './state/settings';
 
@@ -9,7 +10,9 @@ export function AppProviders({ client, children }: { client: ApiClient; children
   return (
     <SettingsProvider>
       <ApiProvider client={client}>
-        <ResultsProvider>{children}</ResultsProvider>
+        <ResultsProvider>
+          <CaptureProvider>{children}</CaptureProvider>
+        </ResultsProvider>
       </ApiProvider>
     </SettingsProvider>
   );

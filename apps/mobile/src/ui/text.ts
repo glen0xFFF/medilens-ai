@@ -5,7 +5,7 @@
  * the conflict row format below.
  */
 import type { AnalysisResult, FieldConflict, FieldKey, Legibility } from '@medilens/contracts';
-import { ApiError } from '../api/client';
+import { ApiError, type ApiErrorCode } from '../api/client';
 import type { StatusKey } from '../theme/theme';
 
 export const FIELD_LABELS: Record<FieldKey, string> = {
@@ -70,4 +70,24 @@ export function formatCheckedAt(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+/**
+ * Plain messages for a failed upload. These codes get the app's own wording
+ * (the server's text is written for logs or is too technical); any other
+ * error shows the server's message verbatim.
+ */
+export const ANALYZE_ERROR_MESSAGES: Partial<Record<ApiErrorCode, string>> = {
+  IMAGE_TOO_LARGE: 'That photo is too large to send. Please retake it or choose another photo.',
+  INVALID_IMAGE: 'That photo could not be opened. Please retake it or choose another photo.',
+  RATE_LIMITED: 'Too many scans right now. Please wait a minute and try again.',
+  LIVE_BUDGET_EXHAUSTED: 'Live reading is paused for today. You can still try the demo.',
+  NETWORK: "I couldn't reach the MediLens server. Check your connection and try again.",
+  TIMEOUT: 'Reading the label took too long. Please try again.',
+  OCR_FAILED: "I couldn't read the label this time. Please try again or retake the photos.",
+};
+
+export function analyzeErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return GENERIC_ERROR;
+  return ANALYZE_ERROR_MESSAGES[error.code] ?? error.message;
 }

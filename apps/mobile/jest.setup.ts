@@ -21,10 +21,107 @@ jest.mock('expo-speech', () => ({
   maxSpeechInputLength: 4000,
 }));
 
-jest.mock('expo-camera', () => ({
-  CameraView: 'CameraView',
-  useCameraPermissions: jest.fn(() => [
-    { granted: false, canAskAgain: true, status: 'undetermined' },
-    jest.fn(() => Promise.resolve({ granted: false, canAskAgain: true, status: 'denied' })),
-  ]),
+/**
+ * expo-camera: a CameraView stand-in that reports ready on mount (or a mount
+ * error when `__camera.mountError` is set) and exposes takePictureAsync
+ * through its ref, plus the permission hook. Tests steer it via
+ * `jest.requireMock('expo-camera').__camera`.
+ */
+jest.mock('expo-camera', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const camera: { mountError: string | null; shots: number; takePictureAsync: jest.Mock } = {
+    mountError: null,
+    shots: 0,
+    takePictureAsync: jest.fn(() => {
+      camera.shots += 1;
+      return Promise.resolve({
+        uri: `file:///data/user/0/app/cache/Camera/shot-${camera.shots}.jpg`,
+        width: 4000,
+        height: 3000,
+        format: 'jpg',
+      });
+    }),
+  };
+  function CameraView(props: Record<string, unknown> & { ref?: unknown }) {
+    const { ref, onCameraReady, onMountError, ...rest } = props as {
+      ref?: unknown;
+      onCameraReady?: () => void;
+      onMountError?: (e: { message: string }) => void;
+    };
+    React.useImperativeHandle(ref, () => ({ takePictureAsync: camera.takePictureAsync }));
+    React.useEffect(() => {
+      if (camera.mountError !== null) onMountError?.({ message: camera.mountError });
+      else onCameraReady?.();
+    }, []);
+    return React.createElement(View, { testID: 'camera-view', ...rest });
+  }
+  return {
+    CameraView,
+    useCameraPermissions: jest.fn(() => [
+      { granted: false, canAskAgain: true, status: 'undetermined' },
+      jest.fn(() => Promise.resolve({ granted: false, canAskAgain: true, status: 'denied' })),
+    ]),
+    __camera: camera,
+  };
+});
+
+/**
+ * expo-image-manipulator: the contextual API. Every source renders at
+ * `__manipulator.width` px wide (default 4000) unless resized; saveAsync
+ * writes a new cache file name.
+ */
+jest.mock('expo-image-manipulator', () => {
+  const state = { width: 4000, saved: 0 };
+  const manipulate = jest.fn((uri: string) => {
+    let width = state.width;
+    const context: Record<string, unknown> = {
+      uri,
+      resize: jest.fn((size: { width?: number }) => {
+        if (typeof size.width === 'number') width = size.width;
+        return context;
+      }),
+      renderAsync: jest.fn(() =>
+        Promise.resolve({
+          width,
+          height: Math.round(width * 0.75),
+          release: jest.fn(),
+          saveAsync: jest.fn(() => {
+            state.saved += 1;
+            return Promise.resolve({
+              uri: `file:///data/user/0/app/cache/ImageManipulator/prepared-${state.saved}.jpg`,
+              width,
+              height: Math.round(width * 0.75),
+            });
+          }),
+        }),
+      ),
+      release: jest.fn(),
+    };
+    return context;
+  });
+  return {
+    ImageManipulator: { manipulate },
+    SaveFormat: { JPEG: 'jpeg', PNG: 'png', WEBP: 'webp' },
+    __manipulator: state,
+  };
+});
+
+/** expo-file-system: File(uri).delete() is recorded by `__deleted`. */
+jest.mock('expo-file-system', () => {
+  const deleted = jest.fn();
+  class File {
+    uri: string;
+    constructor(path: string) {
+      this.uri = path;
+    }
+    delete() {
+      deleted(this.uri);
+    }
+  }
+  return { File, __deleted: deleted };
+});
+
+jest.mock('expo-image-picker', () => ({
+  launchImageLibraryAsync: jest.fn(() => Promise.resolve({ canceled: true, assets: null })),
 }));
