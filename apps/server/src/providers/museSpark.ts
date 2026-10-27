@@ -695,6 +695,173 @@ function contentTerms(s: string): Set<string> {
   return out;
 }
 
+/* ------------------------- vocabulary grounding and polarity (review round 3) */
+
+/**
+ * Words that carry no claim of their own: articles, pronouns, auxiliaries and
+ * plain prepositions. Modals (can, may, must, should), quantifiers (more,
+ * another, few), directional words (out, within, below, after) and population
+ * words (anyone, people) are NOT here: they change what an answer claims, so
+ * they must be printed.
+ */
+const FUNCTION_WORDS = new Set(
+  (
+    'a an the of to in on at by for from with as and or if than then that which who whom whose ' +
+    'what when where how there here it its this these those you your yours yourself they them ' +
+    'their he him his she her we us our i me my is are was were be been being am do does did ' +
+    'has have had having every each per s re ll ve d m'
+  ).split(' '),
+);
+
+/** Words that turn a statement around. Grounded by the polarity check, not by vocabulary. */
+const GROUND_NEGATIONS = new Set([...NEGATIONS, 'none', 'neither']);
+
+/**
+ * Answer framing allowed without being printed: how an answer refers to the
+ * label and its fields ("the warnings printed on the pack say"), plus "take".
+ * None of these words states a medication fact on its own.
+ */
+const FRAMING_WORDS =
+  'label labels pack package packet box carton printed print prints say says said read reads ' +
+  'state states show shows written text word words phrase mean means meaning take takes taking ' +
+  'medicine product field section brand name generic ingredient ingredients active strength form ' +
+  'dosage dose manufacturer manufactured made maker company registration registered number ' +
+  'direction directions instruction instructions warning warnings caution cautions storage store ' +
+  'stored expiry expiration expire expires exp date batch lot prescription rx otc unclear clear ' +
+  'part partly partial partially readable unreadable legible';
+
+/** Same-meaning frequency adverbs folded to the noun the label may print instead. */
+const WORD_CANON: Record<string, string> = {
+  hourly: 'hour',
+  daily: 'day',
+  weekly: 'week',
+  monthly: 'month',
+  nightly: 'night',
+};
+
+const VOWEL = /[aeiouy]/;
+
+/** Light stem so plurals, -ed and -ing forms match ("taking" and "take", "doses" and "dose"). */
+function stem(word: string): string {
+  let s = WORD_CANON[word] ?? word;
+  if (s.length > 4 && s.endsWith('ies')) s = `${s.slice(0, -3)}y`;
+  else if (s.length > 3 && s.endsWith('s') && !/(?:ss|us|is)$/.test(s)) s = s.slice(0, -1);
+  if (s.length > 4 && s.endsWith('ing') && VOWEL.test(s.slice(0, -3))) s = s.slice(0, -3);
+  else if (s.length > 3 && s.endsWith('ed') && !s.endsWith('eed') && VOWEL.test(s.slice(0, -2))) {
+    s = s.slice(0, -2);
+  }
+  if (/([b-df-hj-np-tv-z])\1$/.test(s) && !/(?:ll|ss|zz)$/.test(s)) s = s.slice(0, -1);
+  if (s.length > 2 && s.endsWith('e') && !s.endsWith('ee')) s = s.slice(0, -1);
+  return s;
+}
+
+const FRAMING = new Set(FRAMING_WORDS.split(' ').map(stem));
+
+/** "don't" is "do not", "can't" is "cannot", so a contraction is a negation, not a word. */
+function expandContractions(s: string): string {
+  return s
+    .normalize('NFKC')
+    .replace(/\bcan['’]t\b/gi, 'cannot')
+    .replace(/\bwon['’]t\b/gi, 'will not')
+    .replace(/n['’]t\b/gi, ' not');
+}
+
+function isNumberWord(w: string): boolean {
+  return /^\p{N}+$/u.test(w) || NUMBER_WORDS[w] !== undefined;
+}
+
+/** A content token: a folded word that is not a function word, negation or number. */
+function isContent(w: string): boolean {
+  return !FUNCTION_WORDS.has(w) && !GROUND_NEGATIONS.has(w) && !isNumberWord(w);
+}
+
+/**
+ * Review round 3, finding 2 (1): every content word of the answer must be
+ * printed in a field it cites, apart from the small framing allowlist. Numbers
+ * are left to ungroundedFigures. This grounds vocabulary instead of screening
+ * listed terms, so "every couple of hours", "teenagers", "toothache" and a
+ * mis-cited paraphrase ("keep it somewhere cool") all fail the same way.
+ */
+function ungroundedWords(text: string, evidence: string[]): boolean {
+  const printed = new Set(evidence.flatMap((e) => words(expandContractions(e)).map(stem)));
+  return words(expandContractions(text))
+    .filter(isContent)
+    .map(stem)
+    .some((w) => !FRAMING.has(w) && !printed.has(w));
+}
+
+interface GroundClause {
+  /** Folded words of the clause, contractions expanded. */
+  raw: string[];
+  /** Stems of the clause's content and number words, with their raw index. */
+  tokens: { stem: string; at: number }[];
+  negated: boolean;
+}
+
+const NEAR_NEGATION = 3;
+
+function groundClauses(s: string): GroundClause[] {
+  return clauses(expandContractions(s)).map((raw) => ({
+    raw,
+    tokens: raw.flatMap((w, at) =>
+      FUNCTION_WORDS.has(w) || GROUND_NEGATIONS.has(w) ? [] : [{ stem: stem(w), at }],
+    ),
+    negated: raw.some((w) => GROUND_NEGATIONS.has(w)),
+  }));
+}
+
+/** A negation within the three words directly before raw index `at`. */
+function negatedBefore(raw: string[], at: number): boolean {
+  return raw.slice(Math.max(0, at - NEAR_NEGATION), at).some((w) => GROUND_NEGATIONS.has(w));
+}
+
+/**
+ * Review round 3, finding 2 (2): polarity per clause. Where an answer clause
+ * shares a run of 2 or more content words with a cited clause, both clauses
+ * must contain a negation or neither must, and the negation must sit within
+ * three words directly before the shared run in both. A content word the
+ * answer shares with no such run must appear in a cited clause of the same
+ * polarity ("Take it with alcohol" against a printed "Avoid alcohol").
+ * Several printed clauses may support a word; one that agrees is enough.
+ */
+function polarityMismatch(text: string, evidence: string[]): boolean {
+  const printed = evidence.flatMap(groundClauses);
+  for (const ans of groundClauses(text)) {
+    const at = ans.tokens;
+    const covered = new Map<number, boolean>(); // token index -> some agreeing run covers it
+    for (const ev of printed) {
+      const pt = ev.tokens;
+      for (let i = 0; i < at.length; i++) {
+        for (let j = 0; j < pt.length; j++) {
+          // maximal runs only: skip a start that extends one to its left
+          if (i > 0 && j > 0 && at[i - 1]?.stem === pt[j - 1]?.stem) continue;
+          let k = 0;
+          while (i + k < at.length && j + k < pt.length && at[i + k]?.stem === pt[j + k]?.stem) {
+            k++;
+          }
+          if (k < 2) continue;
+          const ai = at[i]?.at ?? 0;
+          const pj = pt[j]?.at ?? 0;
+          const agrees =
+            ans.negated === ev.negated &&
+            negatedBefore(ans.raw, ai) === negatedBefore(ev.raw, pj);
+          for (let r = i; r < i + k; r++) covered.set(r, (covered.get(r) ?? false) || agrees);
+        }
+      }
+    }
+    if ([...covered.values()].some((ok) => !ok)) return true;
+    for (let i = 0; i < at.length; i++) {
+      const tok = at[i];
+      if (tok === undefined || covered.has(i) || FRAMING.has(tok.stem) || isNumberWord(tok.stem)) {
+        continue;
+      }
+      const holders = printed.filter((ev) => ev.tokens.some((t) => t.stem === tok.stem));
+      if (holders.length > 0 && !holders.some((ev) => ev.negated === ans.negated)) return true;
+    }
+  }
+  return false;
+}
+
 function sentences(text: string): string[] {
   return text
     .split(/(?<=[.!?])\s+(?=[A-Z])/)
@@ -732,7 +899,12 @@ function checkAnswer(out: ModelAnswer, { label, match, intent }: AnswerInput): A
   const evidence = label.fields.filter((f) => citedSet.has(f.key)).map((f) => f.value ?? '');
   // The fixed advisory sentence is deterministic text, not a claim to ground.
   const claim = match.advisories.length > 0 ? text.split(ADVISORY_SENTENCE).join(' ') : text;
-  if (ungroundedFigures(claim, evidence) || unsupportedClaim(claim, evidence)) {
+  if (
+    ungroundedFigures(claim, evidence) ||
+    unsupportedClaim(claim, evidence) ||
+    ungroundedWords(claim, evidence) ||
+    polarityMismatch(claim, evidence)
+  ) {
     return unclear(ANSWER_FALLBACK_TEXT);
   }
 

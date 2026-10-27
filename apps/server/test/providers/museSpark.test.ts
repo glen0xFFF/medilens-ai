@@ -586,7 +586,14 @@ describe('answerer uncertainty (finding 1: a mis-cited clear field)', () => {
   });
 
   test('talking about an unreadable expiry while citing the brand is uncertain', async () => {
-    expectUncertain(await ask('answer-expiry-topic', 'read_label', LABEL_MIS));
+    expectUncertain(await ask('answer-r3-expiry-framed', 'read_label', LABEL_MIS));
+  });
+
+  test('review round 3: an expiry remark with a word the brand does not print is unclear', async () => {
+    // "on the side" is not printed in the cited brand name (content-word grounding).
+    const a = await ask('answer-expiry-topic', 'read_label', LABEL_MIS);
+    expect(a.status).toBe('unclear');
+    expect(a.text).toBe(ANSWER_FALLBACK_TEXT);
   });
 
   test('unclear_parts intent is always uncertain when a field is not clear', async () => {
@@ -761,11 +768,15 @@ describe('answerer uncertainty round 2 (finding 1: a mis-cited paraphrase)', () 
     ),
   };
 
-  test('paraphrasing a partial warning while citing the brand is uncertain', async () => {
-    expectUncertain(await ask('answer-allergy-miscited', 'read_label', LABEL_ALLERGY));
+  test('review round 3: paraphrasing a partial warning while citing the brand is unclear', async () => {
+    // Round 2 flagged this as uncertain; round 3 grounds vocabulary in the cited
+    // field, and "use", "allergic" and "aspirin" are not printed in the brand name.
+    const a = await ask('answer-allergy-miscited', 'read_label', LABEL_ALLERGY);
+    expect(a.status).toBe('unclear');
+    expect(a.text).toBe(ANSWER_FALLBACK_TEXT);
   });
 
-  test('the same paraphrase is not flagged when the warning is clear', async () => {
+  test('review round 3: the same paraphrase citing the brand is unclear when the warning is clear', async () => {
     const label = {
       ...LABEL_ALLERGY,
       fields: LABEL_ALLERGY.fields.map((f) =>
@@ -773,7 +784,152 @@ describe('answerer uncertainty round 2 (finding 1: a mis-cited paraphrase)', () 
       ),
     };
     const a = await ask('answer-allergy-miscited', 'read_label', label);
+    expect(a.status).toBe('unclear');
+    expect(a.text).toBe(ANSWER_FALLBACK_TEXT);
+  });
+
+  test('the same paraphrase citing the partial warnings is answered and uncertain', async () => {
+    expectUncertain(await ask('answer-r3-ctrl-allergic-reworded', 'read_label', LABEL_ALLERGY));
+  });
+
+  test('the same paraphrase citing the clear warnings is answered with no notice', async () => {
+    const label = {
+      ...LABEL_ALLERGY,
+      fields: LABEL_ALLERGY.fields.map((f) =>
+        f.key === 'warnings' ? { ...f, legibility: 'clear' as const } : f,
+      ),
+    };
+    const a = await ask('answer-r3-ctrl-allergic-reworded', 'read_label', label);
     expect(a.status).toBe('answered');
     expect(a.safetyNotice).toBeNull();
   });
+});
+
+/* -------------------- review round 3: answer vocabulary grounded in cited fields */
+
+function withField(
+  base: ExtractedLabel,
+  key: FieldKey,
+  value: string,
+  legibility: LabelField['legibility'] = 'clear',
+): ExtractedLabel {
+  return {
+    ...base,
+    fields: [...base.fields.filter((f) => f.key !== key), lf(key, value, legibility)],
+  };
+}
+
+describe('answerer grounding round 3 (finding 2: every content word must be printed)', () => {
+  test.each([
+    ['answer-r3-freq-couple', 'every couple of hours'],
+    ['answer-r3-freq-few', 'every few hours'],
+    ['answer-r3-freq-sooner', 'or sooner if needed'],
+    ['answer-r3-freq-as-often', 'or as often as needed'],
+    ['answer-r3-freq-morning-night', 'every morning and night'],
+    ['answer-r3-freq-another', 'another one right away'],
+  ])('(a) %s (%s) citing directions is unclear', async (name) => {
+    expectFallback(await ask(name, 'read_label', LABEL_PROBE));
+  });
+
+  test.each([
+    ['answer-r3-neg-allergic-can', 'Do not use if allergic to aspirin.'],
+    ['answer-r3-neg-allergic-even', 'Do not use if allergic to aspirin.'],
+    ['answer-r3-neg-allergic-bare', 'Do not use if allergic to aspirin.'],
+    ['answer-r3-neg-days', 'Do not use for more than 3 days.'],
+    ['answer-r3-neg-days-bare', 'Do not use for more than 3 days.'],
+    ['answer-r3-neg-drive', 'Do not drive after taking it.'],
+    ['answer-r3-neg-drive-bare', 'Do not drive after taking it.'],
+    ['answer-r3-neg-avoid', 'Avoid alcohol.'],
+  ])('(b) %s flips the printed warning "%s" and is unclear', async (name, printed) => {
+    expectFallback(await ask(name, 'read_label', withField(LABEL_PROBE, 'warnings', printed)));
+  });
+
+  test.each([
+    ['answer-r3-neg-problem', 'a reversing "not" earlier in the clause'],
+    ['answer-r3-neg-harm', 'a reversing "no" earlier in the clause'],
+    ['answer-r3-neg-far', 'a "not" more than three words before the printed run'],
+  ])('(b2) %s (%s) is unclear', async (name) => {
+    expectFallback(await ask(name, 'read_label', LABEL_PROBE));
+  });
+
+  // Polarity-only probes: every word is printed and none is a screened clinical term.
+  test('(b2) a "not" more than three words before a printed run is not its negation', async () => {
+    const label = withField(LABEL_PROBE, 'warnings', 'Do not drive after taking it.');
+    expectFallback(await ask('answer-r3-neg-far-drive', 'read_label', label));
+  });
+
+  test('(b) a word printed only in an "avoid" clause, restated without it, is unclear', async () => {
+    const label = withField(LABEL_PROBE, 'storage', 'Avoid sunlight.');
+    expectFallback(await ask('answer-r3-neg-avoid-store', 'read_label', label));
+  });
+
+  test.each([
+    'answer-r3-pop-teenagers',
+    'answer-r3-pop-teens',
+    'answer-r3-pop-anyone',
+    'answer-r3-pop-older',
+  ])('(c) %s: a population the directions do not print is unclear', async (name) => {
+    expectFallback(await ask(name, 'read_label', LABEL_PROBE));
+  });
+
+  test.each([
+    'answer-r3-ind-toothache',
+    'answer-r3-ind-temperature',
+    'answer-r3-ind-cramps',
+    'answer-r3-ind-arthritis',
+  ])('(d) %s: an indication the generic name does not print is unclear', async (name) => {
+    expectFallback(await ask(name, 'read_label', LABEL_PROBE));
+  });
+
+  test.each([
+    ['answer-r3-ctrl-allergic', 'Do not use if allergic to aspirin.'],
+    ['answer-r3-ctrl-allergic-reworded', 'Do not use if allergic to aspirin.'],
+    ['answer-r3-ctrl-days', 'Do not use for more than 3 days.'],
+    ['answer-r3-ctrl-drive', 'Do not drive after taking it.'],
+    ['answer-r3-ctrl-avoid', 'Avoid alcohol.'],
+  ])('control: %s restates "%s" and is answered', async (name, printed) => {
+    const a = await ask(name, 'read_label', withField(LABEL_PROBE, 'warnings', printed));
+    expect(AnswerSchema.safeParse(a).success).toBe(true);
+    expect(a.status).toBe('answered');
+    expect(a.safetyNotice).toBeNull();
+  });
+
+  test('control: the verbatim directions are answered', async () => {
+    const a = await ask('answer-ok', 'read_label', LABEL_PROBE);
+    expect(a.status).toBe('answered');
+    expect(a.safetyNotice).toBeNull();
+  });
+
+  test('control: a verbatim partial storage citing storage is answered and uncertain', async () => {
+    const label = withField(LABEL_PROBE, 'storage', 'Store below 30 C in a dry place.', 'partial');
+    expectUncertain(await ask('answer-r3-ctrl-storage', 'read_label', label));
+  });
+});
+
+describe('answerer uncertainty round 3 (finding 1: a zero-overlap mis-cited paraphrase)', () => {
+  test.each([
+    ['answer-r3-para-storage', 'storage', 'Store below 30 C in a dry place.'],
+    ['answer-r3-para-directions', 'directions', 'Adults: 1 tablet every 4 to 6 hours as needed.'],
+    ['answer-r3-para-warnings', 'warnings', 'Do not use if allergic to aspirin.'],
+    [
+      'answer-r3-para-salicylates',
+      'warnings',
+      'Do not use if allergic to aspirin. Do not exceed the stated dose.',
+    ],
+  ] as const)(
+    '%s: a paraphrase of the partial %s citing the clear brand is not answered',
+    async (name, key, printed) => {
+      expectFallback(await ask(name, 'read_label', withField(LABEL_PROBE, key, printed, 'partial')));
+    },
+  );
+
+  test.each([
+    ['answer-r3-para-storage', 'storage', 'Store below 30 C in a dry place.'],
+    ['answer-r3-para-directions', 'directions', 'Adults: 1 tablet every 4 to 6 hours as needed.'],
+  ] as const)(
+    '%s: the same paraphrase is not answered when %s is clear either',
+    async (name, key, printed) => {
+      expectFallback(await ask(name, 'read_label', withField(LABEL_PROBE, key, printed)));
+    },
+  );
 });
