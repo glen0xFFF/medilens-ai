@@ -153,6 +153,56 @@ describe('SettingsProvider / useSettings', () => {
     expect(result.current.highContrast).toBe(true);
   });
 
+  // Final review Minor 23: an early change must not overwrite the other stored settings.
+  it('merges a change made before loading with the stored settings, and saves only the merge', async () => {
+    let release: (v: string | null) => void = () => undefined;
+    const writes: unknown[] = [];
+    const slow: SettingsStorage = {
+      getItem: () => new Promise((resolve) => (release = resolve)),
+      setItem: (_key, value) => {
+        writes.push(JSON.parse(value));
+        return Promise.resolve();
+      },
+    };
+    const { result } = await renderHook(() => useSettings(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SettingsProvider storage={slow}>{children}</SettingsProvider>
+      ),
+    });
+    await act(async () => result.current.setHighContrast(true));
+    const stored = { speechRate: 0.5, highContrast: false, textScale: 1.5, autoSpeak: false };
+    await act(async () => release(JSON.stringify(stored)));
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    const merged = { ...stored, highContrast: true };
+    expect(result.current).toMatchObject(merged);
+    expect(writes).toEqual([merged]);
+  });
+
+  it('applies every change made before loading, in order', async () => {
+    let release: (v: string | null) => void = () => undefined;
+    const writes: unknown[] = [];
+    const slow: SettingsStorage = {
+      getItem: () => new Promise((resolve) => (release = resolve)),
+      setItem: (_key, value) => {
+        writes.push(JSON.parse(value));
+        return Promise.resolve();
+      },
+    };
+    const { result } = await renderHook(() => useSettings(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SettingsProvider storage={slow}>{children}</SettingsProvider>
+      ),
+    });
+    await act(async () => result.current.setSpeechRate(1.25));
+    await act(async () => result.current.setSpeechRate(1.5));
+    await act(async () => result.current.setAutoSpeak(false));
+    await act(async () => release(null));
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    const merged = { ...DEFAULT_SETTINGS, speechRate: 1.5, autoSpeak: false };
+    expect(result.current).toMatchObject(merged);
+    expect(writes).toEqual([merged]);
+  });
+
   it('throws a clear error outside the provider', async () => {
     const spy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     await expect(renderHook(() => useSettings())).rejects.toThrow(/SettingsProvider/);

@@ -110,18 +110,26 @@ export function SettingsProvider({
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [loaded, setLoaded] = useState(false);
   const latest = useRef<Settings>(DEFAULT_SETTINGS);
-  // A change made before the stored settings arrive wins over them.
-  const changed = useRef(false);
+  const hydrated = useRef(false);
+  // Changes made before the stored settings arrive (final review Minor 23).
+  // They win over the stored values they touch and leave the others alone, and
+  // nothing is saved until the stored settings are known, so an early change
+  // can never overwrite them with defaults.
+  const early = useRef<Partial<Settings>>({});
 
   useEffect(() => {
     let active = true;
     void loadSettings(storage).then((stored) => {
       if (!active) return;
-      if (!changed.current) {
-        latest.current = stored;
-        setSettings(stored);
-      }
+      hydrated.current = true;
+      const patch = early.current;
+      early.current = {};
+      const changed = Object.keys(patch).length > 0;
+      const next = changed ? sanitizeSettings({ ...stored, ...patch }) : stored;
+      latest.current = next;
+      setSettings(next);
       setLoaded(true);
+      if (changed) void saveSettings(next, storage);
     });
     return () => {
       active = false;
@@ -130,11 +138,11 @@ export function SettingsProvider({
 
   const update = useCallback(
     (patch: Partial<Settings>) => {
-      changed.current = true;
       const next = sanitizeSettings({ ...latest.current, ...patch });
       latest.current = next;
       setSettings(next);
-      void saveSettings(next, storage);
+      if (hydrated.current) void saveSettings(next, storage);
+      else early.current = { ...early.current, ...patch };
     },
     [storage],
   );

@@ -1,11 +1,13 @@
 /**
- * Shrinks a captured or picked photo before upload: at most 2048 px wide,
- * re-encoded as JPEG 0.85. Narrower photos keep their size (never upscaled).
- * The result is a new file in the app cache; the caller owns deleting it.
+ * Shrinks a captured or picked photo before upload: its long edge (width or
+ * height) at most 2048 px, re-encoded as JPEG 0.85. Smaller photos keep their
+ * size (never upscaled). The result is a new file in the app cache; the caller
+ * owns deleting it.
  */
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
-export const MAX_WIDTH = 2048;
+/** The longest side sent to the server (final review Minor 26: width or height). */
+export const MAX_EDGE = 2048;
 export const JPEG_COMPRESS = 0.85;
 
 export interface PreparedImage {
@@ -19,8 +21,9 @@ export async function prepareImage(uri: string): Promise<PreparedImage> {
   try {
     let image = await context.renderAsync();
     refs.push(image);
-    if (image.width > MAX_WIDTH) {
-      context.resize({ width: MAX_WIDTH });
+    if (Math.max(image.width, image.height) > MAX_EDGE) {
+      // Resizing one side keeps the aspect ratio.
+      context.resize(image.width >= image.height ? { width: MAX_EDGE } : { height: MAX_EDGE });
       image = await context.renderAsync();
       refs.push(image);
     }

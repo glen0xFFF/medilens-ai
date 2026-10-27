@@ -1,8 +1,9 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
-import { JPEG_COMPRESS, MAX_WIDTH, prepareImage } from '../../src/capture/prepare';
+import { JPEG_COMPRESS, MAX_EDGE, prepareImage } from '../../src/capture/prepare';
 
 const manipulator = jest.requireMock('expo-image-manipulator').__manipulator as {
   width: number;
+  height: number | null;
   saved: number;
 };
 const manipulate = ImageManipulator.manipulate as jest.Mock;
@@ -10,6 +11,7 @@ const manipulate = ImageManipulator.manipulate as jest.Mock;
 beforeEach(() => {
   jest.clearAllMocks();
   manipulator.width = 4000;
+  manipulator.height = null;
   manipulator.saved = 0;
 });
 
@@ -21,15 +23,18 @@ function lastContext() {
   };
 }
 
-async function savedWith() {
+async function savedImage() {
   const renders = lastContext().renderAsync.mock.results;
-  const image = (await renders.at(-1)!.value) as { saveAsync: jest.Mock };
-  return image.saveAsync.mock.calls[0]![0];
+  return (await renders.at(-1)!.value) as { width: number; height: number; saveAsync: jest.Mock };
+}
+
+async function savedWith() {
+  return (await savedImage()).saveAsync.mock.calls[0]![0];
 }
 
 describe('prepareImage', () => {
-  it('uses a 2048 px width and JPEG quality 0.85', () => {
-    expect(MAX_WIDTH).toBe(2048);
+  it('uses a 2048 px long edge and JPEG quality 0.85', () => {
+    expect(MAX_EDGE).toBe(2048);
     expect(JPEG_COMPRESS).toBe(0.85);
   });
 
@@ -44,17 +49,41 @@ describe('prepareImage', () => {
     });
   });
 
-  it('never upscales a photo narrower than 2048 px', async () => {
+  // Final review Minor 26: a tall gallery image was uploaded at full height.
+  it('downscales a tall photo by its height so the long edge is 2048 px', async () => {
+    manipulator.width = 3000;
+    manipulator.height = 9000;
+    await prepareImage('file:///data/user/0/app/cache/ImagePicker/tall.jpg');
+    expect(lastContext().resize).toHaveBeenCalledWith({ height: 2048 });
+    const image = await savedImage();
+    expect(image.height).toBe(2048);
+    expect(image.width).toBe(683);
+  });
+
+  it('downscales a tall photo that is narrower than 2048 px', async () => {
     manipulator.width = 1500;
+    manipulator.height = 4000;
+    await prepareImage('file:///data/user/0/app/cache/ImagePicker/receipt.jpg');
+    expect(lastContext().resize).toHaveBeenCalledWith({ height: 2048 });
+    expect(Math.max((await savedImage()).width, (await savedImage()).height)).toBe(2048);
+  });
+
+  it('never upscales a photo whose long edge is under 2048 px', async () => {
+    manipulator.width = 1500;
+    manipulator.height = 2000;
     const prepared = await prepareImage('file:///data/user/0/app/cache/ImagePicker/b.png');
     expect(lastContext().resize).not.toHaveBeenCalled();
     expect(await savedWith()).toEqual({ format: SaveFormat.JPEG, compress: 0.85 });
     expect(prepared.type).toBe('image/jpeg');
   });
 
-  it('leaves a photo exactly 2048 px wide at its size', async () => {
+  it('leaves a photo exactly 2048 px on its long edge at its size', async () => {
     manipulator.width = 2048;
     await prepareImage('file:///data/user/0/app/cache/Camera/c.jpg');
+    expect(lastContext().resize).not.toHaveBeenCalled();
+    manipulator.width = 1536;
+    manipulator.height = 2048;
+    await prepareImage('file:///data/user/0/app/cache/Camera/c2.jpg');
     expect(lastContext().resize).not.toHaveBeenCalled();
   });
 

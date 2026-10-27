@@ -68,30 +68,48 @@ jest.mock('expo-camera', () => {
 
 /**
  * expo-image-manipulator: the contextual API. Every source renders at
- * `__manipulator.width` px wide (default 4000) unless resized; saveAsync
- * writes a new cache file name.
+ * `__manipulator.width` px wide (default 4000) and `__manipulator.height` px
+ * tall (default null: 3/4 of the width) unless resized; a resize by one side
+ * keeps the aspect ratio, as the real module does. saveAsync writes a new
+ * cache file name.
  */
 jest.mock('expo-image-manipulator', () => {
-  const state = { width: 4000, saved: 0 };
+  const state: { width: number; height: number | null; saved: number } = {
+    width: 4000,
+    height: null,
+    saved: 0,
+  };
   const manipulate = jest.fn((uri: string) => {
     let width = state.width;
+    let height = state.height ?? Math.round(width * 0.75);
     const context: Record<string, unknown> = {
       uri,
-      resize: jest.fn((size: { width?: number }) => {
-        if (typeof size.width === 'number') width = size.width;
+      resize: jest.fn((size: { width?: number | null; height?: number | null }) => {
+        const w = typeof size.width === 'number' ? size.width : null;
+        const h = typeof size.height === 'number' ? size.height : null;
+        if (w !== null && h !== null) {
+          width = w;
+          height = h;
+        } else if (w !== null) {
+          height = Math.round((height * w) / width);
+          width = w;
+        } else if (h !== null) {
+          width = Math.round((width * h) / height);
+          height = h;
+        }
         return context;
       }),
       renderAsync: jest.fn(() =>
         Promise.resolve({
           width,
-          height: Math.round(width * 0.75),
+          height,
           release: jest.fn(),
           saveAsync: jest.fn(() => {
             state.saved += 1;
             return Promise.resolve({
               uri: `file:///data/user/0/app/cache/ImageManipulator/prepared-${state.saved}.jpg`,
               width,
-              height: Math.round(width * 0.75),
+              height,
             });
           }),
         }),
