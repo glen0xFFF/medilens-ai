@@ -11,8 +11,9 @@
     "apps/*"
   ],
   "scripts": {
-    "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p scripts/parity",
+    "test": "npm run test --workspaces --if-present && npm run test:contract",
+    "test:contract": "vitest run --config scripts/contract/vitest.config.ts",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p scripts/parity && tsc --noEmit -p scripts/contract",
     "lint": "eslint .",
     "parity:record": "tsx scripts/parity/record.ts"
   },

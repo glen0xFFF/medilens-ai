@@ -2,10 +2,10 @@ package pipeline
 
 import "github.com/medilens-ai/medilens/internal/contracts"
 
-// Go API error codes (Go port spec §4). They are not in the Zod
-// ErrorCodeSchema yet (packages/contracts gains them with the new endpoint
-// schemas), so contracts.ErrorCodes, which mirrors that schema, does not
-// list them.
+// Go API error codes (Go port spec §4). They are in the Zod
+// ApiErrorCodeSchema (packages/contracts/src/api.ts), not in the base
+// ErrorCodeSchema, so contracts.ErrorCodes, which mirrors the base schema,
+// does not list them.
 const (
 	// CodeAnalysisNotReady: the analysis is still processing (409).
 	CodeAnalysisNotReady contracts.ErrorCode = "ANALYSIS_NOT_READY"

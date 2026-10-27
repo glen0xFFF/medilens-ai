@@ -31,6 +31,16 @@ export const PipelineStateSchema = z.enum([
 ]);
 export type PipelineState = z.infer<typeof PipelineStateSchema>;
 
+/**
+ * The providers an uploaded scan was analysed with (Go port spec §3, §4):
+ * the model id ("mock" for the mock provider) and the reference provider.
+ */
+export const ProvenanceSchema = z.object({
+  model: z.string().min(1),
+  references: z.enum(['fixture', 'ph_fda']),
+});
+export type Provenance = z.infer<typeof ProvenanceSchema>;
+
 export const AnalysisResultSchema = z.object({
   id: z.string().min(1),
   isDemo: z.boolean(),
@@ -43,6 +53,8 @@ export const AnalysisResultSchema = z.object({
   match: MatchAssessmentSchema,
   explanation: ExplanationSchema,
   imageRetention: z.literal('none'),
+  /** Go API only, on uploaded scans; absent on demo results and from the Node server. */
+  provenance: ProvenanceSchema.optional(),
 });
 export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 
