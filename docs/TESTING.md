@@ -109,7 +109,8 @@ hosts), `explain` (question limits) and `dotenv` (Node `.env` parser).
 
 ## Root npm gates
 
-Before the Node server was removed (all four workspaces present), 2026-10-28:
+Before the Node server was removed (contracts, mobile and server workspaces plus the contract
+test), 2026-10-28:
 
 `npm test` — exit 0:
 
@@ -133,8 +134,39 @@ Tests:       302 passed, 302 total
 
 `npm run lint` — exit 0 (`eslint .` printed no problems).
 
-The results after the Node server was removed are recorded in the next section when that
-removal is made.
+### After the Node server was removed
+
+`apps/server` was removed only after the gates above were green (Go tests with the parity
+corpora, the Zod contract test, the mobile tests). The Node build stays available at the tag
+`node-fallback-v1`. Then, same day:
+
+- `npm install --prefer-offline --no-audit --no-fund` — exit 0, `removed 101 packages`; the
+  lockfile no longer lists `apps/server`. npm printed an `EPERM` cleanup warning for sharp's
+  `libvips-42.dll`: a Node dev server started on 2026-10-27 at 14:57 from `apps/server`
+  (`tsx src/server.ts`, not started by this task) still had it loaded, and it also keeps the now
+  empty, untracked `apps/server` folder open. It was left running.
+- `npm test` — exit 0:
+
+  ```
+  > @medilens/contracts@0.1.0 test
+   Test Files  2 passed (2)
+        Tests  47 passed (47)
+  > @medilens/mobile@0.1.0 test
+  Test Suites: 17 passed, 17 total
+  Tests:       302 passed, 302 total
+  > test:contract
+   Test Files  1 passed (1)
+        Tests  28 passed (28)
+  ```
+
+- `npm run typecheck` — exit 0 (`tsc --noEmit` for contracts and mobile, and
+  `scripts/contract`). `scripts/parity` was dropped from it (ruling R4):
+  `npx tsc --noEmit -p scripts/parity` now exits 2 with 47 errors, the first
+  `scripts/parity/go-probes-answers.ts(321,32): error TS2307: Cannot find module '../../apps/server/src/domain/answers'`.
+- `npm run lint` — exit 0 (`eslint .` still lints `scripts/parity`; it needs no exclusion).
+- `gofmt -l .` no output; `go vet ./...` no output; `go test -count=1 ./...` exit 0 with all 21
+  packages `ok` (the Go build never read `apps/server`).
+- Secret scan (below), with the removal staged: no output, exit 1.
 
 ## Android build check
 
@@ -148,7 +180,9 @@ _expo/static/js/android/entry-9dbfa71e9b7f8a4f46a18b46963e713d.hbc (3.4MB)
 metadata.json (1.8KB)
 ```
 
-(26 asset lines omitted.) This proves the JS bundle builds for Android; it is not a device run.
+(26 asset lines omitted.) Re-run after the Node server was removed and the lockfile refreshed:
+exit 0, `Android Bundled 7536ms node_modules\expo-router\entry.js (1322 modules)`, the same
+bundle hash. This proves the JS bundle builds for Android; it is not a device run.
 
 ## Dev workflow checks
 
@@ -174,17 +208,18 @@ metadata.json (1.8KB)
 git grep -nE "sk-[A-Za-z0-9_-]{20,}|MODEL_API_KEY=[\"']?[A-Za-z0-9_-]"
 ```
 
-First run on 2026-10-28 (G12 changes staged) printed two fake test keys from earlier Go tasks:
+First run on 2026-10-28, before the docs commit (G12 changes staged): two hits, both fake test
+keys from earlier Go tasks, in `internal/application/service_test.go` (line 1297, a 33-character
+`sk-test-...` value in `TestCapabilitiesOfMuseSparkNameTheModelAndNoSecret`) and
+`internal/metaapi/client_test.go` (line 17, the 26-character `testKey` constant). They are
+described here, not copied, so this file does not match the scan. Neither was a real key; both
+were renamed so that a dot ends the `sk-` run (`sk-test.not.a.real.key...`), and both packages
+still pass. Second run: no output, exit 1 (git grep's "no match"). `git ls-files .env
+apps/mobile/.env` printed nothing.
 
-```
-internal/application/service_test.go:1297:		ModelAPIKey: config.Secret("sk-test-not-a-real-key-0123456789"), DailySpendCapUSD: 5,
-internal/metaapi/client_test.go:17:const testKey = "sk-test-not-a-real-key-123"
-```
-
-Neither is a real key; they were renamed to `sk-test.not.a.real.key.0123456789` and
-`sk-test.not.a.real.key.123` (the dots end the `sk-` run), and both packages still pass. Second
-run: no output, exit 1 (git grep's "no match"). `git ls-files .env apps/mobile/.env` printed
-nothing.
+That docs commit then quoted the two old values in this file, so the scan matched this file
+there. Corrected in the Node-removal commit (this text). Run after that correction, with the
+removal staged: see "After the Node server was removed" below.
 
 Negative control (same pattern, `grep -nE` over a scratch file outside the repo, values described
 rather than copied): it matched an env line assigning 12 letters and digits to `MODEL_API_KEY` and

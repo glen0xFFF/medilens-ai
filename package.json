@@ -13,7 +13,7 @@
   "scripts": {
     "test": "npm run test --workspaces --if-present && npm run test:contract",
     "test:contract": "vitest run --config scripts/contract/vitest.config.ts",
-    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p scripts/parity && tsc --noEmit -p scripts/contract",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p scripts/contract",
     "lint": "eslint .",
     "go:test": "go test ./...",
     "go:vet": "go vet ./...",
