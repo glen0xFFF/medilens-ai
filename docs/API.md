@@ -12,7 +12,9 @@ The Node routes (`/health`, `POST /labels/analyze`, `/labels/:id/explain`, `/ref
 
 - `GET /healthz` and `GET /readyz` are at the root. Every other route is under **`/api/v1`**.
 - Per-IP token buckets: **30 requests per minute** for writes (POST, DELETE) and **240 per
-  minute** for reads (GET), so status polling is not throttled (`429 RATE_LIMITED`).
+  minute** for reads (GET); past either, `429 RATE_LIMITED` with `Retry-After`. One phone polling
+  every 750 ms uses 80 reads a minute, so about three phones behind one shared public address can
+  reach the read limit; the app then waits out `Retry-After` (see Progress events).
 - Every response carries a request id (`X-Request-Id`); errors include it in the body.
 - JSON request bodies are limited to 16 KB. Uploads: at most 3 × 8 MiB + 64 KiB.
 
@@ -65,7 +67,15 @@ label.").
 ones. It honours `Last-Event-ID`. Event names are `stage`, `completed` and `failed`. A
 `: heartbeat` comment is sent every 15 s. The stream ends after the terminal event, when the
 analysis is deleted or expires, and on shutdown. The Android app polls `GET /analyses/{id}`
-instead (every 750 ms).
+instead (every 750 ms). A live read takes about 40 to 120 polls, so a poll (or the `/result`
+fetch) that fails for a passing reason (no network, a 15 s timeout, a `429`, or a `5xx` whose body
+is not this API's error body, such as a proxy's page) is retried after 1.5 s, 3 s and then 6 s, or
+after the `429`'s `Retry-After` when that is longer (capped at 30 s). The app gives up after 3
+such failures in a row; an answered poll starts the count again. When the app gives up on an
+analysis the server may still be running (retries used up, an answer it cannot read, or the user
+leaving), it sends a best-effort `DELETE /analyses/{id}`, which stops the server's work. A failed
+analysis and a `404 NOT_FOUND` end the wait without a delete (`apps/mobile/src/api/client.ts`,
+`follow`).
 
 ### POST /analyses/{id}/explanation
 

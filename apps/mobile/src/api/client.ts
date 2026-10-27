@@ -36,6 +36,21 @@ export const ANALYZE_TIMEOUT_MS = 60_000;
 export const MAX_IMAGES = 3;
 /** How often a running analysis is polled; the server's read bucket allows it (spec §7). */
 export const POLL_INTERVAL_MS = 750;
+/**
+ * Final review I1: a live read is 40 to 120 polls, so a poll that fails for
+ * a passing reason (NETWORK, TIMEOUT, a 429, a 5xx page that is not the
+ * API's own error) is retried, up to this many times in a row; the count
+ * starts again after any poll that gets an answer.
+ */
+export const POLL_MAX_RETRIES = 3;
+/** The longest wait before a retried poll, whatever the server's Retry-After says. */
+export const POLL_RETRY_MAX_WAIT_MS = 30_000;
+
+/** The wait before retry number `failures` (1-based): 1.5 s, 3 s, 6 s, or the server's Retry-After if longer. */
+function retryWaitMs(failures: number, retryAfterMs: number | undefined): number {
+  const backoff = POLL_INTERVAL_MS * 2 ** failures;
+  return Math.min(Math.max(backoff, retryAfterMs ?? 0), POLL_RETRY_MAX_WAIT_MS);
+}
 
 export type ApiErrorCode =
   ServerErrorCode | 'NETWORK' | 'TIMEOUT' | 'INVALID_RESPONSE' | 'CANCELLED';
@@ -50,14 +65,40 @@ const CLIENT_MESSAGES = {
   VALIDATION_FAILED: 'Please choose 1 to 3 photos.',
 } as const;
 
+export interface ApiErrorOptions {
+  /**
+   * The request failed for a passing reason and may be sent again: the
+   * network or a timeout, a 429, or a 5xx that is not the API's own error
+   * body (a proxy's page). Only analysis polling retries.
+   */
+  transient?: boolean;
+  /** The response's Retry-After, as a wait in milliseconds. */
+  retryAfterMs?: number;
+}
+
 export class ApiError extends Error {
+  readonly transient: boolean;
+  readonly retryAfterMs: number | undefined;
+
   constructor(
     readonly code: ApiErrorCode,
     message: string,
+    options: ApiErrorOptions = {},
   ) {
     super(message);
     this.name = 'ApiError';
+    this.transient = options.transient ?? false;
+    this.retryAfterMs = options.retryAfterMs;
   }
+}
+
+/** Reads Retry-After (delay-seconds or an HTTP-date) as a wait in milliseconds. */
+function retryAfterOf(res: Response): number | undefined {
+  const raw = res.headers?.get?.('Retry-After')?.trim();
+  if (raw === undefined || raw === '') return undefined;
+  if (/^\d+$/.test(raw)) return Number(raw) * 1000;
+  const at = Date.parse(raw);
+  return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now());
 }
 
 /** GET /api/v1/analyses/{id}/references: the registry side of a stored analysis. */
@@ -166,8 +207,8 @@ export function createApiClient(baseUrl: string, fetchImpl: FetchLike = fetch): 
       } catch {
         if (cancelled) throw cancelledError();
         throw timedOut
-          ? new ApiError('TIMEOUT', CLIENT_MESSAGES.TIMEOUT)
-          : new ApiError('NETWORK', CLIENT_MESSAGES.NETWORK);
+          ? new ApiError('TIMEOUT', CLIENT_MESSAGES.TIMEOUT, { transient: true })
+          : new ApiError('NETWORK', CLIENT_MESSAGES.NETWORK, { transient: true });
       }
 
       if (res.ok && schema === null) {
@@ -181,17 +222,25 @@ export function createApiClient(baseUrl: string, fetchImpl: FetchLike = fetch): 
         body = await res.json();
       } catch {
         if (cancelled) throw cancelledError();
-        if (timedOut) throw new ApiError('TIMEOUT', CLIENT_MESSAGES.TIMEOUT);
+        if (timedOut) throw new ApiError('TIMEOUT', CLIENT_MESSAGES.TIMEOUT, { transient: true });
         isJson = false;
       }
       if (cancelled) throw cancelledError();
 
       if (!res.ok) {
         const error = ApiErrorBodySchema.safeParse(body);
-        if (isJson && error.success) {
-          throw new ApiError(error.data.error.code, error.data.error.message);
+        const ownBody = isJson && error.success;
+        // A 429 (the rate limit) passes; so does a 5xx whose body is not the
+        // API's own error, such as a proxy's 502 page. The API's own 5xx
+        // errors are answers, not passing failures.
+        const options: ApiErrorOptions = {
+          transient: res.status === 429 || (res.status >= 500 && !ownBody),
+          retryAfterMs: retryAfterOf(res),
+        };
+        if (ownBody) {
+          throw new ApiError(error.data.error.code, error.data.error.message, options);
         }
-        throw new ApiError('INTERNAL_ERROR', CLIENT_MESSAGES.INTERNAL_ERROR);
+        throw new ApiError('INTERNAL_ERROR', CLIENT_MESSAGES.INTERNAL_ERROR, options);
       }
 
       const parsed = schema === null ? null : schema.safeParse(body);
@@ -232,45 +281,67 @@ export function createApiClient(baseUrl: string, fetchImpl: FetchLike = fetch): 
   /**
    * Polls a created analysis until it ends, then fetches its result. A
    * failed analysis rejects with its stored error; ANALYSIS_NOT_READY from
-   * /result polls again; any other error ends the wait. Each request keeps
+   * /result polls again. A poll (or the result fetch) that fails for a
+   * passing reason (ApiError.transient) is retried after a backoff of
+   * 1.5 s, 3 s, then 6 s, or the server's Retry-After when longer, up to
+   * POLL_MAX_RETRIES failures in a row; any answered poll resets the count
+   * (final review I1). Any other error ends the wait. Each request keeps
    * its own 15 s timeout; the server ends every analysis (each provider call
-   * has its own timeout, and an analysis it no longer has is NOT_FOUND). A
-   * cancel deletes the analysis, best effort, which stops the server's work.
+   * has its own timeout, and an analysis it no longer has is NOT_FOUND).
+   *
+   * When the client gives up on an analysis the server may still be
+   * working on (a cancel, retries used up, an answer it cannot read), it
+   * deletes the analysis, best effort, which stops the server's work. A
+   * failed analysis or a NOT_FOUND was ended by the server: nothing to stop.
    */
   async function follow(analysisId: string, options: AnalysisOptions): Promise<AnalysisResult> {
     const { signal, onStage } = options;
     const url = analysisUrl(analysisId);
     let lastSeq = 0;
+    let failures = 0;
+    let endedByServer = false;
     try {
       for (;;) {
-        const status = await request(url, AnalysisStatusSchema, {}, REQUEST_TIMEOUT_MS, signal);
-        const newest = status.events.at(-1);
-        if (newest !== undefined && newest.seq > lastSeq) {
-          lastSeq = newest.seq;
-          onStage?.(newest);
-        }
-        if (status.status === 'failed') {
-          // The schema guarantees the error of a failed analysis.
-          const error = status.error!;
-          throw new ApiError(error.code, error.message);
-        }
-        if (status.status === 'completed') {
-          try {
-            return await request(
-              `${url}/result`,
-              AnalysisResultSchema,
-              {},
-              REQUEST_TIMEOUT_MS,
-              signal,
-            );
-          } catch (e) {
-            if (!(e instanceof ApiError && e.code === 'ANALYSIS_NOT_READY')) throw e;
+        let wait = POLL_INTERVAL_MS;
+        try {
+          const status = await request(url, AnalysisStatusSchema, {}, REQUEST_TIMEOUT_MS, signal);
+          const newest = status.events.at(-1);
+          if (newest !== undefined && newest.seq > lastSeq) {
+            lastSeq = newest.seq;
+            onStage?.(newest);
           }
+          if (status.status === 'failed') {
+            endedByServer = true;
+            // The schema guarantees the error of a failed analysis.
+            const error = status.error!;
+            throw new ApiError(error.code, error.message);
+          }
+          if (status.status === 'completed') {
+            try {
+              return await request(
+                `${url}/result`,
+                AnalysisResultSchema,
+                {},
+                REQUEST_TIMEOUT_MS,
+                signal,
+              );
+            } catch (e) {
+              if (!(e instanceof ApiError && e.code === 'ANALYSIS_NOT_READY')) throw e;
+            }
+          }
+          // Only a round with no failure resets the count: a status that
+          // answers while its result keeps failing still runs out.
+          failures = 0;
+        } catch (e) {
+          if (!(e instanceof ApiError) || !e.transient || failures >= POLL_MAX_RETRIES) throw e;
+          failures += 1;
+          wait = retryWaitMs(failures, e.retryAfterMs);
         }
-        await pause(POLL_INTERVAL_MS, signal);
+        await pause(wait, signal);
       }
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'CANCELLED') {
+      if (e instanceof ApiError && e.code === 'NOT_FOUND') endedByServer = true;
+      if (!endedByServer) {
         deleteAnalysis(analysisId).catch(() => {
           // Best effort: the server drops it after its TTL anyway.
         });

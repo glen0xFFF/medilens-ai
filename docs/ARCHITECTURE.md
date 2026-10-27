@@ -175,7 +175,9 @@ expo-router screens: welcome and disclaimer, home, camera, preview, analyzing, r
 fields, verification and sources, ask a question (preset buttons first, free text second),
 safety, settings, and the demo scenario picker. The app posts the photos to `/analyses`, polls
 `GET /analyses/{id}` every 750 ms and shows and announces the real stage labels, then fetches
-`/result`. It uses polling rather than SSE because React Native EventSource / fetch streaming was
+`/result`. A poll that fails for a passing reason (network, timeout, `429`, a proxy's `5xx` page)
+is retried with backoff, honouring `Retry-After`, up to 3 failures in a row; when the app gives up,
+it deletes the analysis, best effort (see [API.md](API.md#progress-events)). It uses polling rather than SSE because React Native EventSource / fetch streaming was
 not verified. `GET /config/capabilities` replaces the old health check for mode detection
 (`modelProvider: "mock"` shows "Server is in demo mode"). The app deletes the analysis when the
 user leaves a result (best effort).
