@@ -10,12 +10,14 @@ import {
 import { describe, expect, test } from 'vitest';
 import { DEMO_SCENARIOS, getScenario, type DemoScenarioId } from '../../src/demo/scenarios';
 import { assessMatch } from '../../src/domain/matcher';
-import { classifyQuestion } from '../../src/domain/safety';
+import { classifyQuestion, type AllowedIntent } from '../../src/domain/safety';
+import { ADVISORY_SENTENCE } from '../../src/domain/summary';
 import {
   FixtureAnswerer,
   FixtureLabelReader,
   FixtureReferenceProvider,
 } from '../../src/providers/fixture';
+import type { AnswerInput } from '../../src/providers/types';
 
 const IDS: DemoScenarioId[] = [
   's1-clear',
@@ -188,7 +190,7 @@ describe('fixture providers', () => {
         label: s.label,
         match: assessMatch(s.label, s.reference),
         question: s.presetQuestion ?? '',
-        intent: 'refused',
+        intent: 'read_label',
       },
       { scenarioId: s.id },
     );
@@ -197,7 +199,7 @@ describe('fixture providers', () => {
 
   test('FixtureAnswerer answers an allowed strength question from the label, deterministically', async () => {
     const s = scenario('s1-clear');
-    const input = {
+    const input: AnswerInput = {
       label: s.label,
       match: assessMatch(s.label, s.reference),
       question: 'What strength is printed here?',
@@ -261,7 +263,7 @@ describe('fixture providers', () => {
     expect(a.status).toBe('unclear');
     expect(a.citedFields).toEqual([]);
   });
-  test.each(['strength', 'read_label'])(
+  test.each<AllowedIntent>(['strength', 'read_label'])(
     'FixtureAnswerer warns about the registry conflict on s4 (%s)',
     async (intent) => {
       const s = scenario('s4-conflict');
@@ -290,5 +292,91 @@ describe('fixture providers', () => {
     );
     expect(a.text).not.toContain('does not match the pack');
     expect(a.safetyNotice).toBeNull();
+  });
+
+  /* Task 7b: explain_text quotes a printed phrase; registry wording is the spoken summary's. */
+
+  const NO_EXPLANATION = "I can't explain this phrase further.";
+
+  test('FixtureAnswerer explain_text on s1 with a printed phrase gives the quote-only answer', async () => {
+    const s = scenario('s1-clear');
+    const a = await new FixtureAnswerer().answer(
+      {
+        label: s.label,
+        match: assessMatch(s.label, s.reference),
+        question: 'What does "keep out of reach of children" mean?',
+        intent: 'explain_text',
+      },
+      { scenarioId: s.id },
+    );
+    expect(AnswerSchema.safeParse(a).success).toBe(true);
+    expect(a.status).toBe('answered');
+    expect(a.text).toBe(
+      `The warnings on the label says "Keep out of reach of children". ${NO_EXPLANATION}`,
+    );
+    expect(a.citedFields).toEqual(['warnings']);
+    expect(a.spokenChunks.at(-1)).toBe('Confirm with your pharmacist or doctor.');
+  });
+
+  test('FixtureAnswerer explain_text with a phrase not printed on s1 is unclear', async () => {
+    const s = scenario('s1-clear');
+    const a = await new FixtureAnswerer().answer(
+      {
+        label: s.label,
+        match: assessMatch(s.label, s.reference),
+        question: 'What does "DEMO DATA" mean?',
+        intent: 'explain_text',
+      },
+      { scenarioId: s.id },
+    );
+    expect(a.status).toBe('unclear');
+    expect(a.text).toBe("I can't find that phrase on this label.");
+    expect(a.citedFields).toEqual([]);
+  });
+
+  test('FixtureAnswerer explain_text naming no phrase reads the printed directions and warnings', async () => {
+    const s = scenario('s1-clear');
+    const a = await new FixtureAnswerer().answer(
+      {
+        label: s.label,
+        match: assessMatch(s.label, s.reference),
+        question: 'What does this warning mean?',
+        intent: 'explain_text',
+      },
+      { scenarioId: s.id },
+    );
+    expect(a.status).toBe('answered');
+    expect(a.citedFields).toEqual(['directions', 'warnings']);
+    expect(a.text).toContain('Warnings as printed: Do not use with other products');
+  });
+
+  test('FixtureAnswerer registry intent on s4 names the conflicting field', async () => {
+    const s = scenario('s4-conflict');
+    const a = await new FixtureAnswerer().answer(
+      {
+        label: s.label,
+        match: assessMatch(s.label, s.reference),
+        question: 'What did the FDA registry say?',
+        intent: 'registry',
+      },
+      { scenarioId: s.id },
+    );
+    expect(a.status).toBe('answered');
+    expect(a.text).toBe('The strength on the label does not match the registry.');
+  });
+
+  test('FixtureAnswerer registry intent with an advisory uses ADVISORY_SENTENCE exactly', async () => {
+    const s = scenario('s1-clear');
+    const match = {
+      ...assessMatch(s.label, s.reference),
+      advisories: [{ title: 'DEMO DATA advisory', url: 'https://www.fda.gov.ph/demo-advisory' }],
+    };
+    const a = await new FixtureAnswerer().answer(
+      { label: s.label, match, question: 'What did the FDA registry say?', intent: 'registry' },
+      { scenarioId: s.id },
+    );
+    expect(a.text).toBe(
+      `This matches a product in the Philippine FDA registry. ${ADVISORY_SENTENCE}`,
+    );
   });
 });

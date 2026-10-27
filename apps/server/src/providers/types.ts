@@ -1,4 +1,5 @@
 import type { Answer, ExtractedLabel, MatchAssessment, ReferenceRecord } from '@medilens/contracts';
+import type { AllowedIntent } from '../domain/safety';
 
 /** Outcome of a registry lookup, as handed to the matcher. */
 export type ReferenceSearchResult =
@@ -33,7 +34,8 @@ export interface AnswerInput {
   label: ExtractedLabel;
   match: MatchAssessment;
   question: string;
-  intent: string;
+  /** The safety gate's allowed intent; refused questions never reach an answerer. */
+  intent: AllowedIntent;
 }
 
 export interface QuestionAnswerer {

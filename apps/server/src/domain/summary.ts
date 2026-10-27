@@ -33,7 +33,8 @@ const QUALITY_SENTENCE: Record<QualityReason, string> = {
   GLARE: 'There is glare on the label.',
 };
 
-const STATUS_SENTENCE = {
+/** Registry status sentences; the registry answer (answers.ts) speaks the same ones. */
+export const STATUS_SENTENCE = {
   verified: 'This matches a product in the Philippine FDA registry.',
   partial:
     'This partly matches a product in the Philippine FDA registry. Some details could not be confirmed.',
@@ -207,7 +208,8 @@ function labelSegments(
   if (unclear.length > 0) segments.push(`Some parts were unclear: ${unclear.join(', ')}.`);
 }
 
-function verificationSentences(match: MatchAssessment): string[] {
+/** What the registry check found, naming each conflicting field; empty when not attempted. */
+export function verificationSentences(match: MatchAssessment): string[] {
   switch (match.status) {
     case 'conflicting': {
       const keys = [...new Set(match.conflicting.map((c) => c.key))];
