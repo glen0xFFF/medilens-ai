@@ -570,6 +570,29 @@ function clauses(s: string): string[][] {
     .filter((c) => c.length > 0);
 }
 
+/** A line that ends a sentence or already ends in a colon ("Adults:"). */
+const LINE_END_RE = /[.;:!?]$/;
+
+/**
+ * Review round 5: printed text with its line breaks removed, because a reader
+ * transcribes a dosing table or a wrapped line with newlines and a newline does
+ * not end a printed sentence. A break after ". ; : ! ?" becomes a space. A break
+ * after any other line becomes `glue`. The printed-sentence check passes ": ",
+ * so a heading ("Children 6 to 12 years") stays joined to the dose under it and a
+ * wrapped "Do not exceed" stays joined to its amount. The round-2 screen passes
+ * " ", so a wrapped negation keeps its scope there.
+ */
+function joinPrintedLines(s: string, glue: ': ' | ' '): string {
+  return s
+    .split(/\r\n|\r|\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .reduce((out, line) => {
+      if (out === '') return line;
+      return `${out}${LINE_END_RE.test(out) ? ' ' : glue}${line}`;
+    }, '');
+}
+
 /** True when a negation comes before word i in its clause. */
 function negatedAt(ws: string[], i: number): boolean {
   return ws.slice(0, i).some((w) => NEGATIONS.has(w));
@@ -593,7 +616,7 @@ function wordRunAt(hay: string[], needle: string[]): number[] {
  * and "take it with alcohol" are not.
  */
 function unsupportedClaim(text: string, evidence: string[]): boolean {
-  const printed = evidence.flatMap(clauses);
+  const printed = evidence.flatMap((e) => clauses(joinPrintedLines(e, ' ')));
   for (const ws of clauses(text)) {
     const folded = ws.join(' ');
     for (const m of folded.matchAll(CLINICAL_RE)) {
@@ -855,6 +878,43 @@ const NEGATION_STEMS = new Set([...GROUND_NEGATIONS].map(stem));
 /** Legibility words a negation may describe without a printed source ("is not clear"). */
 const LEGIBILITY_STEMS = new Set(['clear', 'readable', 'legible'].map(stem));
 
+/**
+ * Review round 5: population and condition words (the CLINICAL_TERMS
+ * population entries, plus "adult" and close synonyms), matched on stems.
+ */
+const POPULATION_RE =
+  /^(?:adult|child|children|kid|infan\w*|baby|toddler|newborn|neonat\w*|teen\w*|adolescen\w*|pa?ediatric|elder\w*|senior|geriatric|pregnan\w*|breast\w*|nurs\w*|lactat\w*|mother|women|woman)$/u;
+
+function isPopulation(token: string): boolean {
+  return POPULATION_RE.test(token);
+}
+
+/** Age and weight words a dosing-table heading may hold ("Children 6 to 12 years", "aged 12 and over"). */
+const HEADING_STEMS = new Set(
+  (
+    'year years yr yrs month months week weeks age aged ages old older younger over under above ' +
+    'below up upward upwards plus weighing weigh weight kg body and or'
+  )
+    .split(' ')
+    .map(stem),
+);
+
+/**
+ * True when the printed tokens before the colon at `colon` (back to the
+ * previous colon or the sentence start) are a heading: population, age or
+ * weight words and numbers only ("Adults", "Children 6 to 12 years").
+ */
+function headingBefore(p: string[], colon: number): boolean {
+  let k = colon - 1;
+  if (k < 0) return false;
+  for (; k >= 0; k--) {
+    const t = p[k];
+    if (t === undefined || t === COLON) break;
+    if (!isPopulation(t) && !isNumberWord(t) && !HEADING_STEMS.has(t)) return false;
+  }
+  return k < colon - 1;
+}
+
 // "1/2" and "1/4" as words, so a printed "1/2 tablet" and a stated "half a tablet" compare equal.
 const HALF_RE = /(?<![\d/.,])1\s*\/\s*2(?![\d/])/g;
 const QUARTER_RE = /(?<![\d/.,])1\s*\/\s*4(?![\d/])/g;
@@ -869,7 +929,9 @@ function partTokens(part: string): string[] {
 /**
  * Sentences as compared token sequences. Only a sentence end splits (". ; ! ?"
  * before a space, or a newline): a colon or comma never separates a printed
- * population or condition from its instruction. Tokens are folded with
+ * population or condition from its instruction. Printed text goes through
+ * joinPrintedLines first (review round 5), so for it a newline never splits;
+ * answer text still splits at a newline. Tokens are folded with
  * contractions expanded, numbers and frequencies made canonical ("twice
  * daily" and "2 times a day" are both "2 times per day"), stemmed, and plain
  * function words (articles, pronouns, auxiliaries, prepositions) dropped.
@@ -891,10 +953,13 @@ function sentenceTokens(s: string): string[][] {
 /**
  * End (exclusive) of a copy of printed sentence `p` in answer sentence `a`
  * starting at a[start], or -1. Every printed token must appear, in order, with
- * nothing in between except an answer colon. A printed colon may be left out,
- * and when a number follows it, one "take" may stand in for it ("Adults take
- * 1 tablet" for "Adults: 1 tablet"). No other word can be inserted, so "take"
- * never starts a new instruction inside a printed sentence.
+ * nothing in between except an answer colon. A printed colon may be left out.
+ * When a number follows it and a heading comes before it, one "take" may stand
+ * in for it ("Adults take 1 tablet" for "Adults: 1 tablet"). Review round 5:
+ * only after a heading, so a printed limit never becomes an instruction ("Do
+ * not exceed, take 8 tablets" for "Do not exceed: 8 tablets"). No other word
+ * can be inserted, so "take" never starts a new instruction inside a printed
+ * sentence.
  */
 function copyEnd(a: string[], p: string[], start: number): number {
   let i = start;
@@ -904,7 +969,15 @@ function copyEnd(a: string[], p: string[], start: number): number {
     if (want === COLON) {
       const tok = a[i];
       const next = p[j + 1];
-      if (tok !== undefined && TAKE_STEMS.has(tok) && next !== undefined && isNumberWord(next)) i++;
+      if (
+        tok !== undefined &&
+        TAKE_STEMS.has(tok) &&
+        next !== undefined &&
+        isNumberWord(next) &&
+        headingBefore(p, j)
+      ) {
+        i++;
+      }
       continue;
     }
     if (a[i] !== want) return -1;
@@ -930,44 +1003,130 @@ function copyEnd(a: string[], p: string[], start: number): number {
  * "not", a dropped "out" or "Protect from", a negation moved across "?" or ",",
  * a dropped condition, and a printed population joined to another sentence's
  * dose all fail. This replaces the round-3 run-and-window polarity rule.
+ *
+ * Review round 5:
+ * - Printed line breaks are joined first (joinPrintedLines), so a table heading
+ *   and its dose, or a wrapped "Do not exceed" and its amount, form one printed
+ *   sentence. Answer text still splits at a newline.
+ * - A population word is anchored wherever it is printed, so "Kids" taken out of
+ *   a cited brand name ("Paracelin Kids") fails like "children" taken out of a
+ *   warning. See populationJoinedToDose and doseGivenNewHeading for the other
+ *   two rules.
  */
 function brokenPrintedSentence(text: string, cited: LabelField[]): boolean {
-  const sources = cited.flatMap((f) =>
-    sentenceTokens(f.value ?? '').map((tokens) => ({ key: f.key, tokens })),
+  const sources: PrintedSentence[] = cited.flatMap((f) =>
+    sentenceTokens(joinPrintedLines(f.value ?? '', ': ')).map((tokens, idx) => ({
+      key: f.key,
+      idx,
+      tokens,
+    })),
   );
-  const anchored = new Set(
-    sources
+  const anchored = new Set([
+    ...sources
       .filter((src) => CLAUSE_FIELDS.has(src.key))
       .flatMap((src) => src.tokens)
       .filter(
         (t) => t !== COLON && !FRAMING.has(t) && !NEGATION_STEMS.has(t) && !KEPT_STEMS.has(t),
       ),
-  );
-  for (const a of sentenceTokens(text)) {
-    const covered = a.map(() => false);
-    const doseCopyAt = a.map(() => false);
-    for (const { key, tokens: p } of sources) {
-      for (let s = 0; s < a.length; s++) {
-        if (a[s] !== p[0]) continue;
-        const end = copyEnd(a, p, s);
-        if (end < 0) continue;
-        for (let i = s; i < end; i++) covered[i] = true;
-        if (key === 'directions' && isNumberWord(p[0] ?? '')) doseCopyAt[s] = true;
-      }
-    }
-    for (let i = 0; i < a.length; i++) {
-      const tok = a[i];
-      if (tok === undefined || covered[i] === true) continue;
-      if (NEGATION_STEMS.has(tok)) {
-        // "is not clear" describes legibility; "Do not clear nasal passages" negates a printed sentence.
-        if (!LEGIBILITY_STEMS.has(a[i + 1] ?? '') || covered[i + 1] === true) return true;
-        continue;
-      }
-      if (anchored.has(tok) || DOSE_STEMS.has(tok)) return true;
-      if (TAKE_STEMS.has(tok) && doseCopyAt[i + 1] !== true) return true;
+    ...sources.flatMap((src) => src.tokens).filter(isPopulation),
+  ]);
+  return sentenceTokens(text).some((a) => brokenAnswerSentence(a, sources, anchored));
+}
+
+/** One printed sentence of a cited field, with its position in that field. */
+interface PrintedSentence {
+  key: FieldKey;
+  idx: number;
+  tokens: string[];
+}
+
+/** A complete copy of a printed sentence inside an answer sentence, at a[start..end). */
+interface Copy extends PrintedSentence {
+  start: number;
+  end: number;
+}
+
+function copiesIn(a: string[], sources: PrintedSentence[]): Copy[] {
+  const out: Copy[] = [];
+  for (const src of sources) {
+    for (let s = 0; s < a.length; s++) {
+      if (a[s] !== src.tokens[0]) continue;
+      const end = copyEnd(a, src.tokens, s);
+      if (end >= 0) out.push({ ...src, start: s, end });
     }
   }
-  return false;
+  return out;
+}
+
+/** A printed dose or limit: a directions sentence, or a warnings sentence with a number. */
+function holdsDose(c: PrintedSentence): boolean {
+  return c.key === 'directions' || (c.key === 'warnings' && c.tokens.some(isNumberWord));
+}
+
+function brokenAnswerSentence(
+  a: string[],
+  sources: PrintedSentence[],
+  anchored: Set<string>,
+): boolean {
+  const copies = copiesIn(a, sources);
+  const inCopy = (i: number, which: (c: Copy) => boolean = () => true) =>
+    copies.some((c) => c.start <= i && i < c.end && which(c));
+  const doseCopyAt = (i: number) =>
+    copies.some(
+      (c) => c.start === i && c.key === 'directions' && isNumberWord(c.tokens[0] ?? ''),
+    );
+  for (let i = 0; i < a.length; i++) {
+    const tok = a[i];
+    if (tok === undefined || inCopy(i)) continue;
+    if (NEGATION_STEMS.has(tok)) {
+      // "is not clear" describes legibility; "Do not clear nasal passages" negates a printed sentence.
+      if (!LEGIBILITY_STEMS.has(a[i + 1] ?? '') || inCopy(i + 1)) return true;
+      continue;
+    }
+    if (anchored.has(tok) || DOSE_STEMS.has(tok)) return true;
+    if (TAKE_STEMS.has(tok) && !doseCopyAt(i + 1)) return true;
+  }
+  return populationJoinedToDose(a, copies, inCopy) || doseGivenNewHeading(copies);
+}
+
+/**
+ * Review round 5, finding 2 (B): in an answer sentence that restates a printed
+ * dose or limit, every population word must lie inside a copy of a directions,
+ * warnings, storage or prescription-status sentence. A copy of the brand name,
+ * generic name or manufacturer alone never grounds it, so "Paracelin Kids: 1
+ * tablet every 4 to 6 hours" fails.
+ */
+function populationJoinedToDose(
+  a: string[],
+  copies: Copy[],
+  inCopy: (i: number, which?: (c: Copy) => boolean) => boolean,
+): boolean {
+  if (!copies.some(holdsDose)) return false;
+  return a.some((t, i) => isPopulation(t) && !inCopy(i, (c) => CLAUSE_FIELDS.has(c.key)));
+}
+
+/**
+ * Review round 5, finding 2 (A): a printed dose or limit that has no population
+ * word of its own ("2 tablets every 6 hours.") keeps the heading it is printed
+ * under. In one answer sentence, the copy directly before it must be the
+ * sentence printed directly before it in the same field. So a reader
+ * transcription that ends each table line with a period ("Children 6 to 12
+ * years. 1 tablet every 6 hours.") cannot be re-paired ("Children 6 to 12
+ * years: 2 tablets every 6 hours."), and another sentence cannot become its
+ * heading ("Keep out of reach of children: 1 tablet ...").
+ */
+function doseGivenNewHeading(copies: Copy[]): boolean {
+  return copies.some((c) => {
+    const bare =
+      (c.key === 'directions' || c.key === 'warnings') &&
+      c.tokens.some(isNumberWord) &&
+      !c.tokens.some(isPopulation);
+    if (!bare) return false;
+    const before = copies.filter((o) => o !== c && o.end <= c.start);
+    if (before.length === 0) return false;
+    const last = Math.max(...before.map((o) => o.end));
+    return !before.some((o) => o.end === last && o.key === c.key && o.idx === c.idx - 1);
+  });
 }
 
 function sentences(text: string): string[] {

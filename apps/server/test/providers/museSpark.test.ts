@@ -1108,3 +1108,137 @@ describe('answerer grounding round 4 (dosing words and inserted "take")', () => 
     expect(a.safetyNotice).toBeNull();
   });
 });
+
+/* ------- review round 5: a printed line break keeps a heading with the line under it */
+
+const TABLE_COLON =
+  'Adults:\n2 tablets every 6 hours.\nChildren 6 to 12 years:\n1 tablet every 6 hours.';
+const TABLE_BARE =
+  'Adults and children over 12 years\n2 tablets every 4 hours\nChildren 6 to 12 years\n1 tablet every 4 hours';
+const TABLE_DOTS = 'Adults.\n2 tablets every 6 hours.\nChildren 6 to 12 years.\n1 tablet every 6 hours.';
+const WRAPPED_LIMIT = 'Do not exceed\n8 tablets in 24 hours.';
+const BARE_DOSE = '1 tablet every 4 to 6 hours as needed.';
+
+function expectRecordedAnswer(a: Awaited<ReturnType<typeof ask>>, name: string) {
+  const recorded = fixture(name) as Body;
+  const { text } = JSON.parse(recorded.choices[0].message.content as string) as Body;
+  expect(AnswerSchema.safeParse(a).success).toBe(true);
+  expect(a.status).toBe('answered');
+  expect(a.text).toBe(text);
+  expect(a.safetyNotice).toBeNull();
+}
+
+describe('answerer grounding round 5 (finding 2 (A): printed line breaks)', () => {
+  test.each([
+    ['answer-r5-table-colon', 'with a colon'],
+    ['answer-r5-table-nocolon', 'without a colon'],
+    ['answer-r5-table-take', 'with "take"'],
+  ])('%s moves the adult dose under the printed children heading (%s) and is unclear', async (name) => {
+    const a = await ask(name, 'read_label', withField(LABEL_PROBE, 'directions', TABLE_COLON));
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/2 tablets/);
+  });
+
+  test('a heading and dose swapped across an unpunctuated table (with ",") is unclear', async () => {
+    const label = withField(LABEL_PROBE, 'directions', TABLE_BARE);
+    const a = await ask('answer-r5-table-bare-comma', 'read_label', label);
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/2 tablets/);
+  });
+
+  test('a wrapped "Do not exceed" limit restated as the bare amount is unclear', async () => {
+    const label = withField(LABEL_PROBE, 'warnings', WRAPPED_LIMIT);
+    const a = await ask('answer-r5-limit-bare', 'read_label', label);
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/8 tablets/);
+  });
+
+  test.each(['answer-r5-table-dots', 'answer-r5-table-dots-take'])(
+    '%s joins a heading to a dose that is not printed after it, where each line ends in a period, and is unclear',
+    async (name) => {
+      const a = await ask(name, 'read_label', withField(LABEL_PROBE, 'directions', TABLE_DOTS));
+      expectFallback(a);
+      expect(a.spokenChunks.join(' ')).not.toMatch(/2 tablets/);
+    },
+  );
+
+  test.each([
+    ['answer-r5-limit-take', 'at a wrapped line break', WRAPPED_LIMIT],
+    ['answer-r5-max-take', 'at a printed colon', 'Maximum daily dose: 8 tablets.'],
+  ])('%s puts "take" after a printed limit (%s) and is unclear', async (name, _why, printed) => {
+    const a = await ask(name, 'read_label', withField(LABEL_PROBE, 'warnings', printed));
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/8 tablets/);
+  });
+
+  test('a printed dose sentence given another printed sentence as its heading is unclear', async () => {
+    const label = withField(LABEL_PROBE, 'directions', BARE_DOSE);
+    const a = await ask('answer-r5-reach-dose', 'read_label', label);
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/children/i);
+  });
+
+  test.each([
+    ['answer-r5-ctrl-table-row', 'directions', TABLE_COLON],
+    ['answer-r5-ctrl-table-row-take', 'directions', TABLE_COLON],
+    ['answer-r5-ctrl-table-bare-whole', 'directions', TABLE_BARE],
+    ['answer-r5-ctrl-limit', 'warnings', WRAPPED_LIMIT],
+    ['answer-r5-ctrl-table-dots-row', 'directions', TABLE_DOTS],
+  ] as const)('control: %s restates a printed %s row verbatim and is answered', async (name, key, printed) => {
+    expectRecordedAnswer(await ask(name, 'read_label', withField(LABEL_PROBE, key, printed)), name);
+  });
+});
+
+describe('answerer grounding round 5 (finding 2 (B): population words from a brand or maker)', () => {
+  const KIDS_BRAND = withField(
+    withField(LABEL_PROBE, 'brandName', 'Paracelin Kids'),
+    'directions',
+    BARE_DOSE,
+  );
+  const CHILD_MAKER = withField(
+    withField(LABEL_PROBE, 'manufacturer', "Children's Health Pharma Inc."),
+    'directions',
+    BARE_DOSE,
+  );
+  // Directions stay the LABEL_PROBE "Adults: 1 tablet every 4 to 6 hours as needed."
+  const CHILD_MAKER_ADULTS = withField(LABEL_PROBE, 'manufacturer', "Children's Health Pharma Inc.");
+
+  test.each([
+    ['answer-r5-kids-brand', '"Kids:" taken from the brand name', KIDS_BRAND],
+    ['answer-r5-kids-brand-whole', 'the whole brand name as a heading', KIDS_BRAND],
+    ['answer-r5-kids-strength', '"Kids:" before the strength', KIDS_BRAND],
+    ['answer-r5-children-maker', '"Children:" taken from the manufacturer', CHILD_MAKER],
+    ['answer-r5-children-adults-maker', '"Children:" before a printed "Adults:"', CHILD_MAKER_ADULTS],
+    ['answer-r5-maker-whole-dose', 'the whole manufacturer as a heading', CHILD_MAKER],
+  ] as const)('%s puts a population word before a dose (%s) and is unclear', async (name, _why, label) => {
+    const a = await ask(name, 'read_label', label);
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/kids|children/i);
+  });
+
+  test.each([
+    ['answer-r5-kids-brand-adults', 'the brand name', withField(LABEL_PROBE, 'brandName', 'Paracelin Kids')],
+    ['answer-r5-maker-whole-adults', 'the manufacturer', CHILD_MAKER_ADULTS],
+  ] as const)(
+    '%s: a population word grounded only by %s, in a sentence with a printed dose, is unclear',
+    async (name, _why, label) => {
+      const a = await ask(name, 'read_label', label);
+      expectFallback(a);
+      expect(a.spokenChunks.join(' ')).not.toMatch(/kids|children/i);
+    },
+  );
+
+  test('the brand name as a heading before a printed limit is unclear', async () => {
+    const label = withField(KIDS_BRAND, 'warnings', WRAPPED_LIMIT);
+    const a = await ask('answer-r5-kids-limit', 'read_label', label);
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/kids/i);
+  });
+
+  test('control: the brand name restated whole is answered', async () => {
+    expectRecordedAnswer(
+      await ask('answer-r5-ctrl-brand-kids', 'read_label', KIDS_BRAND),
+      'answer-r5-ctrl-brand-kids',
+    );
+  });
+});
