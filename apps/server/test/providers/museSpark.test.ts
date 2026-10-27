@@ -692,7 +692,10 @@ describe('answerer grounding round 2 (finding 2: same class of unsafe output)', 
   test.each([
     ['Take 1 tablet three times daily.', 'answered'],
     ['Take 1 tablet 3 times a day.', 'answered'],
-    ['Take 1 tablet 3 times per day with water.', 'answered'],
+    ['Take 1 tablet 3 times per day.', 'answered'],
+    // Review round 4: the answer drops the printed "with water", so the printed
+    // sentence is no longer restated whole.
+    ['Take 1 tablet 3 times per day with water.', 'unclear'],
     ['Take 1 tablet every 3 hours.', 'unclear'],
     ['Take 1 tablet once a day for 3 days.', 'unclear'],
   ])('frequency is grounded as a whole (printed: %s)', async (printed, status) => {
@@ -932,4 +935,176 @@ describe('answerer uncertainty round 3 (finding 1: a zero-overlap mis-cited para
       expectFallback(await ask(name, 'read_label', withField(LABEL_PROBE, key, printed)));
     },
   );
+});
+
+/* -------------- review round 4: each printed clause restated whole; no unprinted status */
+
+const ALLERGY = 'Do not use if allergic to aspirin.';
+const DRIVE = 'Do not drive after taking it.';
+const SUN = 'Store below 30 C. Protect from sunlight.';
+const POPULATIONS =
+  'Adults: 2 tablets every 6 hours. Children 6 to 12 years: 1 tablet every 6 hours.';
+
+describe('answerer grounding round 4 (finding 2: printed clauses restated whole)', () => {
+  test.each([
+    ['answer-r4-extra-not', ALLERGY, '(1) an extra "not" inside the printed clause'],
+    ['answer-r4-moved-question', ALLERGY, '(2) a negation moved onto the condition across "?"'],
+    ['answer-r4-moved-comma', DRIVE, '(2) a negation moved onto the condition across ","'],
+    ['answer-r4-dropped-condition', ALLERGY, '(3) the printed condition dropped'],
+  ])('%s against the printed "%s" is unclear: %s', async (name, printed) => {
+    expectFallback(await ask(name, 'read_label', withField(LABEL_PROBE, 'warnings', printed)));
+  });
+
+  test.each(['answer-r4-in-reach', 'answer-r4-reach'])(
+    '(3) %s drops the printed "out" and is unclear',
+    async (name) => {
+      const a = await ask(name, 'read_label', LABEL_PROBE);
+      expectFallback(a);
+      expect(a.spokenChunks.join(' ')).not.toMatch(/reach/i);
+    },
+  );
+
+  test('(3) "Store below 30 C in sunlight." drops the printed "Protect from" and is unclear', async () => {
+    const a = await ask('answer-r4-sunlight', 'read_label', withField(LABEL_PROBE, 'storage', SUN));
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/sunlight/i);
+  });
+
+  test.each(['answer-r4-children-dose', 'answer-r4-children-as-needed'])(
+    '(4) %s joins the printed "children" to the dosing and is unclear',
+    async (name) => {
+      const a = await ask(name, 'read_label', LABEL_PROBE);
+      expectFallback(a);
+      expect(a.spokenChunks.join(' ')).not.toMatch(/children/i);
+    },
+  );
+
+  test('(4) a dose moved from one printed population to another is unclear', async () => {
+    const label = withField(LABEL_PROBE, 'directions', POPULATIONS);
+    const a = await ask('answer-r4-swap-population', 'read_label', label);
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/2 tablets/i);
+  });
+
+  test('(4) printed numbers restated without their printed sentence are unclear', async () => {
+    expectFallback(await ask('answer-r4-bare-numbers', 'read_label', LABEL_PROBE));
+  });
+
+  test.each([
+    'answer-r4-registered',
+    'answer-r4-registered-clear',
+    'answer-r4-otc',
+    'answer-r4-prescription',
+  ])('(5) %s states a status the cited generic name does not print and is unclear', async (name) => {
+    const a = await ask(name, 'read_label', LABEL_PROBE);
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/regist|otc|prescription/i);
+  });
+
+  test('(5) "registration" is framing only as "registration number"', async () => {
+    expectFallback(await ask('answer-r4-registration-clear', 'read_label', LABEL_PROBE));
+  });
+
+  test('(5) a prescription status the cited field does not print is unclear', async () => {
+    const label = withField(LABEL_PROBE, 'rxOrOtc', 'Prescription drug');
+    const a = await ask('answer-r4-otc-cited', 'read_label', label);
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/otc/i);
+  });
+
+  test('(5) "made by" is framing only when the manufacturer is cited', async () => {
+    expectFallback(await ask('answer-r4-made-by', 'read_label', LABEL_PROBE));
+  });
+
+  test('(5) a registry status built from a word another field prints is unclear', async () => {
+    const label = withField(
+      LABEL_PROBE,
+      'manufacturer',
+      'Registered and distributed by Demo Pharma Labs Inc.',
+    );
+    expectFallback(await ask('answer-r4-registered-printed', 'read_label', label));
+  });
+
+  test('a negation that no cited field prints is unclear', async () => {
+    expectFallback(await ask('answer-r4-not-medicine', 'read_label', LABEL_PROBE));
+  });
+
+  test.each([
+    ['answer-r3-ctrl-allergic', 'warnings', ALLERGY],
+    [
+      'answer-r4-ctrl-reach',
+      'warnings',
+      'Do not exceed the stated dose. Keep out of reach of children. Do not take with alcohol.',
+    ],
+    ['answer-r4-ctrl-storage-both', 'storage', SUN],
+    ['answer-r4-ctrl-populations', 'directions', POPULATIONS],
+    ['answer-r4-ctrl-regno', 'registrationNumber', 'DR-XY12345'],
+    ['answer-r4-ctrl-manufacturer', 'manufacturer', 'Demo Pharma Labs Inc.'],
+    ['answer-r4-ctrl-rx-printed', 'rxOrOtc', 'Prescription drug'],
+  ] as const)('control: %s restates the printed %s and is answered', async (name, key, printed) => {
+    const a = await ask(name, 'read_label', withField(LABEL_PROBE, key, printed));
+    const recorded = fixture(name) as Body;
+    const { text } = JSON.parse(recorded.choices[0].message.content as string) as Body;
+    expect(AnswerSchema.safeParse(a).success).toBe(true);
+    expect(a.status).toBe('answered');
+    expect(a.text).toBe(text);
+    expect(a.safetyNotice).toBeNull();
+  });
+
+  test('a negation before a printed sentence that starts with "clear" is unclear', async () => {
+    const label = withField(LABEL_PROBE, 'directions', 'Clear nasal passages before use.');
+    expectFallback(await ask('answer-r4-not-clear-printed', 'read_label', label));
+  });
+
+  test('control: a negation before a legibility word is answered and uncertain', async () => {
+    expectUncertain(await ask('answer-r4-ctrl-not-clear', 'unclear_parts', LABEL_PROBE));
+  });
+});
+
+describe('answerer grounding round 4 (dosing words and inserted "take")', () => {
+  const CHILD_ASK = 'Adults: 1 tablet every 4 to 6 hours. Children under 12: ask a doctor.';
+
+  test.each([
+    ['answer-r4-take-strength', '"Take 500 mg." citing only the strength'],
+    ['answer-r4-dose-strength', '"The dose is 500 mg." citing only the strength'],
+  ])('%s (%s) states a dose the label does not print and is unclear', async (name) => {
+    const a = await ask(name, 'read_label', withField(LABEL_PROBE, 'strength', '500 mg'));
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/500/);
+  });
+
+  test('"take" inserted after a printed population with no printed dose is unclear', async () => {
+    const label = withField(LABEL_PROBE, 'directions', CHILD_ASK);
+    const a = await ask('answer-r4-slot-population', 'read_label', label);
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/children/i);
+  });
+
+  test('"take" inserted inside a printed warning to make a new instruction is unclear', async () => {
+    const label = withField(LABEL_PROBE, 'warnings', ALLERGY);
+    expectFallback(await ask('answer-r4-gap-aspirin', 'read_label', label));
+  });
+
+  test('a second "take" inserted after a printed "do not take" is unclear', async () => {
+    const label = withField(LABEL_PROBE, 'warnings', 'Do not take with grapefruit juice.');
+    expectFallback(await ask('answer-r4-gap-take', 'read_label', label));
+  });
+
+  test('the same shape with a screened word is unclear (round-2 screen guard)', async () => {
+    expectFallback(await ask('answer-r4-gap-alcohol', 'read_label', LABEL_PROBE));
+  });
+
+  test.each([
+    ['answer-ok', 'directions', 'Adults: 1 tablet every 4 to 6 hours as needed.'],
+    ['answer-r4-ctrl-colon', 'directions', 'Adults: 1 tablet every 4 to 6 hours as needed.'],
+    ['answer-r4-ctrl-take-prefix', 'directions', '1 tablet every 4 to 6 hours as needed.'],
+    ['answer-r4-ctrl-dosage-form', 'dosageForm', 'Tablet'],
+  ] as const)('control: %s restates the printed %s and is answered', async (name, key, printed) => {
+    const a = await ask(name, 'read_label', withField(LABEL_PROBE, key, printed));
+    const recorded = fixture(name) as Body;
+    const { text } = JSON.parse(recorded.choices[0].message.content as string) as Body;
+    expect(a.status).toBe('answered');
+    expect(a.text).toBe(text);
+    expect(a.safetyNotice).toBeNull();
+  });
 });

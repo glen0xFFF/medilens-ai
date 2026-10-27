@@ -527,6 +527,9 @@ const CLINICAL_TERMS = [
   'real',
   'verified',
   'approved',
+  // Registry status (review round 4): only in its printed context. "registration
+  // number" of a cited registrationNumber is reduced to "number" before this check.
+  String.raw`regist\w*`,
   // Indication and efficacy (review round 2).
   'good for',
   'used for',
@@ -718,17 +721,57 @@ const GROUND_NEGATIONS = new Set([...NEGATIONS, 'none', 'neither']);
 
 /**
  * Answer framing allowed without being printed: how an answer refers to the
- * label and its fields ("the warnings printed on the pack say"), plus "take".
- * None of these words states a medication fact on its own.
+ * label and its fields ("the warnings printed on the pack say"). None of these
+ * words states a medication fact on its own. Review round 4:
+ * - Registry and prescription status words (registered, registration,
+ *   prescription, rx, otc) and maker words are not here. Status words must be
+ *   printed in a cited field. FIELD_FRAMING and REGISTRATION_NUMBER_RE hold the
+ *   exceptions that apply only when their field is cited.
+ * - "take", "dose" and "dosage" pass this vocabulary check, but
+ *   brokenPrintedSentence allows them only inside a restated printed sentence,
+ *   or "take" directly before a printed dose. So "Take 500 mg" and "The dose is
+ *   500 mg" (the strength, restated as a dose) fail.
  */
 const FRAMING_WORDS =
   'label labels pack package packet box carton printed print prints say says said read reads ' +
   'state states show shows written text word words phrase mean means meaning take takes taking ' +
   'medicine product field section brand name generic ingredient ingredients active strength form ' +
-  'dosage dose manufacturer manufactured made maker company registration registered number ' +
-  'direction directions instruction instructions warning warnings caution cautions storage store ' +
-  'stored expiry expiration expire expires exp date batch lot prescription rx otc unclear clear ' +
-  'part partly partial partially readable unreadable legible';
+  'dosage dose number direction directions instruction instructions warning warnings caution ' +
+  'cautions storage store stored expiry expiration expire expires exp date batch lot unclear ' +
+  'clear part partly partial partially readable unreadable legible';
+
+/**
+ * Review round 4: words that are framing only when their own field is cited
+ * with a value ("The manufacturer is ..." citing manufacturer).
+ */
+const FIELD_FRAMING: Partial<Record<FieldKey, string[]>> = {
+  manufacturer: ['manufacturer', 'manufactured', 'made', 'maker', 'company'],
+};
+
+/**
+ * Review round 4: "registration" is framing only as the field name
+ * "registration number" (or "registration no."), and only when the
+ * registration number is cited. "is registered" and "the registration is
+ * clear" state a registry status, which comes from MatchAssessment, never from
+ * the model.
+ */
+const REGISTRATION_NUMBER_RE = /\bregistration\s+(?:number\b|no\.)/giu;
+
+/** "dosage form" names the field; on its own "dosage" states an amount (see DOSE_STEMS). */
+const DOSAGE_FORM_RE = /\bdosage\s+forms?\b/giu;
+
+/** Answer text with field-name phrases of cited fields reduced to plain framing. */
+function withFieldNames(text: string, cited: Set<FieldKey>): string {
+  let out = text;
+  if (cited.has('registrationNumber')) out = out.replace(REGISTRATION_NUMBER_RE, 'number');
+  if (cited.has('dosageForm')) out = out.replace(DOSAGE_FORM_RE, 'form');
+  return out;
+}
+
+/** Stems of the field-gated framing words whose field is cited. */
+function citedFraming(cited: Set<FieldKey>): Set<string> {
+  return new Set([...cited].flatMap((k) => FIELD_FRAMING[k] ?? []).map(stem));
+}
 
 /** Same-meaning frequency adverbs folded to the noun the label may print instead. */
 const WORD_CANON: Record<string, string> = {
@@ -782,81 +825,146 @@ function isContent(w: string): boolean {
  * listed terms, so "every couple of hours", "teenagers", "toothache" and a
  * mis-cited paraphrase ("keep it somewhere cool") all fail the same way.
  */
-function ungroundedWords(text: string, evidence: string[]): boolean {
+function ungroundedWords(text: string, evidence: string[], framing: Set<string>): boolean {
   const printed = new Set(evidence.flatMap((e) => words(expandContractions(e)).map(stem)));
   return words(expandContractions(text))
     .filter(isContent)
     .map(stem)
-    .some((w) => !FRAMING.has(w) && !printed.has(w));
+    .some((w) => !FRAMING.has(w) && !framing.has(w) && !printed.has(w));
 }
 
-interface GroundClause {
-  /** Folded words of the clause, contractions expanded. */
-  raw: string[];
-  /** Stems of the clause's content and number words, with their raw index. */
-  tokens: { stem: string; at: number }[];
-  negated: boolean;
-}
+/* ------------------------------ printed sentences restated whole (review round 4) */
 
-const NEAR_NEGATION = 3;
+/** Fields whose sentences are instructions or a status: restated whole or not at all. */
+const CLAUSE_FIELDS = new Set<FieldKey>(['directions', 'warnings', 'storage', 'rxOrOtc']);
 
-function groundClauses(s: string): GroundClause[] {
-  return clauses(expandContractions(s)).map((raw) => ({
-    raw,
-    tokens: raw.flatMap((w, at) =>
-      FUNCTION_WORDS.has(w) || GROUND_NEGATIONS.has(w) ? [] : [{ stem: stem(w), at }],
-    ),
-    negated: raw.some((w) => GROUND_NEGATIONS.has(w)),
-  }));
-}
+/** Function words that carry dosing meaning, so they stay in the compared sequence. */
+const KEPT_FUNCTION_WORDS = new Set(['every', 'each', 'per', 'and', 'or']);
+const KEPT_STEMS = new Set([...KEPT_FUNCTION_WORDS].map(stem));
 
-/** A negation within the three words directly before raw index `at`. */
-function negatedBefore(raw: string[], at: number): boolean {
-  return raw.slice(Math.max(0, at - NEAR_NEGATION), at).some((w) => GROUND_NEGATIONS.has(w));
+/** The colon of a printed "Adults: 1 tablet", kept as a token so "take" may stand in for it. */
+const COLON = ':';
+
+const TAKE_STEMS = new Set(['take', 'takes', 'taking'].map(stem));
+
+/** "dose" and "dosage" state an amount, so an answer says them only inside a printed sentence. */
+const DOSE_STEMS = new Set(['dose', 'doses', 'dosage', 'dosing'].map(stem));
+
+const NEGATION_STEMS = new Set([...GROUND_NEGATIONS].map(stem));
+
+/** Legibility words a negation may describe without a printed source ("is not clear"). */
+const LEGIBILITY_STEMS = new Set(['clear', 'readable', 'legible'].map(stem));
+
+// "1/2" and "1/4" as words, so a printed "1/2 tablet" and a stated "half a tablet" compare equal.
+const HALF_RE = /(?<![\d/.,])1\s*\/\s*2(?![\d/])/g;
+const QUARTER_RE = /(?<![\d/.,])1\s*\/\s*4(?![\d/])/g;
+
+function partTokens(part: string): string[] {
+  return frequencyCanon(part.replace(HALF_RE, ' half ').replace(QUARTER_RE, ' quarter '))
+    .split(' ')
+    .filter((w) => w !== '' && (!FUNCTION_WORDS.has(w) || KEPT_FUNCTION_WORDS.has(w)))
+    .map(stem);
 }
 
 /**
- * Review round 3, finding 2 (2): polarity per clause. Where an answer clause
- * shares a run of 2 or more content words with a cited clause, both clauses
- * must contain a negation or neither must, and the negation must sit within
- * three words directly before the shared run in both. A content word the
- * answer shares with no such run must appear in a cited clause of the same
- * polarity ("Take it with alcohol" against a printed "Avoid alcohol").
- * Several printed clauses may support a word; one that agrees is enough.
+ * Sentences as compared token sequences. Only a sentence end splits (". ; ! ?"
+ * before a space, or a newline): a colon or comma never separates a printed
+ * population or condition from its instruction. Tokens are folded with
+ * contractions expanded, numbers and frequencies made canonical ("twice
+ * daily" and "2 times a day" are both "2 times per day"), stemmed, and plain
+ * function words (articles, pronouns, auxiliaries, prepositions) dropped.
+ * Negations, numbers, "every", "each", "per", "and", "or" and a colon are kept.
  */
-function polarityMismatch(text: string, evidence: string[]): boolean {
-  const printed = evidence.flatMap(groundClauses);
-  for (const ans of groundClauses(text)) {
-    const at = ans.tokens;
-    const covered = new Map<number, boolean>(); // token index -> some agreeing run covers it
-    for (const ev of printed) {
-      const pt = ev.tokens;
-      for (let i = 0; i < at.length; i++) {
-        for (let j = 0; j < pt.length; j++) {
-          // maximal runs only: skip a start that extends one to its left
-          if (i > 0 && j > 0 && at[i - 1]?.stem === pt[j - 1]?.stem) continue;
-          let k = 0;
-          while (i + k < at.length && j + k < pt.length && at[i + k]?.stem === pt[j + k]?.stem) {
-            k++;
-          }
-          if (k < 2) continue;
-          const ai = at[i]?.at ?? 0;
-          const pj = pt[j]?.at ?? 0;
-          const agrees =
-            ans.negated === ev.negated &&
-            negatedBefore(ans.raw, ai) === negatedBefore(ev.raw, pj);
-          for (let r = i; r < i + k; r++) covered.set(r, (covered.get(r) ?? false) || agrees);
-        }
+function sentenceTokens(s: string): string[][] {
+  return expandContractions(s)
+    .split(/[.;!?](?=\s|$)|\n/)
+    .map((sentence) =>
+      sentence
+        .split(/:(?=\s|$)/)
+        .map(partTokens)
+        .filter((t) => t.length > 0)
+        .flatMap((t, k) => (k === 0 ? t : [COLON, ...t])),
+    )
+    .filter((t) => t.length > 0);
+}
+
+/**
+ * End (exclusive) of a copy of printed sentence `p` in answer sentence `a`
+ * starting at a[start], or -1. Every printed token must appear, in order, with
+ * nothing in between except an answer colon. A printed colon may be left out,
+ * and when a number follows it, one "take" may stand in for it ("Adults take
+ * 1 tablet" for "Adults: 1 tablet"). No other word can be inserted, so "take"
+ * never starts a new instruction inside a printed sentence.
+ */
+function copyEnd(a: string[], p: string[], start: number): number {
+  let i = start;
+  for (let j = 0; j < p.length; j++) {
+    if (j > 0 && a[i] === COLON) i++;
+    const want = p[j];
+    if (want === COLON) {
+      const tok = a[i];
+      const next = p[j + 1];
+      if (tok !== undefined && TAKE_STEMS.has(tok) && next !== undefined && isNumberWord(next)) i++;
+      continue;
+    }
+    if (a[i] !== want) return -1;
+    i++;
+  }
+  return i;
+}
+
+/**
+ * Review round 4, finding 2: a printed instruction is restated whole or not at
+ * all. In each answer sentence, every token that a cited directions, warnings,
+ * storage or prescription-status sentence prints must lie inside a complete,
+ * in-order copy of some cited printed sentence (of any cited field). Here a
+ * token is any number and any content word that is not answer framing.
+ * Outside the copies:
+ * - a negation breaks the answer, unless it describes legibility ("is not
+ *   clear") with a legibility word that is not itself part of a printed copy;
+ * - "dose" or "dosage" breaks it, so the strength is never restated as a dose;
+ * - "take" breaks it, unless a copy of a printed directions sentence that
+ *   starts with a number follows ("Take 1 tablet ..." for "1 tablet ...").
+ * Otherwise an answer sentence may hold only framing, function words and words
+ * that ungroundedWords finds printed in another cited field. So an extra
+ * "not", a dropped "out" or "Protect from", a negation moved across "?" or ",",
+ * a dropped condition, and a printed population joined to another sentence's
+ * dose all fail. This replaces the round-3 run-and-window polarity rule.
+ */
+function brokenPrintedSentence(text: string, cited: LabelField[]): boolean {
+  const sources = cited.flatMap((f) =>
+    sentenceTokens(f.value ?? '').map((tokens) => ({ key: f.key, tokens })),
+  );
+  const anchored = new Set(
+    sources
+      .filter((src) => CLAUSE_FIELDS.has(src.key))
+      .flatMap((src) => src.tokens)
+      .filter(
+        (t) => t !== COLON && !FRAMING.has(t) && !NEGATION_STEMS.has(t) && !KEPT_STEMS.has(t),
+      ),
+  );
+  for (const a of sentenceTokens(text)) {
+    const covered = a.map(() => false);
+    const doseCopyAt = a.map(() => false);
+    for (const { key, tokens: p } of sources) {
+      for (let s = 0; s < a.length; s++) {
+        if (a[s] !== p[0]) continue;
+        const end = copyEnd(a, p, s);
+        if (end < 0) continue;
+        for (let i = s; i < end; i++) covered[i] = true;
+        if (key === 'directions' && isNumberWord(p[0] ?? '')) doseCopyAt[s] = true;
       }
     }
-    if ([...covered.values()].some((ok) => !ok)) return true;
-    for (let i = 0; i < at.length; i++) {
-      const tok = at[i];
-      if (tok === undefined || covered.has(i) || FRAMING.has(tok.stem) || isNumberWord(tok.stem)) {
+    for (let i = 0; i < a.length; i++) {
+      const tok = a[i];
+      if (tok === undefined || covered[i] === true) continue;
+      if (NEGATION_STEMS.has(tok)) {
+        // "is not clear" describes legibility; "Do not clear nasal passages" negates a printed sentence.
+        if (!LEGIBILITY_STEMS.has(a[i + 1] ?? '') || covered[i + 1] === true) return true;
         continue;
       }
-      const holders = printed.filter((ev) => ev.tokens.some((t) => t.stem === tok.stem));
-      if (holders.length > 0 && !holders.some((ev) => ev.negated === ans.negated)) return true;
+      if (anchored.has(tok) || DOSE_STEMS.has(tok)) return true;
+      if (TAKE_STEMS.has(tok) && doseCopyAt[i + 1] !== true) return true;
     }
   }
   return false;
@@ -896,14 +1004,16 @@ function checkAnswer(out: ModelAnswer, { label, match, intent }: AnswerInput): A
   if (claimsFake(text, match)) return unclear(ANSWER_FALLBACK_TEXT);
 
   const citedSet = new Set<FieldKey>(cited);
-  const evidence = label.fields.filter((f) => citedSet.has(f.key)).map((f) => f.value ?? '');
+  const citedFields = label.fields.filter((f) => citedSet.has(f.key));
+  const evidence = citedFields.map((f) => f.value ?? '');
   // The fixed advisory sentence is deterministic text, not a claim to ground.
-  const claim = match.advisories.length > 0 ? text.split(ADVISORY_SENTENCE).join(' ') : text;
+  const stated = match.advisories.length > 0 ? text.split(ADVISORY_SENTENCE).join(' ') : text;
+  const claim = withFieldNames(stated, citedSet);
   if (
     ungroundedFigures(claim, evidence) ||
     unsupportedClaim(claim, evidence) ||
-    ungroundedWords(claim, evidence) ||
-    polarityMismatch(claim, evidence)
+    ungroundedWords(claim, evidence, citedFraming(citedSet)) ||
+    brokenPrintedSentence(claim, citedFields)
   ) {
     return unclear(ANSWER_FALLBACK_TEXT);
   }

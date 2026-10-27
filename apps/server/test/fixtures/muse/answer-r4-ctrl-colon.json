@@ -1,0 +1,24 @@
+{
+  "_note": "DEMO DATA. Synthetic recorded Muse Spark completion for tests; fictional product; no network.",
+  "id": "chatcmpl-synthetic-114",
+  "object": "chat.completion",
+  "created": 1793059200,
+  "model": "muse-spark-1.3",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"text\":\"Adults: 1 tablet every 4 to 6 hours as needed.\",\"citedFields\":[\"directions\"]}",
+        "refusal": null
+      },
+      "finish_reason": "stop",
+      "logprobs": null
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 900,
+    "completion_tokens": 120,
+    "total_tokens": 1020
+  }
+}
