@@ -1,0 +1,24 @@
+{
+  "_note": "DEMO DATA. Synthetic recorded Muse Spark completion for tests; fictional product; no network.",
+  "id": "chatcmpl-synthetic-004",
+  "object": "chat.completion",
+  "created": 1793059200,
+  "model": "muse-spark-1.3",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"imageKind\":\"label\",\"fields\":{\"brandName\":{\"value\":\"Paracelin 500\",\"legibility\":\"clear\",\"evidenceText\":\"Paracelin 500\",\"notes\":null},\"genericNames\":{\"value\":\"Paracetamol\",\"legibility\":\"clear\",\"evidenceText\":\"Paracetamol\",\"notes\":null},\"strength\":{\"value\":\"500 mg\",\"legibility\":\"partial\",\"evidenceTex",
+        "refusal": null
+      },
+      "finish_reason": "length",
+      "logprobs": null
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 1800,
+    "completion_tokens": 4000,
+    "total_tokens": 5800
+  }
+}

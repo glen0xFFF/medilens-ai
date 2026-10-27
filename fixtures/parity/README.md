@@ -173,3 +173,15 @@ The decode probes have no `normalized` entry: on 1-2 px runs of saturated colour
 ### CMYK to sRGB table
 
 `npx tsx scripts/parity/record-cmyk-lut.ts` (after `record-images.ts`) writes `internal/imaging/cmyk_srgb.lut`, the 17^4 16-bit node table lcms evaluates for sharp's CMYK to sRGB transform, recovered by least squares from sharp's own output on 5.6 million CMYK pixels (every pixel of the cube's corners, edges and 2-D faces, plus seeded random pixels on its 3-D faces and inside). It first checks that the TIFF route it feeds sharp gives byte for byte what sharp gives each CMYK parity JPEG. It also writes `fixtures/parity/cmyk/`: `pixels.*` and `faces.*`, 20,000 seeded random CMYK pixels each (anywhere, and on the faces) with sharp's sRGB, which `internal/imaging/cmyk_test.go` checks the table against, and `versions.json`.
+
+## Provider parity (task G6)
+
+`npx tsx scripts/parity/record-providers.ts` writes `fixtures/parity/providers/`. Nothing in it touches the network. After task G12, re-recording needs `git checkout node-fallback-v1` first.
+
+| File | What the Node build recorded |
+|---|---|
+| `muse-requests.json` | The request bodies the Node Muse Spark adapters (`apps/server/src/providers/museSpark.ts`) hand to the chat completions client, captured with a fake client: the label reader with 1, 2 and 3 images, and the explainer for the printed phrase "Store in a cool dry place". They pin the prompts, the image parts and the strict JSON Schemas. The Go client sends the same bodies, except that `max_tokens` is sent under its current name `max_completion_tokens` (Go port spec §3). |
+| `httpurl.jsonl` | Corpus-format lines (`fn: "httpUrl"`): `AdvisorySchema.safeParse({title, url})` from `packages/contracts` (`url: z.httpUrl()`, zod 4.6.7) over a probe list of URL strings, with `result` `{success, url}` (the URL the schema outputs: trimmed, with ASCII tab and newline removed) or `{success: false}`. |
+| `muse/*.json`, `phfda/*.json` | Byte-for-byte copies of the synthetic recorded responses the Node provider tests use (`apps/server/test/fixtures/{muse,phfda}`), so the Go tests keep them after the Node server is removed. All synthetic DEMO DATA. |
+
+The Go `contracts.ParseHTTPURL` reproduces every `httpurl.jsonl` result except hosts that need IDNA processing (non-ASCII after percent-decoding, or an `xn--` label): Go has no UTS #46 table in the pinned dependencies, so it rejects them, where zod's WHATWG parser accepts some. It never accepts a URL zod rejects.

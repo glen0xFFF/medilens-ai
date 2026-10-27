@@ -1,0 +1,24 @@
+{
+  "_note": "DEMO DATA. Synthetic recorded Muse Spark completion for tests; fictional product; no network.",
+  "id": "chatcmpl-synthetic-005",
+  "object": "chat.completion",
+  "created": 1793059200,
+  "model": "muse-spark-1.3-contributor",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"imageKind\":\"label\",\"fields\":{\"brandName\":{\"value\":\"Paracelin 500\",\"legibility\":\"clear\",\"evidenceText\":\"Paracelin 500\",\"notes\":null},\"genericNames\":{\"value\":\"Paracetamol\",\"legibility\":\"clear\",\"evidenceText\":\"Paracetamol\",\"notes\":null},\"strength\":{\"value\":\"500 mg\",\"legibility\":\"partial\",\"evidenceText\":\"50? mg\",\"notes\":\"Second digit partly covered by glare.\"},\"dosageForm\":{\"value\":\"Tablet\",\"legibility\":\"clear\",\"evidenceText\":\"Tablet\",\"notes\":null},\"manufacturer\":{\"value\":\"Demo Pharma Labs Inc.\",\"legibility\":\"clear\",\"evidenceText\":\"Demo Pharma Labs Inc.\",\"notes\":null},\"registrationNumber\":{\"value\":\"DR-XY12345\",\"legibility\":\"clear\",\"evidenceText\":\"DR-XY12345\",\"notes\":null},\"directions\":{\"value\":\"Adults: 1 tablet every 4 to 6 hours as needed.\",\"legibility\":\"clear\",\"evidenceText\":\"Adults: 1 tablet every 4 to 6 hours as needed.\",\"notes\":null},\"warnings\":{\"value\":\"Do not exceed the stated dose. Keep out of reach of children.\",\"legibility\":\"clear\",\"evidenceText\":\"Do not exceed the stated dose. Keep out of reach of children.\",\"notes\":null},\"storage\":{\"value\":\"Store at temperatures not exceeding 30°C.\",\"legibility\":\"clear\",\"evidenceText\":\"Store at temperatures not exceeding 30°C.\",\"notes\":null},\"expiryDate\":{\"value\":\"EXP 12/2027\",\"legibility\":\"clear\",\"evidenceText\":\"EXP 12/2027\",\"notes\":null},\"batchNumber\":{\"value\":\"\",\"legibility\":\"clear\",\"evidenceText\":null,\"notes\":null},\"rxOrOtc\":{\"value\":null,\"legibility\":\"clear\",\"evidenceText\":null,\"notes\":null}},\"rawText\":\"DEMO DATA Paracelin 500 Paracetamol 50? mg Tablet DR-XY12345 Adults: 1 tablet every 4 to 6 hours as needed. Do not exceed the stated dose. Keep out of reach of children. Store at temperatures not exceeding 30°C. EXP 12/2027 Demo Pharma Labs Inc.\",\"warnings\":[\"Strength partly obscured by glare.\"]}",
+        "refusal": null
+      },
+      "finish_reason": "stop",
+      "logprobs": null
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 1800,
+    "completion_tokens": 420,
+    "total_tokens": 2220
+  }
+}
