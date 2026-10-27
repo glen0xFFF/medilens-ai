@@ -38,10 +38,18 @@ var redactedKeys = map[string]bool{
 }
 
 // ReplaceAttr is the redaction backstop (see the package comment). slog
-// has already resolved LogValuers when it is called.
-func ReplaceAttr(_ []string, a slog.Attr) slog.Attr {
+// has already resolved LogValuers when it is called. slog calls it for the
+// attributes inside a group with the group path, never for the group
+// itself, so a value under a sensitive group name is redacted too, as
+// pino's *.question redacted a whole object (final review M15).
+func ReplaceAttr(groups []string, a slog.Attr) slog.Attr {
 	if redactedKeys[strings.ToLower(a.Key)] {
 		return slog.String(a.Key, Redacted)
+	}
+	for _, g := range groups {
+		if redactedKeys[strings.ToLower(g)] {
+			return slog.String(a.Key, Redacted)
+		}
 	}
 	if a.Value.Kind() == slog.KindAny {
 		// the record's own level is an Any value too

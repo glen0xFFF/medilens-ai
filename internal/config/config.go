@@ -173,7 +173,8 @@ func Load(getenv func(string) string) (Config, error) {
 		}
 	}
 	if v, ok := value("CORS_ORIGIN"); ok {
-		if o, ok := httpOrigin(v); ok {
+		// trimmed first, as Node's z.url() does (final review M15)
+		if o, ok := httpOrigin(domain.JSTrim(v)); ok {
 			cfg.CORSOrigin = o
 		} else {
 			bad("CORS_ORIGIN", "must be the http(s) origin of the browser client, such as http://localhost:8081")
@@ -249,7 +250,9 @@ func httpOrigin(s string) (string, bool) {
 		return "", false
 	}
 	host := u.Hostname()
-	if host == "" {
+	// an IPv6 zone (fe80::1%en0) is refused, as Node refuses it; a
+	// browser's Origin never carries one (final review M15)
+	if host == "" || strings.Contains(host, "%") {
 		return "", false
 	}
 	for i := 0; i < len(host); i++ {

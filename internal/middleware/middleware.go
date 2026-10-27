@@ -48,8 +48,19 @@ func RequestIDFrom(ctx context.Context) string {
 	return "unknown"
 }
 
-// internalBody is sent when a response cannot be encoded.
-const internalBody = `{"error":{"code":"INTERNAL_ERROR","message":"Something went wrong. Please try again.","requestId":"unknown"}}`
+// internalBody is sent when a response cannot be encoded: the contract
+// error body with the request id already set as X-Request-Id ("unknown"
+// without one), so the body and the header agree (final review M15).
+func internalBody(h http.Header) []byte {
+	id := h.Get(RequestIDHeader)
+	if id == "" {
+		id = "unknown"
+	}
+	b, _ := json.Marshal(map[string]map[string]string{"error": {
+		"code": string(contracts.ErrInternal), "message": "Something went wrong. Please try again.", "requestId": id,
+	}})
+	return b
+}
 
 // WriteJSON writes v as a JSON response with status. HTML characters are
 // not escaped, as in JSON.stringify. A value that cannot be encoded is a
@@ -62,7 +73,7 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 	h.Set("Content-Type", "application/json; charset=utf-8")
 	if err := enc.Encode(v); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(internalBody))
+		_, _ = w.Write(internalBody(h))
 		return
 	}
 	w.WriteHeader(status)

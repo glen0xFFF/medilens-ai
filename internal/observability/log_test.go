@@ -31,6 +31,24 @@ func logLines(t *testing.T, log func(*slog.Logger)) (string, []map[string]any) {
 	return out, lines
 }
 
+// Final review M15: slog calls ReplaceAttr for the attributes inside a
+// group with the group path, never for the group itself, so a sensitive
+// group name (as pino's *.question redacted an object) redacts every value
+// under it.
+func TestASensitiveGroupRedactsItsValues(t *testing.T) {
+	out, _ := logLines(t, func(l *slog.Logger) {
+		l.Info("x",
+			slog.Group("question", "text", "SECRET question"),
+			slog.Group("label", slog.Group("rawText", "first", "SECRET raw")),
+			slog.Group("req", "status", 200),
+		)
+	})
+	noSentinel(t, out)
+	if !strings.Contains(out, `"status":200`) {
+		t.Errorf("an ordinary group lost its value:\n%s", out)
+	}
+}
+
 func noSentinel(t *testing.T, out string) {
 	t.Helper()
 	if strings.Contains(out, "SECRET") {

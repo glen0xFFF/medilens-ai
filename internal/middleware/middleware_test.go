@@ -116,6 +116,28 @@ func TestEveryResponseCarriesAFreshUUIDRequestID(t *testing.T) {
 	}
 }
 
+// Final review M15: when a value cannot be encoded, the 500 body carries
+// the request's own id (the X-Request-Id already set), not "unknown".
+func TestAnUnencodableValueIsA500WithTheRequestID(t *testing.T) {
+	h := RequestID(func() string { return "req-42" }, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		WriteJSON(w, http.StatusOK, map[string]any{"bad": make(chan int)})
+	}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/x", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status %d", rec.Code)
+	}
+	var body struct {
+		Error struct{ Code, Message, RequestID string }
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Error.Code != "INTERNAL_ERROR" || body.Error.RequestID != "req-42" || rec.Header().Get(RequestIDHeader) != "req-42" {
+		t.Errorf("body %s header %q", rec.Body.String(), rec.Header().Get(RequestIDHeader))
+	}
+}
+
 func TestWriteError(t *testing.T) {
 	h := RequestID(nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, http.StatusNotFound, contracts.ErrNotFound, "Not found.")

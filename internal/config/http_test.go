@@ -41,6 +41,9 @@ func TestCORSOrigin(t *testing.T) {
 		"https://user:pw@example.com/":  "https://example.com",
 		"http://127.0.0.1:8081":         "http://127.0.0.1:8081",
 		"http://[::1]:8081/":            "http://[::1]:8081",
+		// final review M15: Node's z.url() trims the value first
+		" http://localhost:8081 ":   "http://localhost:8081",
+		"\thttp://localhost:8081\n": "http://localhost:8081",
 	} {
 		if got := mustLoad(t, map[string]string{"CORS_ORIGIN": in}).CORSOrigin; got != want {
 			t.Errorf("CORS_ORIGIN %q: %q, want %q", in, got, want)
@@ -50,6 +53,8 @@ func TestCORSOrigin(t *testing.T) {
 		"localhost:8081", "ftp://example.com", "http://", "https:///x", "javascript:alert(1)",
 		"http://example.com:99999", "http://example.com:x", "not a url", "http://exämple.com",
 		"//example.com", "*",
+		// final review M15: Node rejects an IPv6 zone; a browser Origin never has one
+		"http://[fe80::1%25en0]:8081", "http://[fe80::1%en0]:8081",
 	} {
 		if _, err := Load(env(map[string]string{"CORS_ORIGIN": in})); err == nil || !strings.Contains(err.Error(), "CORS_ORIGIN") {
 			t.Errorf("CORS_ORIGIN %q: err %v", in, err)
