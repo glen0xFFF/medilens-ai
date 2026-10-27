@@ -493,6 +493,29 @@ func TestPHFDAProductRowWithARejectedLinkFlagsUnchecked(t *testing.T) {
 	}
 }
 
+// AdvisorySchema (z.httpUrl()) accepts a link whose host the WHATWG parser
+// maps to an A-label, so Node surfaces the counterfeit advisory and never
+// flags it unchecked (task G6 review round 1).
+func TestPHFDACounterfeitRowWithAnIDNALinkIsAnAdvisory(t *testing.T) {
+	for _, url := range []string{
+		"https://xn--exmple-cua.com/x",
+		"https://exämple.com/x",
+		"https://ex%C3%A4mple.com/x",
+		"https://example。com/x",
+	} {
+		body, _ := json.Marshal(map[string]any{
+			"cdrr":       []any{},
+			"fdawebsite": []any{map[string]string{"title": "Paracelin counterfeit", "url": url}},
+		})
+		s := newSetup(t, ok200(string(body)))
+		r := mustOK(t, search(t, s.provider, Query{Name: "Paracelin"}))
+		jsonEq(t, url, r.Advisories, []contracts.Advisory{{Title: "Paracelin counterfeit", URL: url}})
+		if r.AdvisoriesUnchecked {
+			t.Errorf("%+q: flagged unchecked", url)
+		}
+	}
+}
+
 // The link is the first of url, link, permalink, guid that the contract
 // accepts, as the contract outputs it (tab and newline removed).
 func TestPHFDAAdvisoryLinkKeysAndContractOutput(t *testing.T) {

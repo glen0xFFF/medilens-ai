@@ -22,12 +22,10 @@ import (
 // trailing C0 controls and spaces are ignored, tabs and newlines removed,
 // any run of / and \ after the scheme skipped, the host is what follows the
 // last @ of the authority (which ends at /, \, ? or #), the port must be
-// decimal and at most 65535, and the host is percent-decoded and
-// lowercased. One deliberate difference, on the fail-closed side: a host
-// that needs IDNA processing (non-ASCII after percent-decoding, or an xn--
-// label) is rejected, because there is no UTS #46 table in the pinned
-// dependencies. zod's parser accepts some of those. Checked against zod on
-// fixtures/parity/providers/httpurl.jsonl.
+// decimal and at most 65535, and the host is percent-decoded and run
+// through domain to ASCII as Node's parser (ada) does it (domainToASCII,
+// idna.go), so zod checks the A-label form of a non-ASCII host. Checked
+// against zod on fixtures/parity/providers/httpurl.jsonl.
 func ParseHTTPURL(s string) (string, bool) {
 	trimmed := strings.TrimFunc(s, isJSSpace)
 	if !hasHTTPScheme(trimmed) {
@@ -81,8 +79,8 @@ func removeTabAndNewline(s string) string {
 }
 
 // whatwgHTTPHost is the hostname the WHATWG URL parser gives s, which
-// starts with http:// or https:// in any case, or false when the parser
-// fails or the host needs IDNA processing.
+// starts with http:// or https:// in any case (the A-label form of a
+// non-ASCII host), or false when the parser fails.
 func whatwgHTTPHost(s string) (string, bool) {
 	// leading and trailing C0 control or space, then every tab and newline
 	in := removeTabAndNewline(strings.TrimFunc(s, func(r rune) bool { return r <= 0x20 }))
@@ -104,17 +102,10 @@ func whatwgHTTPHost(s string) (string, bool) {
 	if host == "" || (hasPort && !validPort(port)) {
 		return "", false
 	}
-	decoded, ok := percentDecode(host)
-	if !ok {
-		return "", false
-	}
-	lower := strings.ToLower(decoded)
-	for label := range strings.SplitSeq(lower, ".") {
-		if strings.HasPrefix(label, "xn--") {
-			return "", false
-		}
-	}
-	return lower, true
+	// The parser then rejects a host with a forbidden domain code point, and
+	// IPv4-parses one that ends in a number; zod's domain pattern rejects
+	// both kinds of host, so they are left to isZodDomain.
+	return domainToASCII(percentDecode(host))
 }
 
 // validPort is a WHATWG port: ASCII digits only (empty is allowed) with a
@@ -146,10 +137,13 @@ func hexValue(c byte) (byte, bool) {
 	return 0, false
 }
 
-// percentDecode is WHATWG percent-decoding (a % not followed by two hex
-// digits stays as it is), or false when the result is not ASCII: such a
-// host needs IDNA processing, or is not UTF-8 and fails the parse.
-func percentDecode(s string) (string, bool) {
+// percentDecode is WHATWG percent-decoding of the host's UTF-8 bytes: a %
+// not followed by two hex digits stays as it is. The result may be any
+// bytes; domainToASCII rejects one that is not UTF-8.
+func percentDecode(s string) string {
+	if !strings.Contains(s, "%") {
+		return s
+	}
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
 		c := s[i]
@@ -161,12 +155,9 @@ func percentDecode(s string) (string, bool) {
 				i += 2
 			}
 		}
-		if c >= 0x80 {
-			return "", false
-		}
 		b.WriteByte(c)
 	}
-	return b.String(), true
+	return b.String()
 }
 
 // zodDomain is zod's regexes.domain without its (?=.{1,253}$) lookahead,

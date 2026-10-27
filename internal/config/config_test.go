@@ -79,6 +79,21 @@ func TestMuseSparkWithoutAKeyFails(t *testing.T) {
 	}
 }
 
+// Node validates PUBLIC_REPO_URL with z.httpUrl(), which accepts a host the
+// WHATWG parser maps to an A-label (task G6 review round 1).
+func TestPublicRepoURLAcceptsAnIDNAHost(t *testing.T) {
+	for _, u := range []string{
+		"https://exämple.com/medilens-ai",
+		"https://xn--exmple-cua.com/medilens-ai",
+		"https://example。com/medilens-ai",
+	} {
+		cfg, err := Load(env(map[string]string{"PUBLIC_REPO_URL": u}))
+		if err != nil || cfg.PublicRepoURL != u {
+			t.Errorf("%+q: PublicRepoURL %+q, err %v", u, cfg.PublicRepoURL, err)
+		}
+	}
+}
+
 func TestMockNeedsNoKey(t *testing.T) {
 	if cfg := mustLoad(t, map[string]string{"MODEL_PROVIDER": "mock"}); cfg.ModelProvider != ModelMock {
 		t.Errorf("%+v", cfg)

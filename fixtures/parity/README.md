@@ -181,7 +181,17 @@ The decode probes have no `normalized` entry: on 1-2 px runs of saturated colour
 | File | What the Node build recorded |
 |---|---|
 | `muse-requests.json` | The request bodies the Node Muse Spark adapters (`apps/server/src/providers/museSpark.ts`) hand to the chat completions client, captured with a fake client: the label reader with 1, 2 and 3 images, and the explainer for the printed phrase "Store in a cool dry place". They pin the prompts, the image parts and the strict JSON Schemas. The Go client sends the same bodies, except that `max_tokens` is sent under its current name `max_completion_tokens` (Go port spec §3). |
-| `httpurl.jsonl` | Corpus-format lines (`fn: "httpUrl"`): `AdvisorySchema.safeParse({title, url})` from `packages/contracts` (`url: z.httpUrl()`, zod 4.6.7) over a probe list of URL strings, with `result` `{success, url}` (the URL the schema outputs: trimmed, with ASCII tab and newline removed) or `{success: false}`. |
+| `httpurl.jsonl` | Corpus-format lines (`fn: "httpUrl"`): `AdvisorySchema.safeParse({title, url})` from `packages/contracts` (`url: z.httpUrl()`, zod 4.6.7) over a probe list of URL strings, with `result` `{success, url}` (the URL the schema outputs: trimmed, with ASCII tab and newline removed) or `{success: false}`. The probes include IDNA hosts and the places where Node's parser departs from the letter of UTS #46 (below). |
+| `httpurl-idna.jsonl` | The same over 2,000 seeded random hosts built from code points the IDNA processing treats differently: mapped, ignored, disallowed, marks, joiners, Bidi classes, composable pairs, A-labels and percent-encoded bytes. |
+| `httpurl-codepoints.json`, `httpurl-codepoints.bin.gz` | The same over every Unicode scalar value in each of the JSON's 11 host patterns (`{c}` is the code point, `{ace}` is `xn--` plus the Punycode of `a` + c; the JSON pins that list by sha256). The gzip holds one little-endian uint16 per code point, with bit k set when the schema accepts pattern k. |
 | `muse/*.json`, `phfda/*.json` | Byte-for-byte copies of the synthetic recorded responses the Node provider tests use (`apps/server/test/fixtures/{muse,phfda}`), so the Go tests keep them after the Node server is removed. All synthetic DEMO DATA. |
 
-The Go `contracts.ParseHTTPURL` reproduces every `httpurl.jsonl` result except hosts that need IDNA processing (non-ASCII after percent-decoding, or an `xn--` label): Go has no UTS #46 table in the pinned dependencies, so it rejects them, where zod's WHATWG parser accepts some. It never accepts a URL zod rejects.
+The Go `contracts.ParseHTTPURL` reproduces every result in the three `httpurl` files: the accept or reject decision and the output value. zod checks the hostname Node's URL parser gives, and for a non-ASCII host that parser is ada 4.0.0's IDNA code (Node v24.21.0). It is not the letter of UTS #46:
+
+- an all-ASCII host is only lowercased, so its `xn--` labels are never checked;
+- the NFC quick check can leave a string unnormalized (U+00E2 U+0323, U+AC00 U+11A8);
+- the normalization tables stop at Unicode 15.1, and the Bidi and combining-mark tables at Unicode 13, while the mapping is IDNA 17.0.0;
+- the Bidi rule is checked label by label, and the ContextJ check returns at the first joiner;
+- a percent-decoded host over 16,384 bytes fails.
+
+So the Go port (`internal/contracts/idna.go`, `ada_tables.go`) ports ada's `to_ascii` and reads ada's own tables. `npx tsx scripts/parity/extract-ada-idna.ts <ada_idna.cpp>` copies them byte for byte to `internal/contracts/ada_idna_tables.deflate`. It takes ada v4.0.0's single-file `src/ada_idna.cpp` (https://raw.githubusercontent.com/ada-url/ada/v4.0.0/src/ada_idna.cpp, checked by sha256) and checks the blob's size and CRC32, the layout constants and the ContextJ lists against the Go source. The license is in `ada_idna_tables.LICENSE`.
