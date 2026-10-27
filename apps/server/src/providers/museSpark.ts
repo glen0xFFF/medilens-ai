@@ -1,9 +1,9 @@
 /**
  * Meta Muse Spark adapters (spec §4.2). The label reader only transcribes. The
  * answerer is deterministic for every intent but explain_text; for that one
- * the model sees only the printed sentence around the asked phrase and returns
- * a short explanation that the server gates and composes around a verbatim
- * quote of that sentence (domain/answers.ts).
+ * the model sees only the printed field around the asked phrase and returns
+ * a short explanation that the server gates against a closed vocabulary and
+ * composes around a verbatim quote of that field (domain/answers.ts).
  * No env access here: the HTTP layer builds the client and passes it in.
  */
 import {
@@ -23,7 +23,8 @@ import {
   answerFromLabel,
   composeExplainAnswer,
   explainQuote,
-  explanationAllowed,
+  explanationFits,
+  quoteExplainable,
   unclearAnswer,
 } from '../domain/answers';
 import { extractExplainPhrase } from '../domain/safety';
@@ -253,8 +254,10 @@ export function createMuseSparkLabelReader(
  * `answerFromLabel` with no model call, and so is an explain_text question
  * that names no printed phrase (the "What does this warning mean?" preset),
  * exactly as FixtureAnswerer does. For a printed phrase the model is sent only
- * the whole printed sentence around it (`explainQuote`), as JSON
- * {"phrase": ...}; its explanation is used only if `explanationAllowed`
+ * the whole printed field around it (`explainQuote`), as JSON
+ * {"phrase": ...}, and only when that field has no printed negation or
+ * condition and is about a topic the explanation vocabulary covers
+ * (`quoteExplainable`); its explanation is used only if `explanationFits`
  * passes, else the answer is the quote alone.
  */
 export function createMuseSparkAnswerer(
@@ -269,9 +272,12 @@ export function createMuseSparkAnswerer(
       // Task 7b review round 1: a preset that names no phrase reads the printed
       // directions and warnings back, as in demo mode; no model call
       if (phrase === null) return answerFromLabel(input);
-      // the whole printed sentence, never a fragment without its "Do not"
+      // the whole printed field, never a fragment without its "Do not"
       const quote = explainQuote(phrase, input.label);
       if (quote === null) return unclearAnswer(PHRASE_NOT_FOUND_TEXT);
+      // Task 7b review round 2: printed text with a negation or condition, or
+      // that no explanation could fit, is never sent: the quote alone, no call
+      if (!quoteExplainable(quote)) return composeExplainAnswer(input, phrase, null);
 
       const params: Params = {
         ...baseParams(model),
@@ -297,7 +303,7 @@ export function createMuseSparkAnswerer(
       // ToS routing caveat (spec §3): a contributor model aborts the request.
       if (attempt.kind === 'contributor') return unclearAnswer(ANSWER_FALLBACK_TEXT);
       const explanation =
-        attempt.kind === 'ok' && explanationAllowed(attempt.value.explanation)
+        attempt.kind === 'ok' && explanationFits(attempt.value.explanation, quote)
           ? attempt.value.explanation
           : null;
       return composeExplainAnswer(input, phrase, explanation);

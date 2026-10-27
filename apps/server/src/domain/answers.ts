@@ -2,10 +2,11 @@
  * Deterministic answers to questions the safety gate allowed (Task 7b
  * controller ruling). Every answer is built here from the scan's printed
  * fields and fixed sentences. The one model contribution is the explain_text
- * explanation: the server quotes the whole printed sentence around the asked
- * phrase verbatim (`explainQuote`), and adds a short model explanation of that
- * sentence only when it passes `explanationAllowed`. The model never writes
- * any other answer text.
+ * explanation: the server quotes the whole printed field around the asked
+ * phrase verbatim (`explainQuote`), and adds a short model explanation of it
+ * only when the field has no printed negation or condition and the
+ * explanation is made of the closed vocabulary below (`explanationFits`). The
+ * model never writes any other answer text.
  */
 import type {
   Answer,
@@ -269,150 +270,117 @@ export function findPhraseInFields(phrase: string, label: ExtractedLabel): Phras
   }));
 }
 
-/**
- * A printed sentence ends at . ! or ? followed by a space and a capital
- * letter, so "e.g. cold remedies" and "Approx. 5 ml" stay inside their
- * sentence. When unsure it keeps going: a longer quote only adds printed text.
- */
-const SENTENCE_BREAK = /[.!?]+\s+(?=\p{Lu})/gu;
-
-/** The whole printed sentence(s) around a hit, without the end punctuation. */
-function sentenceOf(hit: LocatedHit): string {
-  let from = 0;
-  let to = hit.value.length;
-  for (const m of hit.value.matchAll(SENTENCE_BREAK)) {
-    const next = m.index + m[0].length;
-    if (next <= hit.start) from = next;
-    else if (next > hit.end) {
-      to = m.index;
-      break;
-    }
-  }
-  const sentence = hit.value
-    .slice(from, to)
-    .trim()
-    .replace(/[.!?]+$/, '');
-  return sentence === '' ? hit.printed : sentence;
+/** The whole printed field value of a hit, without its end punctuation. */
+function fieldQuote(hit: LocatedHit): string {
+  const quote = hit.value.replace(/[.!?]+$/, '').trim();
+  return quote === '' ? hit.printed : quote;
 }
 
 /**
- * Task 7b review round 1 (dropped context): what an explain_text answer
- * quotes and the model is sent. Not the asked fragment, but the whole printed
- * sentence of the first field that prints it, so a printed "Do not" or "If"
- * around the fragment is always spoken and always explained with it. Null
- * when the phrase is printed in no field.
+ * What an explain_text answer quotes and the model is sent (Task 7b review
+ * rounds 1 and 2, dropped context). Not the asked fragment and not its
+ * sentence, but the whole printed value of the first field that prints it,
+ * so a printed "Do not", heading or lead-in anywhere in the field is always
+ * spoken. Null when the phrase is printed in no field.
  */
 export function explainQuote(phrase: string, label: ExtractedLabel): string | null {
   const first = locate(phrase, label)[0];
-  return first === undefined ? null : sentenceOf(first);
+  return first === undefined ? null : fieldQuote(first);
 }
 
-/* ------------------------------------------------- explanation content gate */
+/* ------------------------------------------ explanation: closed vocabulary */
+
+/*
+ * Task 7b review round 2: the content gate is an allowlist. A word list of
+ * what to reject did not converge (every review round found more), so an
+ * explanation may now use only the words and the three phrase shapes below;
+ * anything else is rejected. Every explanation the server can speak is built
+ * from this finite vocabulary, which has no verb of taking, using, mixing,
+ * applying or stopping, no "with", "for", "as" or "is", and no number, time,
+ * amount, person, verdict, permission or medical-claim word. Its only
+ * negation is "not" before a storage hazard, ending its sentence ("not hot or
+ * damp"), and "need" only appears in "need a prescription", so neither can be
+ * turned into its opposite. Over-rejection only costs the explanation; the
+ * printed quote is still spoken.
+ */
+
+/** A topic of the vocabulary: used only when the printed text is about it. */
+interface Topic {
+  /** Matches the printed text (normalized, lowercase) when it is about this topic. */
+  cue: RegExp;
+  words: readonly string[];
+  /** Fixed phrase shapes, each matched whole and ending its sentence. */
+  phrases: readonly RegExp[];
+}
+
+/** Words with no topic: they say nothing on their own. */
+// prettier-ignore
+const GENERAL_WORDS: readonly string[] = [
+  'a', 'an', 'and', 'bottle', 'in', 'it', 'its', 'means', 'or', 'the', 'this',
+];
+
+const HAZARD = '(?:hot|warm|damp|wet|humid|moist)';
+const HAZARD_SOURCE =
+  '(?:heat|(?:direct )?(?:sun)?light|(?:the )?sun|moisture|humidity|damp|steam)';
+const AND_OR = '(?:,? (?:or|and) |, )';
+
+/** A whole phrase shape: starts a word and ends its sentence. */
+function shape(source: string): RegExp {
+  return new RegExp(`(?<![a-z'])(?:${source})(?=[.!]|$)`, 'g');
+}
+
+/** "a", "a or b", "a, b and c". */
+function listOf(item: string): string {
+  return `${item}(?:${AND_OR}${item})*`;
+}
+
+const TOPICS: readonly Topic[] = [
+  {
+    // storage
+    cue: /(?<![a-z])(?:stor(?:e|es|ed|ing|age)|keep|kept|protect[a-z]*|refrigerat[a-z]*)(?![a-z])/,
+    // prettier-ignore
+    words: [
+      'closed', 'container', 'cool', 'dark', 'dry', 'keep', 'lid', 'place', 'shut', 'somewhere',
+      'store', 'tightly',
+    ],
+    phrases: [
+      // the only negation: "(that is) not hot or damp"
+      shape(`(?:(?:that|which) is )?not ${listOf(HAZARD)}`),
+      shape(`away from ${listOf(HAZARD_SOURCE)}`),
+    ],
+  },
+  {
+    // shaking
+    cue: /(?<![a-z])shak(?:e|es|en|ing)(?![a-z])/,
+    words: ['first', 'gently', 'shake', 'well'],
+    phrases: [],
+  },
+  {
+    // needing a prescription, never the reverse
+    cue: /(?<![a-z])(?:prescri[a-z]*|rx|dispens[a-z]*)(?![a-z])/,
+    words: [],
+    phrases: [
+      shape(
+        "(?:you )?need a (?:doctor's )?prescription(?: from a doctor)?(?: to (?:buy|get) (?:it|this))?",
+      ),
+    ],
+  },
+];
+
+/** Every single word an explanation may use, sorted; pinned by a test. */
+export const EXPLANATION_WORDS: readonly string[] = [
+  ...GENERAL_WORDS,
+  ...TOPICS.flatMap((t) => t.words),
+].sort();
 
 const MAX_EXPLANATION_CHARS = 240;
 const MAX_EXPLANATION_WORDS = 40;
 
-// prettier-ignore
-const NUMBER_WORDS = [
-  'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
-  'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen',
-  'nineteen', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety',
-  'hundreds?', 'thousands?', 'half', 'halves', 'quarters?', 'once', 'twice', 'thrice',
-  'doubles?', 'single', 'dozens?', 'couples?', 'pairs?',
-];
-
-// prettier-ignore
-const UNIT_AND_DOSE_WORDS = [
-  'mg', 'mcg', '\u00B5g', '\u03BCg', 'g', 'grams?', 'mls?', 'millilit(?:er|re)s?', 'l',
-  'lit(?:er|re)s?', 'iu', 'tablets?', 'tabs?', 'capsules?', 'caps?', 'pills?', 'drops?',
-  'puffs?', '(?:tea|table)?spoons?(?:ful|fuls)?', 'sachets?', 'doses?', 'dosage', 'dosing',
-  'hours?', 'hourly', 'days?', 'daily', 'weeks?', 'weekly', 'months?', 'monthly',
-  'mornings?', 'evenings?', 'afternoons?', 'noon', 'nights?', 'nightly', 'overnight',
-  'midnight', 'bedtimes?', 'minutes?', 'maximum', 'max', 'minimum', 'exceed\\p{L}*',
-  'overdos\\p{L}*',
-];
-
-/**
- * Task 7b review round 1: frequencies, repeats, meals and amounts. The
- * round 0 lists let "use it as often as you need" and "use a lot of it" pass.
- */
-// prettier-ignore
-const FREQUENCY_AND_AMOUNT_WORDS = [
-  'often', 'frequent\\p{L}*', 'regular\\p{L}*', 'several', 'many', 'few', 'fewer', 'more',
-  'less', 'much', 'lots?', 'little', 'extra', 'again', 'repeat\\p{L}*', 'each', 'every', 'per',
-  'times?', 'fortnight\\p{L}*', 'meals?', 'breakfasts?', 'lunch\\p{L}*', 'dinners?', 'suppers?',
-  'until', 'till', 'always', 'usually', 'sometimes', 'occasional\\p{L}*', 'whenever', 'later',
-  'amounts?', 'quantit\\p{L}*', 'enough', 'plenty', 'most', 'least', 'foods?',
-  'eat(?:s|en|ing)?', 'ate',
-];
-
-// prettier-ignore
-const POPULATION_WORDS = [
-  'child', 'children', 'kids?', 'infants?', 'newborns?', 'baby', 'babies', 'toddlers?',
-  'adults?', 'grown[ -]?ups?', 'elderly', 'older', 'elders?', 'seniors?', 'teens?', 'teenagers?',
-  'adolescents?', 'junior', 'jr', 'pediatric', 'paediatric', 'pregnan\\p{L}*',
-  'breast[ -]?fe\\p{L}*', 'nursing', 'lactat\\p{L}*', 'patients?', 'years?', 'ages?', 'aged',
-  'weigh\\p{L}*', 'kg',
-  // round 1: sexes, family members and people in general
-  'minors?', 'men', 'man', 'women', 'woman', 'boys?', 'girls?', 'sons?', 'daughters?',
-  'mothers?', 'fathers?', 'people', 'persons?', 'individuals?', 'males?', 'females?', 'lady',
-  'ladies', 'wife', 'wives', 'husbands?', 'parents?', 'mums?', 'moms?', 'dads?', 'brothers?',
-  'sisters?', 'family', 'families', 'youths?', 'everyone', 'everybody', 'anyone', 'anybody',
-  'someone', 'somebody',
-];
-
-// prettier-ignore
-const VERDICT_AND_ADVICE_WORDS = [
-  'genuine', 'authentic', 'safe', 'safely', 'safer', 'safest', 'safety', 'unsafe', 'danger',
-  'dangerous', 'harmless', 'harmful', 'registered', 'approved', 'recommend\\p{L}*',
-  'should\\p{L}*', 'must\\p{L}*', 'take', 'takes', 'taken', 'taking', 'took',
-  'stop(?:s|ped|ping)?', 'start(?:s|ed|ing)?', 'avoid(?:s|ed|ing)?', 'cure(?:s|d)?', 'curing',
-  'treat\\p{L}*',
-  // round 1: a false "verified" is a named safety failure; registry talk is the summary's job
-  'verif\\p{L}*', 'legit\\p{L}*', 'valid\\p{L}*', 'invalid\\p{L}*', 'real', 'really',
-  'official\\p{L}*', 'certif\\p{L}*', 'authori\\p{L}*', 'fda', 'registry', 'registries',
-  'licen[cs]\\p{L}*', 'legal\\p{L}*', 'illegal\\p{L}*', 'lawful\\p{L}*', 'unlawful\\p{L}*',
-  'trust\\p{L}*', 'original\\p{L}*', 'guarantee\\p{L}*', 'checked', 'tested',
-  'pass(?:es|ed|ing)?',
-  // round 1: permission is advice too ("you can use it with ...", "give it to ...")
-  'can', 'cannot', 'could', 'may', 'might', 'allow\\p{L}*', 'permit\\p{L}*',
-  'giv(?:e|es|en|ing)', 'gave', 'continu\\p{L}*',
-];
-
-/**
- * Not in the Task 7b brief's lists: indications, interactions and suitability
- * (spec §4.3), which a phrase such as a generic name invites. Over-rejection
- * only costs the explanation; the quote is still spoken.
- */
-// prettier-ignore
-const MEDICAL_CLAIM_WORDS = [
-  'pains?', 'painful', 'fevers?', 'feverish', '(?:head|tooth|stomach|back)?aches?', 'relie\\p{L}*',
-  'infection\\p{L}*', 'symptom\\p{L}*', 'diseases?', 'illness(?:es)?', 'cough\\p{L}*', 'flu',
-  'allerg\\p{L}*', 'side[ -]effects?', 'alcohol\\p{L}*', 'combin\\p{L}*', 'interact\\p{L}*',
-  'fine', 'ok', 'okay', 'alright', 'harms?', 'risk\\p{L}*', 'suitab\\p{L}*', 'young\\p{L}*',
-  // round 1: combining, drinks, and what a medicine does to the body
-  'together', 'along', 'alongside', 'other', 'others', 'drugs?', 'drink\\p{L}*', 'drank',
-  'drunk', 'wines?', 'beers?', 'liquors?', 'temperatures?', 'lower(?:s|ed|ing)?', 'reduc\\p{L}*',
-  'eas(?:e|es|ed|ing)', 'sooth\\p{L}*', 'heal\\p{L}*', 'help\\p{L}*', 'better', 'worse',
-  'feel\\p{L}*', 'ill', 'sick\\p{L}*', 'unwell', 'hurt\\p{L}*', 'sore\\p{L}*',
-];
-
-const BLOCKED_WORD = new RegExp(
-  `(?<![\\p{L}\\p{N}])(?:${[
-    ...NUMBER_WORDS,
-    ...UNIT_AND_DOSE_WORDS,
-    ...FREQUENCY_AND_AMOUNT_WORDS,
-    ...POPULATION_WORDS,
-    ...VERDICT_AND_ADVICE_WORDS,
-    ...MEDICAL_CLAIM_WORDS,
-  ].join('|')})(?![\\p{L}\\p{N}])`,
-  'u',
-);
-
 /** Global constraint: never "fake" or "counterfeit" about the pack, inside any word too. */
 const FAKE = /fake|counterfeit/;
 const URL_OR_AT = /@|:\/\/|\bwww\.|\b[a-z0-9-]+\.(?:com|net|org|gov|edu|ph|io|info|co|us|uk)\b/;
-const NOT_PLAIN_ASCII = /[^\x20-\x7E]/;
+/** Lowercase ASCII letters, apostrophes, spaces and . , ! only. */
+const OUTSIDE_ALPHABET = /[^a-z' .,!]/;
 
 /** NFKC, invisible format characters removed, ASCII quotes and dashes, one line. */
 function normalizeExplanation(text: string): string {
@@ -420,27 +388,111 @@ function normalizeExplanation(text: string): string {
 }
 
 /**
- * Content gate for a model explanation of a printed phrase. It rejects any
- * number, amount, unit, time, frequency, group of people, verdict, advice or
- * permission, interaction or indication word, link, and anything that is not
- * one short line of plain English. Over-rejection is accepted: the fallback
- * is the quote-only answer.
+ * The topics an explanation uses, or null when it is not inside the closed
+ * vocabulary (or is empty, too long, or has a digit, a link or "fake").
+ */
+function explanationTopics(text: string): Set<Topic> | null {
+  const t = normalizeExplanation(text).toLowerCase();
+  if (t === '' || t.length > MAX_EXPLANATION_CHARS) return null;
+  if (t.split(' ').length > MAX_EXPLANATION_WORDS) return null;
+  if (/\p{Nd}/u.test(t) || FAKE.test(t) || URL_OR_AT.test(t) || OUTSIDE_ALPHABET.test(t)) {
+    return null;
+  }
+  const used = new Set<Topic>();
+  let rest = t;
+  for (const topic of TOPICS) {
+    for (const phrase of topic.phrases) {
+      rest = rest.replace(phrase, () => {
+        used.add(topic);
+        return ' ';
+      });
+    }
+  }
+  for (const word of rest.split(/[ .,!]+/)) {
+    if (word === '' || GENERAL_WORDS.includes(word)) continue;
+    const topic = TOPICS.find((tp) => tp.words.includes(word));
+    if (topic === undefined) return null;
+    used.add(topic);
+  }
+  return used;
+}
+
+/**
+ * Content gate for a model explanation: true only when every word is in the
+ * closed vocabulary (`EXPLANATION_WORDS`, plus the "not hot or damp", "away
+ * from heat" and "need a prescription" shapes), within 240 characters and 40
+ * words, with no digit, link, "@", "fake" or "counterfeit". Over-rejection is
+ * accepted: the fallback is the quote-only answer.
  */
 export function explanationAllowed(text: string): boolean {
-  const t = normalizeExplanation(text).toLowerCase();
-  if (t === '' || t.length > MAX_EXPLANATION_CHARS) return false;
-  if (t.split(' ').length > MAX_EXPLANATION_WORDS) return false;
-  if (NOT_PLAIN_ASCII.test(t) || /\p{Nd}/u.test(t)) return false;
-  return !FAKE.test(t) && !BLOCKED_WORD.test(t) && !URL_OR_AT.test(t);
+  return explanationTopics(text) !== null;
+}
+
+/**
+ * Printed text the vocabulary cannot carry: a negation, condition, exception,
+ * limit or group of people (finding 2 of review round 2 found negations
+ * printed as a heading or lead-in). Over-inclusion only costs the explanation.
+ */
+// prettier-ignore
+const NOT_EXPLAINED_WORDS = [
+  // negation
+  'not', 'no', 'never', 'nor', 'none', 'neither', 'nothing', 'nobody', 'nowhere', 'without',
+  'cannot', "[a-z]*n't", 'dont', 'doesnt', 'didnt', 'cant', 'wont', 'shouldnt', 'mustnt', 'isnt',
+  'arent', 'neednt', 'non[a-z]*',
+  // sold without a prescription: "need a prescription" would be false
+  'otc', 'counter',
+  // condition, exception, limit
+  'if', 'unless', 'except[a-z]*', 'until', 'till', 'but', 'however', 'otherwise', 'instead',
+  'whether', 'when[a-z]*', 'while', 'whilst', 'provided', 'limit[a-z]*', 'exceed[a-z]*',
+  'max[a-z]*', 'overdos[a-z]*',
+  // stopping, avoiding, warning
+  'avoid[a-z]*', 'stop[a-z]*', 'discontinu[a-z]*', 'discard[a-z]*', 'dispos[a-z]*',
+  'prohibit[a-z]*', 'forbid[a-z]*', 'contraindicat[a-z]*', 'refrain[a-z]*', 'caution[a-z]*',
+  'warn[a-z]*', 'beware', 'danger[a-z]*', 'consult[a-z]*',
+  // groups of people
+  'child[a-z]*', 'kids?', 'infants?', 'bab(?:y|ies)', 'toddlers?', 'adults?', 'elderly',
+  'seniors?', 'teen[a-z]*', 'adolescen[a-z]*', 'pregnan[a-z]*', 'breast[ -]?fe[a-z]*', 'nursing',
+  'lactat[a-z]*', 'patients?', 'persons?', 'people', 'years?', 'aged?',
+];
+const NOT_EXPLAINED = new RegExp(`(?<![a-z0-9])(?:${NOT_EXPLAINED_WORDS.join('|')})(?![a-z0-9])`);
+
+/** Printed text as the cues see it: normalized, lowercase, one line. */
+function printedForm(printed: string): string {
+  return normalizeExplanation(printed).toLowerCase();
+}
+
+/**
+ * Whether printed text may be explained by the model at all: it has no
+ * negation, condition, exception, limit or group of people, and it is about
+ * a topic the vocabulary covers (storage, shaking, a prescription). When this
+ * is false the model is not called and the answer is the quote alone.
+ */
+export function quoteExplainable(printed: string): boolean {
+  const p = printedForm(printed);
+  return !NOT_EXPLAINED.test(p) && TOPICS.some((t) => t.cue.test(p));
+}
+
+/**
+ * Whether a model explanation may be spoken after this printed quote: the
+ * quote is explainable, the explanation passes `explanationAllowed`, and
+ * every topic the explanation uses is one the printed text is about (no
+ * storage advice after a dose, no prescription talk after a storage line).
+ */
+export function explanationFits(explanation: string, printed: string): boolean {
+  const used = explanationTopics(explanation);
+  // an explanation of general words only ("It means this.") says nothing
+  if (used === null || used.size === 0 || !quoteExplainable(printed)) return false;
+  const p = printedForm(printed);
+  return [...used].every((topic) => topic.cue.test(p));
 }
 
 /* ------------------------------------------------------ explain answers */
 
 /**
- * explain_text answer: the whole printed sentence around the phrase, quoted
+ * explain_text answer: the whole printed field around the phrase, quoted
  * verbatim from the first field that prints it (`explainQuote`), then the
- * explanation if it passes the gate, else a fixed sentence. Answered even
- * without an explanation: the quote is grounded.
+ * explanation if it fits that quote (`explanationFits`), else a fixed
+ * sentence. Answered even without an explanation: the quote is grounded.
  */
 export function composeExplainAnswer(
   input: AnswerInput,
@@ -450,9 +502,10 @@ export function composeExplainAnswer(
   const hits = locate(phrase, input.label);
   const first = hits[0];
   if (first === undefined) return unclearAnswer(PHRASE_NOT_FOUND_TEXT);
-  const quote = `The ${FIELD_NAMES[first.key].toLowerCase()} on the label says "${sentenceOf(first)}".`;
+  const printed = fieldQuote(first);
+  const quote = `The ${FIELD_NAMES[first.key].toLowerCase()} on the label says "${printed}".`;
   const plain =
-    explanation !== null && explanationAllowed(explanation)
+    explanation !== null && explanationFits(explanation, printed)
       ? normalizeExplanation(explanation)
       : null;
   const second =

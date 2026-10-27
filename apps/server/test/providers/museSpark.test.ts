@@ -28,6 +28,7 @@ import {
 } from '../../src/providers/museSpark';
 import { EXPLAIN_SYSTEM_PROMPT } from '../../src/providers/prompts';
 import type { AnswerInput } from '../../src/providers/types';
+import { ROUND2_PROBE_CASES } from '../fixtures/explanationProbes';
 
 /* Synthetic recorded completions (DEMO DATA, fictional product). No network. */
 function fixture(name: string): unknown {
@@ -455,9 +456,9 @@ describe('createMuseSparkAnswerer: explain_text', () => {
   });
 
   // Task 7b review round 1: a fragment without its printed "Do not" could be
-  // explained as the opposite advice. The model is sent, and the answer
-  // quotes, the whole printed sentence.
-  test('a fragment of a negated warning: the whole printed sentence is sent and quoted', async () => {
+  // explained as the opposite advice. Round 2: printed text with a negation
+  // is never sent to the model at all; the whole printed field is quoted.
+  test('a fragment of a negated warning: no model call, the whole printed field is quoted', async () => {
     const q = 'What does "with other products containing paracetamol" mean?';
     expect(classifyQuestion(q)).toEqual({ allowed: true, intent: 'explain_text' });
     const label: ExtractedLabel = {
@@ -467,18 +468,16 @@ describe('createMuseSparkAnswerer: explain_text', () => {
         lf('warnings', 'Do not use with other products containing paracetamol.'),
       ],
     };
+    const usage: ModelUsage[] = [];
     const { client, calls } = fakeClient(
       completion('You can use it together with other paracetamol products.'),
     );
-    const a = await createMuseSparkAnswerer(client).answer(
+    const a = await createMuseSparkAnswerer(client, { onUsage: (u) => usage.push(u) }).answer(
       input(q, 'explain_text', { label }),
       CTX,
     );
-    expect(calls).toHaveLength(1);
-    const user = (calls[0]?.messages as Body[])[1]?.content as string;
-    expect(JSON.parse(user)).toEqual({
-      phrase: 'Do not use with other products containing paracetamol',
-    });
+    expect(calls).toHaveLength(0);
+    expect(usage).toEqual([]);
     const quote =
       'The warnings on the label says "Do not use with other products containing paracetamol".';
     expect(a).toEqual({
@@ -488,6 +487,72 @@ describe('createMuseSparkAnswerer: explain_text', () => {
       citedFields: ['warnings'],
       safetyNotice: null,
     });
+  });
+
+  // Task 7b review round 2, finding 2: a negation printed as a heading or
+  // lead-in in its own sentence. The model is never called and the spoken
+  // quote is the whole printed field, "Do not" included.
+  test.each([
+    [
+      'Do not use with:\nAlcohol.\nOther products containing paracetamol.',
+      'Do not use with: Alcohol. Other products containing paracetamol',
+    ],
+    [
+      'DO NOT USE: With alcohol. With other products containing paracetamol.',
+      'DO NOT USE: With alcohol. With other products containing paracetamol',
+    ],
+    [
+      'Do not use if you have liver disease. Or with other products containing paracetamol.',
+      'Do not use if you have liver disease. Or with other products containing paracetamol',
+    ],
+  ])('warnings %j: no model call, the printed negation is spoken', async (warnings, printed) => {
+    const q = 'What does "other products containing paracetamol" mean?';
+    expect(classifyQuestion(q)).toEqual({ allowed: true, intent: 'explain_text' });
+    const label: ExtractedLabel = {
+      ...LABEL,
+      fields: [...LABEL.fields.filter((f) => f.key !== 'warnings'), lf('warnings', warnings)],
+    };
+    const { client, calls } = fakeClient(
+      completion('Use it with medicines containing paracetamol.'),
+    );
+    const a = await createMuseSparkAnswerer(client).answer(
+      input(q, 'explain_text', { label }),
+      CTX,
+    );
+    expect(calls).toHaveLength(0);
+    const quote = `The warnings on the label says "${printed}".`;
+    expect(a).toEqual({
+      status: 'answered',
+      text: `${quote} ${NO_EXPLANATION}`,
+      spokenChunks: [quote, NO_EXPLANATION, FINAL_LINE],
+      citedFields: ['warnings'],
+      safetyNotice: null,
+    });
+  });
+
+  // Task 7b review round 2, finding 1: each probe the round 1 gate accepted,
+  // returned by the model for a printed phrase it is asked about.
+  test.each(ROUND2_PROBE_CASES)(
+    'the model saying the round 2 probe (%s) %j gives the quote-only answer',
+    async (_kind, probe) => {
+      const { client, calls } = fakeClient(completion(probe));
+      const a = await createMuseSparkAnswerer(client).answer(input(STORAGE_Q), CTX);
+      expect(calls).toHaveLength(1);
+      expect(a.status).toBe('answered');
+      expect(a.text).toBe(QUOTE_ONLY);
+    },
+  );
+
+  test('printed text no explanation topic covers is quoted with no model call', async () => {
+    const usage: ModelUsage[] = [];
+    const { client, calls } = fakeClient(fixture('answer-explain-ok'));
+    const a = await createMuseSparkAnswerer(client, { onUsage: (u) => usage.push(u) }).answer(
+      input('What does "Paracetamol" mean?'),
+      CTX,
+    );
+    expect(calls).toHaveLength(0);
+    expect(usage).toEqual([]);
+    expect(a.text).toBe(`The generic name on the label says "Paracetamol". ${NO_EXPLANATION}`);
   });
 
   test('a fragment with an explanation that passes the gate quotes the whole sentence', async () => {

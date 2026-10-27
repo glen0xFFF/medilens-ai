@@ -9,6 +9,7 @@ import {
 import { describe, expect, test } from 'vitest';
 import {
   ANSWER_FALLBACK_TEXT,
+  EXPLANATION_WORDS,
   FIELD_NAMES,
   PHRASE_NOT_FOUND_TEXT,
   answerFromLabel,
@@ -16,10 +17,13 @@ import {
   conflictWarning,
   explainQuote,
   explanationAllowed,
+  explanationFits,
   findPhraseInFields,
+  quoteExplainable,
 } from '../../src/domain/answers';
 import { ADVISORY_SENTENCE, FINAL_LINE, STATUS_SENTENCE } from '../../src/domain/summary';
 import type { AnswerInput } from '../../src/providers/types';
+import { ROUND2_PROBE_CASES } from '../fixtures/explanationProbes';
 
 /* Synthetic DEMO DATA label: fictional product, no network. */
 
@@ -161,36 +165,36 @@ describe('findPhraseInFields', () => {
   });
 });
 
-describe('explainQuote (Task 7b review round 1)', () => {
+describe('explainQuote (Task 7b review rounds 1 and 2)', () => {
   const WARNINGS =
     'Do not use with other products containing paracetamol. Keep out of reach of children.';
 
-  test('a fragment is widened to its whole printed sentence, end punctuation dropped', () => {
+  // round 2: the whole printed field, not the sentence, so a heading or
+  // lead-in printed as its own sentence is never dropped
+  test('a fragment quotes the whole printed field value, end punctuation dropped', () => {
     const label = labelOf([lf('warnings', WARNINGS)]);
-    expect(explainQuote('other products', label)).toBe(
-      'Do not use with other products containing paracetamol',
-    );
-    expect(explainQuote('out of reach', label)).toBe('Keep out of reach of children');
+    expect(explainQuote('other products', label)).toBe(WARNINGS.replace(/\.$/, ''));
+    expect(explainQuote('out of reach', label)).toBe(WARNINGS.replace(/\.$/, ''));
   });
 
-  test('a phrase that is a whole sentence is quoted as printed', () => {
+  test('a phrase that is a whole field is quoted as printed', () => {
     expect(explainQuote('store in a cool dry place', LABEL)).toBe('Store in a cool dry place');
     expect(explainQuote('store in a cool dry place.', LABEL)).toBe('Store in a cool dry place');
     expect(explainQuote('paracetamol', LABEL)).toBe('Paracetamol');
   });
 
-  test('a period not followed by a capital letter does not end the sentence', () => {
+  test('abbreviations and every sentence of the field are kept', () => {
     const label = labelOf([
       lf('warnings', 'Do not use with other medicines, e.g. cold remedies. Keep dry.'),
       lf('directions', 'Approx. 5 ml after meals.'),
     ]);
     expect(explainQuote('cold remedies', label)).toBe(
-      'Do not use with other medicines, e.g. cold remedies',
+      'Do not use with other medicines, e.g. cold remedies. Keep dry',
     );
     expect(explainQuote('after meals', label)).toBe('Approx. 5 ml after meals');
   });
 
-  test('a phrase across a sentence end quotes both sentences', () => {
+  test('a phrase across a sentence end quotes the whole field', () => {
     const label = labelOf([lf('warnings', WARNINGS)]);
     expect(explainQuote('paracetamol. keep out', label)).toBe(WARNINGS.replace(/\.$/, ''));
   });
@@ -205,7 +209,33 @@ describe('explainQuote (Task 7b review round 1)', () => {
       lf('warnings', 'Contains paracetamol. Do not exceed.'),
       lf('genericNames', 'Paracetamol'),
     ]);
-    expect(explainQuote('paracetamol', label)).toBe('Contains paracetamol');
+    expect(explainQuote('paracetamol', label)).toBe('Contains paracetamol. Do not exceed');
+  });
+
+  // Task 7b review round 2, finding 2: a negation printed as a heading or
+  // lead-in that ends in its own sentence was dropped from the quote.
+  test.each([
+    [
+      'a heading ending in a colon over a list',
+      'Do not use with:\nAlcohol.\nOther products containing paracetamol.',
+      'other products containing paracetamol',
+      'Do not use with: Alcohol. Other products containing paracetamol',
+    ],
+    [
+      'an all-caps heading with a colon',
+      'DO NOT USE: With alcohol. With other products containing paracetamol.',
+      'other products containing paracetamol',
+      'DO NOT USE: With alcohol. With other products containing paracetamol',
+    ],
+    [
+      'a negation carried over to the next sentence',
+      'Do not use if you have liver disease. Or with other products containing paracetamol.',
+      'other products containing paracetamol',
+      'Do not use if you have liver disease. Or with other products containing paracetamol',
+    ],
+  ])('%s: the printed negation is in the quote', (_layout, warnings, phrase, quote) => {
+    const label = labelOf([lf('warnings', warnings)]);
+    expect(explainQuote(phrase, label)).toBe(quote);
   });
 
   test('a phrase printed nowhere has no quote', () => {
@@ -231,12 +261,19 @@ describe('explanationAllowed', () => {
     expect(explanationAllowed(text)).toBe(false);
   });
 
+  // Round 2: the brief's 'Shake the bottle before use.' became 'Shake the
+  // bottle well first.': "use" is not in the closed vocabulary (review
+  // round 2 finding 1 names "use" as an imperative to reject).
   test.each([
     'Keep it somewhere that is not hot or damp.',
-    'Shake the bottle before use.',
+    'Shake the bottle well first.',
     "It means you need a doctor's prescription to buy this.",
   ])('accepts %j', (text) => {
     expect(explanationAllowed(text)).toBe(true);
+  });
+
+  test('the brief accept case "Shake the bottle before use." is rejected since round 2', () => {
+    expect(explanationAllowed('Shake the bottle before use.')).toBe(false);
   });
 
   test.each([
@@ -361,15 +398,19 @@ describe('explanationAllowed', () => {
     expect(explanationAllowed(text)).toBe(false);
   });
 
+  // round 2: built from vocabulary words, since 'x' is not one
   test('length: 240 characters is allowed, 241 is not', () => {
-    expect(explanationAllowed('x'.repeat(240))).toBe(true);
-    expect(explanationAllowed(` ${'x'.repeat(240)} `)).toBe(true);
+    const at240 = `${Array(24).fill('somewhere').join(' ')}.`;
+    expect(at240).toHaveLength(240);
+    expect(explanationAllowed(at240)).toBe(true);
+    expect(explanationAllowed(` ${at240} `)).toBe(true);
+    expect(explanationAllowed(`${at240}.`)).toBe(false);
     expect(explanationAllowed('x'.repeat(241))).toBe(false);
   });
 
   test('words: 40 are allowed, 41 are not', () => {
-    expect(explanationAllowed(Array(40).fill('word').join(' '))).toBe(true);
-    expect(explanationAllowed(Array(41).fill('word').join(' '))).toBe(false);
+    expect(explanationAllowed(Array(40).fill('it').join(' '))).toBe(true);
+    expect(explanationAllowed(Array(41).fill('it').join(' '))).toBe(false);
   });
 
   test.each([
@@ -462,11 +503,12 @@ describe('explanationAllowed', () => {
   });
 
   // Each blocked word on its own, in a frame the gate accepts, so no case
-  // passes on the strength of another word.
-  const FRAME = (w: string) => `It is ${w} here.`;
+  // passes on the strength of another word. Round 2: the round 1 frame
+  // "It is X here." is outside the closed vocabulary, so the frame changed.
+  const FRAME = (w: string) => `Keep it ${w} in a cool place.`;
 
   test('the frame alone is accepted', () => {
-    expect(explanationAllowed(FRAME('kept'))).toBe(true);
+    expect(explanationAllowed(FRAME('closed'))).toBe(true);
   });
 
   // prettier-ignore
@@ -519,6 +561,180 @@ describe('explanationAllowed', () => {
     expect(explanationAllowed('It means you need a doctor\u2019s prescription to buy this.')).toBe(
       true,
     );
+  });
+});
+
+describe('explanationAllowed: closed vocabulary (Task 7b review round 2)', () => {
+  // Finding 1: each was accepted by the round 1 denylist at bb4db5c.
+  test.each(ROUND2_PROBE_CASES)('rejects the round 2 probe (%s) %j', (_kind, text) => {
+    expect(explanationAllowed(text)).toBe(false);
+  });
+
+  // Finding 1 minimum: an imperative or permission, each alone in a sentence
+  // the gate otherwise accepts.
+  test.each([
+    'Keep it in a cool place and use it.',
+    'Use it.',
+    'Keep it in a cool place and mix it.',
+    'Keep it in a cool place and apply it.',
+    'Go ahead and keep it in a cool place.',
+    'Ignore it and keep it in a cool place.',
+    'You need not keep it in a cool place.',
+    'You need not a prescription.',
+    'It does not apply.',
+    'No limit.',
+    'Keep it in a cool place as needed.',
+    'Keep it in a cool place with the bottle.',
+    'Keep it with it.',
+  ])('rejects the imperative or permission in %j', (text) => {
+    expect(explanationAllowed(text)).toBe(false);
+  });
+
+  test('the vocabulary is closed and pinned: widening it must change this test', () => {
+    expect(EXPLANATION_WORDS).toEqual([
+      'a',
+      'an',
+      'and',
+      'bottle',
+      'closed',
+      'container',
+      'cool',
+      'dark',
+      'dry',
+      'first',
+      'gently',
+      'in',
+      'it',
+      'its',
+      'keep',
+      'lid',
+      'means',
+      'or',
+      'place',
+      'shake',
+      'shut',
+      'somewhere',
+      'store',
+      'the',
+      'this',
+      'tightly',
+      'well',
+    ]);
+  });
+
+  test.each(['friend', 'okay', 'with', 'use', 'for', 'as', 'is', 'not', 'need', 'no', 'you'])(
+    'a word outside the vocabulary (%j) is rejected on its own',
+    (w) => {
+      expect(explanationAllowed(`Keep it in a cool place ${w}.`)).toBe(false);
+    },
+  );
+
+  test.each([
+    'Keep it somewhere that is not hot or damp.',
+    'Keep it somewhere that is not hot, damp or wet.',
+    'Keep it somewhere which is not warm.',
+    'Not humid.',
+    'Keep it away from heat.',
+    'Keep it away from heat and light.',
+    'Keep it away from direct sunlight, heat and moisture.',
+    'Keep the lid tightly closed.',
+    'Store it somewhere cool, dry and dark.',
+    'Shake the bottle gently first.',
+    'Keep it somewhere that is not hot. Keep the lid closed.',
+    'It means you need a prescription.',
+    'This means you need a prescription from a doctor.',
+    "You need a doctor's prescription to get it.",
+  ])('accepts the closed shape %j', (text) => {
+    expect(explanationAllowed(text)).toBe(true);
+  });
+
+  // The only negation is "not" before a storage hazard, ending its sentence,
+  // and "need" only appears in "need a prescription": neither can be turned.
+  test.each([
+    ['a hazard word without "not"', 'Keep it somewhere hot.'],
+    ['a hazard word without "not" (damp)', 'Store it somewhere damp.'],
+    ['"not" before a good condition', 'Keep it somewhere that is not cool.'],
+    ['"not" before a good condition (dry)', 'Keep it somewhere that is not dry or dark.'],
+    ['a good condition chained after a hazard', 'Keep it somewhere that is not hot or cool.'],
+    ['a good condition chained after a hazard (comma)', 'Keep it somewhere that is not hot, dry.'],
+    ['"away from" a good condition', 'Keep it away from the lid.'],
+    ['a good condition chained after "away from"', 'Keep it away from heat or cool.'],
+    ['"is" outside "that is not"', 'It is cool.'],
+    ['"is not" outside a hazard', 'It is not hot.'],
+    ['a negated prescription', 'It means you do not need a prescription.'],
+    ['"no" prescription', 'It means no prescription.'],
+    ['a prescription that is not needed', 'A prescription is not needed.'],
+    ['"need" outside "need a prescription"', 'You need it.'],
+    ['a question', 'Keep it somewhere cool?'],
+    ['a semicolon', 'Keep it cool; dry.'],
+  ])('rejects %s: %j', (_why, text) => {
+    expect(explanationAllowed(text)).toBe(false);
+  });
+});
+
+describe('quoteExplainable and explanationFits (Task 7b review round 2)', () => {
+  // A printed negation, condition, exception or group of people is never
+  // explained: the vocabulary cannot carry it, so the answer is the quote alone.
+  test.each([
+    'Do not store above 30 degrees Celsius.',
+    "Don't store in the bathroom.",
+    'Dont freeze. Store in a cool place.',
+    'Never freeze. Store in a cool place.',
+    'Store in a cool place unless told otherwise.',
+    'Store in a fridge if opened.',
+    'Store in a cool place except when travelling.',
+    'Avoid heat. Store in a dry place.',
+    'Store without the cap.',
+    'Store in a cool place. Keep out of reach of children.',
+    'Store in a cool place until opened.',
+    'Non-prescription medicine.',
+    'Sold over the counter or on prescription.',
+    'OTC or Rx.',
+    'Do not use with:\nAlcohol.\nOther products containing paracetamol.',
+    'DO NOT USE: With alcohol. With other products containing paracetamol.',
+    'Do not use if you have liver disease. Or with other products containing paracetamol.',
+  ])('a printed negation, condition or group is never explained: %j', (printed) => {
+    expect(quoteExplainable(printed)).toBe(false);
+    expect(explanationFits('Keep it somewhere that is not hot or damp.', printed)).toBe(false);
+  });
+
+  // Each topic of the vocabulary is used only when the printed text is about it.
+  test.each([
+    ['Store in a cool dry place', 'Keep it somewhere that is not hot or damp.', true],
+    ['Store in a cool dry place', 'Keep it away from heat.', true],
+    ['Protect from light', 'Keep it away from light.', true],
+    ['Keep container tightly closed', 'Keep the lid tightly closed.', true],
+    ['Shake well before use', 'Shake the bottle well first.', true],
+    ['Rx only', "It means you need a doctor's prescription to buy this.", true],
+    ['Prescription medicine', 'It means you need a prescription.', true],
+    ['Shake well before use', 'Keep it away from heat.', false],
+    ['Store in a cool dry place', "It means you need a doctor's prescription to buy this.", false],
+    ['Store in a cool dry place', 'Shake the bottle well first.', false],
+    ['Dissolve in a glass of water', 'Keep it away from moisture.', false],
+    ['500 mg', 'Keep it somewhere that is not hot or damp.', false],
+    ['Paracetamol', 'It means you need a prescription.', false],
+  ])('printed %j, explanation %j: fits %s', (printed, explanation, fits) => {
+    expect(explanationFits(explanation, printed)).toBe(fits);
+  });
+
+  test.each(['500 mg', 'Paracetamol', 'Adults: 1 tablet every 4 to 6 hours as needed.', 'Tablet'])(
+    'printed text no vocabulary topic covers is not explained: %j',
+    (printed) => {
+      expect(quoteExplainable(printed)).toBe(false);
+    },
+  );
+
+  test.each(['Store in a cool dry place', 'Shake well before use', 'Rx only'])(
+    'printed text a vocabulary topic covers is explained: %j',
+    (printed) => {
+      expect(quoteExplainable(printed)).toBe(true);
+    },
+  );
+
+  test('an explanation outside the vocabulary never fits', () => {
+    for (const [, text] of ROUND2_PROBE_CASES) {
+      expect(explanationFits(text, 'Store in a cool dry place')).toBe(false);
+    }
   });
 });
 
@@ -650,6 +866,78 @@ describe('composeExplainAnswer', () => {
     );
   });
 
+  // Task 7b review round 2, finding 1, the reviewer's concrete failure: the
+  // exact inversion of a printed overdose warning was spoken.
+  test('the inversion of a printed warning is never spoken', () => {
+    const a = composeExplainAnswer(
+      input(),
+      'other products containing paracetamol',
+      'Use it with paracetamol products.',
+    );
+    const quote =
+      'The warnings on the label says "Do not use with other products containing paracetamol".';
+    expect(a).toEqual({
+      status: 'answered',
+      text: `${quote} ${NO_EXPLANATION}`,
+      spokenChunks: [quote, NO_EXPLANATION, FINAL_LINE],
+      citedFields: ['warnings'],
+      safetyNotice: null,
+    });
+  });
+
+  test.each(ROUND2_PROBE_CASES)('the round 2 probe (%s) %j is never spoken', (_kind, probe) => {
+    const a = composeExplainAnswer(input(), PHRASE, probe);
+    expect(a.text).toBe(`${STORAGE_QUOTE} ${NO_EXPLANATION}`);
+  });
+
+  // Task 7b review round 2, finding 2: the three layouts that dropped a
+  // printed negation. The whole field is quoted and nothing is explained.
+  test.each([
+    [
+      'Do not use with:\nAlcohol.\nOther products containing paracetamol.',
+      'Do not use with: Alcohol. Other products containing paracetamol',
+    ],
+    [
+      'DO NOT USE: With alcohol. With other products containing paracetamol.',
+      'DO NOT USE: With alcohol. With other products containing paracetamol',
+    ],
+    [
+      'Do not use if you have liver disease. Or with other products containing paracetamol.',
+      'Do not use if you have liver disease. Or with other products containing paracetamol',
+    ],
+  ])('a negation printed before the phrase is quoted, never explained: %j', (warnings, printed) => {
+    const label = labelOf([lf('warnings', warnings)]);
+    const a = composeExplainAnswer(
+      input({ label }),
+      'other products containing paracetamol',
+      'Use it with medicines containing paracetamol.',
+    );
+    const quote = `The warnings on the label says "${printed}".`;
+    expect(a.text).toBe(`${quote} ${NO_EXPLANATION}`);
+    expect(a.spokenChunks).toEqual([quote, NO_EXPLANATION, FINAL_LINE]);
+  });
+
+  test('a storage field with a printed negation is quoted whole and never explained', () => {
+    const label = labelOf([lf('storage', 'Do not store:\nAbove 30 degrees.\nIn direct sunlight.')]);
+    const a = composeExplainAnswer(
+      input({ label }),
+      'in direct sunlight',
+      'Keep it away from heat.',
+    );
+    expect(a.text).toBe(
+      `The storage on the label says "Do not store: Above 30 degrees. In direct sunlight". ${NO_EXPLANATION}`,
+    );
+  });
+
+  test('an explanation off the printed topic is not spoken', () => {
+    const a = composeExplainAnswer(
+      input(),
+      PHRASE,
+      "It means you need a doctor's prescription to buy this.",
+    );
+    expect(a.text).toBe(`${STORAGE_QUOTE} ${NO_EXPLANATION}`);
+  });
+
   test('a cited field the registry contradicts gets the conflict warning', () => {
     const label = labelOf([lf('strength', '500 mg tablet strength')]);
     const match: MatchAssessment = {
@@ -659,7 +947,7 @@ describe('composeExplainAnswer', () => {
     };
     const a = composeExplainAnswer(input({ label, match }), 'tablet strength', null);
     const warning = conflictWarning('strength', '250 mg Tablet');
-    // round 1: the fragment is quoted as its whole printed sentence
+    // round 1: the fragment is quoted as its whole printed sentence (round 2: field)
     expect(a.text).toBe(
       `The strength on the label says "500 mg tablet strength". ${NO_EXPLANATION} ${warning}`,
     );

@@ -311,8 +311,9 @@ describe('fixture providers', () => {
     );
     expect(AnswerSchema.safeParse(a).success).toBe(true);
     expect(a.status).toBe('answered');
+    // Task 7b review round 2: the whole printed field is quoted, not the sentence
     expect(a.text).toBe(
-      `The warnings on the label says "Keep out of reach of children". ${NO_EXPLANATION}`,
+      `The warnings on the label says "Do not use with other products containing paracetamol. Keep out of reach of children". ${NO_EXPLANATION}`,
     );
     expect(a.citedFields).toEqual(['warnings']);
     expect(a.spokenChunks.at(-1)).toBe('Confirm with your pharmacist or doctor.');
