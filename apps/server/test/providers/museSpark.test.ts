@@ -595,7 +595,7 @@ describe('createMuseSparkAnswerer: explain_text', () => {
     const a = await createMuseSparkAnswerer(client).answer(input('What does "500 mg" mean?'), CTX);
     expect(a.status).toBe('answered');
     expect(a.citedFields).toEqual(['strength']);
-    expect(a.text).toContain('The strength on the label says "500 mg".');
+    expect(a.text).toContain('The strength on the label, partly unclear, says "500 mg".');
     expect(a.safetyNotice).toBe('Some of this was not clear on the pack, so it may be wrong.');
   });
 

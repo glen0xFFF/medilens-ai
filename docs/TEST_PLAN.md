@@ -65,7 +65,7 @@ reading. The new pattern matches a value assigned to `MODEL_API_KEY` in env-file
 double-quoted) and any `sk-` token of 20 or more characters:
 
 ```
-git grep -nE "sk-[A-Za-z0-9_-]{20,}|MODEL_API_KEY=\"?[A-Za-z0-9_-]"
+git grep -nE "sk-[A-Za-z0-9_-]{20,}|MODEL_API_KEY=[\"']?[A-Za-z0-9_-]"
 ```
 
 Run on 2026-10-27 over the tracked files with this file's changes in the working tree: no
@@ -79,7 +79,9 @@ env line assigning 12 letters and digits to `MODEL_API_KEY`, one assigning a dou
 and a 24-character `sk-proj-` token in a quoted string; it did not match `MODEL_API_KEY=...`, an
 empty `MODEL_API_KEY=` or `sk-secret-value-123`.
 
-Not covered: a key of another shape pasted somewhere other than a `MODEL_API_KEY=` line. Before
+Not covered: a key of another shape pasted somewhere other than a `MODEL_API_KEY=` line, and a
+`MODEL_API_KEY` line with spaces around `=` or in JSON/YAML form (single- and double-quoted values
+after `=` are matched). Before
 making the repository public the owner re-runs the scan, also confirms `.env` is not tracked
 (`git ls-files .env apps/mobile/.env` must print nothing), and searches for the first few
 characters of the real key.

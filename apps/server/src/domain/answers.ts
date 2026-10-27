@@ -562,7 +562,8 @@ export function composeExplainAnswer(
   if (first === undefined) return unclearAnswer(PHRASE_NOT_FOUND_TEXT);
   const printed = fieldQuote(first);
   const says = PLURAL_FIELDS.has(first.key) ? 'say' : 'says';
-  const quote = `The ${FIELD_NAMES[first.key].toLowerCase()} on the label ${says} "${printed}".`;
+  const marker = first.legibility === 'clear' ? '' : `, ${PARTLY_UNCLEAR},`;
+  const quote = `The ${FIELD_NAMES[first.key].toLowerCase()} on the label${marker} ${says} "${printed}".`;
   const plain =
     explanation !== null && explanationFits(explanation, printed)
       ? normalizeExplanation(explanation)

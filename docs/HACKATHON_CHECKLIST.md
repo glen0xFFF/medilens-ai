@@ -39,7 +39,7 @@ unless it says so.
 
 - [ ] Create the public GitHub repository and push (all commits dated Oct 26 or later).
 - [ ] Set `PUBLIC_REPO_URL` to it (used in the PH FDA User-Agent).
-- [ ] **Secret scan** before making it public: `git grep -nE "sk-[A-Za-z0-9_-]{20,}|MODEL_API_KEY=\"?[A-Za-z0-9_-]"` must
+- [ ] **Secret scan** before making it public: `git grep -nE "sk-[A-Za-z0-9_-]{20,}|MODEL_API_KEY=[\"']?[A-Za-z0-9_-]"` must
   print nothing (it skips placeholders such as `MODEL_API_KEY=...` and short test values; see the latest result in
   [TEST_PLAN.md](TEST_PLAN.md)); also confirm `.env` is not tracked (`git ls-files .env`).
 - [ ] README states: demo mode is simulated data, PH FDA endpoint is undocumented, Muse Spark

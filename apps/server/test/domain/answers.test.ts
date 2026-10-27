@@ -817,9 +817,11 @@ describe('composeExplainAnswer', () => {
   test('a phrase in a field that is not clear adds the uncertain sentence', () => {
     const label = labelOf([lf('storage', 'Store in a cool dry place.', 'partial')]);
     const a = composeExplainAnswer(input({ label }), PHRASE, null);
+    // Final-review I1 residual: the quoted value itself carries the inline marker.
+    const quote = 'The storage on the label, partly unclear, says "Store in a cool dry place".';
     expect(a.status).toBe('answered');
-    expect(a.text).toBe(`${STORAGE_QUOTE} ${NO_EXPLANATION} ${UNCERTAIN}`);
-    expect(a.spokenChunks).toEqual([STORAGE_QUOTE, NO_EXPLANATION, UNCERTAIN, FINAL_LINE]);
+    expect(a.text).toBe(`${quote} ${NO_EXPLANATION} ${UNCERTAIN}`);
+    expect(a.spokenChunks).toEqual([quote, NO_EXPLANATION, UNCERTAIN, FINAL_LINE]);
     expect(a.safetyNotice).toBe(UNCERTAIN);
   });
 
