@@ -117,3 +117,15 @@ These come from `scripts/parity/probes.parity.ts`. All of it is synthetic DEMO D
    - `expiresAt`.
 
    Nothing else is stripped. Registry `checkedAt` in the demo fixtures is a constant.
+
+## Go probe data (task G3)
+
+`npx tsx scripts/parity/go-probes.ts` records more reference output from the Node build into the Go packages' `testdata`. These files target the places where JS and Go differ by construction. Like the corpora above, recording is deterministic (seeded, sorted), and after task G12 it needs `git checkout node-fallback-v1` first.
+
+| File | What V8 recorded |
+|---|---|
+| `internal/jsregex/testdata/v8_probes.jsonl` | Hand-written and seeded random RegExp probes, with the `exec` index and every capture. They check the Go JS-semantics matcher. |
+| `internal/domain/testdata/safety_adversarial.jsonl` | `classifyQuestion`, `extractExplainPhrase` and `askedFields` on seeded adversarial variants of every corpus question: casing, confusables, zero-width and format characters, whitespace, punctuation, digits, and long inputs around the 300 code-unit limit. |
+| `internal/domain/testdata/safety_regexps.json` | Every flagless RegExp the safety module ran, literal or constructed, with its `test` result on every text any of them saw, plus `exec` results for the two `exec` patterns. |
+| `internal/domain/testdata/js_unicode.json` | JS `\s`, `\p{Cf}`, `\p{L}`, `\p{N}`, `\p{Pd}`, the safety gate's invisible class, `toLowerCase` and NFKC, recorded per code point. |
+| `internal/domain/testdata/matcher_regexps.jsonl` | The matcher's `i`- and `u`-flag RegExps on every matcher corpus string plus Unicode edge cases. |

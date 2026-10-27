@@ -5,3 +5,5 @@ go.mod text eol=lf
 go.sum text eol=lf
 # TS-recorded extra parity cases for the Go domain tests
 internal/domain/testdata/*.jsonl -text
+internal/domain/testdata/*.json -text
+internal/jsregex/testdata/*.jsonl -text
