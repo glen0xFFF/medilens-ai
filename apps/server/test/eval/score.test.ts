@@ -227,9 +227,29 @@ describe('summarize and renderResultsMarkdown', () => {
       correct: 1,
       unreadable: 1,
     });
-    const md = renderResultsMarkdown(summary, '2026-10-30');
+    const md = renderResultsMarkdown(summary, '2026-10-30', { found: 2, attempted: 2, skipped: 0 });
     expect(md).toContain('| strength | 2 | 1 | 0 | 1 |');
     expect(md).not.toContain('pack-01');
     expect(md).not.toContain('250');
+  });
+});
+
+describe('final review Minor 31: eval results count every pack, not only the scored ones', () => {
+  it('records packs found, attempted, scored and skipped, and flags a run that is not clean', () => {
+    const summary = summarize([scoreLabel(truth, label())]);
+    const md = renderResultsMarkdown(summary, '2026-10-30', { found: 4, attempted: 3, skipped: 2 });
+    expect(md).toContain(
+      'Packs found: 4. Attempted: 3. Scored: 1. Skipped: 2. Not attempted (spend cap): 1.',
+    );
+    expect(md).toContain('Not a clean run');
+  });
+
+  it('a run that scored every pack it found is clean', () => {
+    const summary = summarize([scoreLabel(truth, label())]);
+    const md = renderResultsMarkdown(summary, '2026-10-30', { found: 1, attempted: 1, skipped: 0 });
+    expect(md).toContain(
+      'Packs found: 1. Attempted: 1. Scored: 1. Skipped: 0. Not attempted (spend cap): 0.',
+    );
+    expect(md).not.toContain('Not a clean run');
   });
 });

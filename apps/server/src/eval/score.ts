@@ -263,15 +263,37 @@ export function meetsBar(summary: EvalSummary): boolean {
     .every((f) => f.confidentlyWrong === 0);
 }
 
+/**
+ * How many packs a run saw (final review Minor 31): every pack folder found,
+ * those the run started on before any spend-cap stop, and those skipped
+ * (bad truth file, missing or invalid image, OCR_FAILED). Scored packs are
+ * `summary.packs`.
+ */
+export interface EvalRun {
+  found: number;
+  attempted: number;
+  skipped: number;
+}
+
 /** Markdown for docs/eval-results.md: aggregate counts only, no images or raw text. */
-export function renderResultsMarkdown(summary: EvalSummary, date: string): string {
+export function renderResultsMarkdown(summary: EvalSummary, date: string, run: EvalRun): string {
   const rows = summary.fields.map(
     (f) => `| ${f.field} | ${f.total} | ${f.correct} | ${f.unreadable} | ${f.confidentlyWrong} |`,
   );
+  const notAttempted = run.found - run.attempted;
+  const clean = run.skipped === 0 && notAttempted === 0;
   return [
     '# Label accuracy eval results',
     '',
-    `Run date: ${date}. Packs scored: ${summary.packs}. Reader: live Muse Spark.`,
+    `Run date: ${date}. Reader: live Muse Spark.`,
+    '',
+    `Packs found: ${run.found}. Attempted: ${run.attempted}. Scored: ${summary.packs}. Skipped: ${run.skipped}. Not attempted (spend cap): ${notAttempted}.`,
+    ...(clean
+      ? []
+      : [
+          '',
+          `**Not a clean run:** the counts and the bar below cover the ${summary.packs} scored packs only.`,
+        ]),
     '',
     "Aggregate counts only. Photos, pack identities and read text stay on the owner's machine.",
     '',

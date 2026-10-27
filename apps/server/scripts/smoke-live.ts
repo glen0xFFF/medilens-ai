@@ -23,6 +23,7 @@ import {
 import { normalizeImage, validateImage } from '../src/imaging/validate';
 import { createMetaClient, createMuseSparkLabelReader } from '../src/providers/museSpark';
 import { createPhFdaProvider } from '../src/providers/phFda';
+import { loadRootEnv } from '../src/rootEnv';
 
 function fail(message: string): never {
   console.error(message);
@@ -34,6 +35,8 @@ async function main(): Promise<void> {
   if (imagePath === undefined) {
     fail('Usage: npx tsx apps/server/scripts/smoke-live.ts <image> [fda-search-term]');
   }
+  // the root .env, as the server reads it; real environment variables win
+  loadRootEnv();
   const key = process.env.MODEL_API_KEY?.trim();
   if (key === undefined || key === '') fail('MODEL_API_KEY is not set. The live smoke test needs it.');
   if (!existsSync(imagePath)) fail('Image file not found.');

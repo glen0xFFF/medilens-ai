@@ -24,6 +24,7 @@ import {
 import { normalizeImage, validateImage } from '../src/imaging/validate';
 import { createSpendMeter } from '../src/pipeline/budget';
 import { createMetaClient, createMuseSparkLabelReader } from '../src/providers/museSpark';
+import { loadRootEnv } from '../src/rootEnv';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const PACKS_DIR = join(ROOT, 'eval', 'packs');
@@ -75,6 +76,8 @@ async function loadImages(dir: string, names: string[]): Promise<Buffer[] | stri
 }
 
 async function main(): Promise<void> {
+  // the root .env, as the server reads it; real environment variables win
+  loadRootEnv();
   const dirs = packDirs();
   if (dirs.length === 0) {
     console.log('No packs found');
@@ -102,12 +105,14 @@ async function main(): Promise<void> {
   const scored: FieldScore[][] = [];
   const confidentlyWrong: { packId: string; field: string; value: string | null }[] = [];
   const skipped: { dir: string; reason: string }[] = [];
+  let attempted = 0;
 
   for (const dir of dirs) {
     if (meter.exhausted()) {
       console.error(`Daily spend cap of $${capUsd} reached; stopping before pack ${dir}.`);
       break;
     }
+    attempted++;
     const truth = loadTruth(dir);
     if (typeof truth === 'string') {
       skipped.push({ dir, reason: truth });
@@ -136,7 +141,12 @@ async function main(): Promise<void> {
   if (scored.length === 0) fail('No pack could be scored; docs/eval-results.md was not written.');
 
   const summary = summarize(scored);
-  console.log(`\nPacks scored: ${summary.packs}   Spent: $${meter.spentUsd().toFixed(4)}\n`);
+  // final review Minor 31: skipped and unattempted packs are counted, so a
+  // run with failures never reads as a clean pass
+  const run = { found: dirs.length, attempted, skipped: skipped.length };
+  console.log(
+    `\nPacks found: ${run.found}   attempted: ${run.attempted}   scored: ${summary.packs}   skipped: ${run.skipped}   Spent: $${meter.spentUsd().toFixed(4)}\n`,
+  );
   console.table(
     summary.fields.map((f) => ({
       field: f.field,
@@ -159,7 +169,7 @@ async function main(): Promise<void> {
 
   writeFileSync(
     RESULTS_FILE,
-    renderResultsMarkdown(summary, new Date().toISOString().slice(0, 10)),
+    renderResultsMarkdown(summary, new Date().toISOString().slice(0, 10), run),
   );
   console.log(`\nWrote aggregate counts to ${RESULTS_FILE}`);
   const bar = meetsBar(summary);

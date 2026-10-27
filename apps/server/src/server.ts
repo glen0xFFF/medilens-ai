@@ -4,22 +4,17 @@
  * environment variables take precedence over it. Live mode without
  * MODEL_API_KEY exits here, before listening (spec §4.2).
  */
-import { fileURLToPath } from 'node:url';
 import { createApp } from './app';
 import { loadConfig, type AppConfig } from './config';
 import { createAppDeps } from './deps';
 import { startListening } from './http/listen';
 import { createLogger } from './http/logger';
-
-const ROOT_ENV_FILE = fileURLToPath(new URL('../../../.env', import.meta.url));
+import { loadRootEnv } from './rootEnv';
 
 const logger = createLogger();
 
-try {
-  process.loadEnvFile(ROOT_ENV_FILE);
-} catch {
-  // no .env file: the process environment alone is used
-}
+// no .env file: the process environment alone is used
+loadRootEnv();
 
 let config: AppConfig;
 try {

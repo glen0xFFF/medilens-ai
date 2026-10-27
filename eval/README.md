@@ -64,10 +64,15 @@ next pack once `DAILY_SPEND_CAP_USD` (default 5) is reached.
 MODEL_API_KEY=... npm run eval:labels -w @medilens/server
 ```
 
+`MODEL_API_KEY` (and `DAILY_SPEND_CAP_USD`) may instead be set in the repo-root
+`.env`, which the script reads the way the server does; a variable set in the
+environment wins.
+
 It prints a per-field table and every confidently-wrong case (pack id, field,
-read value) to the terminal, then writes `docs/eval-results.md`. With no packs
-it prints `No packs found` and writes nothing. Exit code 2 means the bar was
-missed.
+read value) to the terminal, then writes `docs/eval-results.md`. That file
+records how many packs were found, attempted, scored and skipped, and marks a
+run with skipped or unattempted packs as not clean. With no packs it prints
+`No packs found` and writes nothing. Exit code 2 means the bar was missed.
 
 Each pack is validated and normalised exactly as live uploads are, but the
 photo-quality gate is not applied: the eval measures the reader itself.
