@@ -1,17 +1,28 @@
 /**
- * Responses captured from the real server in demo mode (PROVIDER_MODE=demo,
- * `npx tsx src/server.ts`, then curl against /api/v1), not hand-written. Each
- * is parsed with the shared contracts schemas, so a contract change that the
- * fixtures no longer satisfy fails here first.
+ * Responses captured from a real server, not hand-written. The result,
+ * answer, references, scenario and preset bodies came from the Node server in
+ * demo mode (PROVIDER_MODE=demo, `npx tsx src/server.ts`, then curl against
+ * /api/v1); the go-*.json bodies from the Go API (`go build ./services/api`,
+ * run with MODEL_PROVIDER=mock REFERENCE_PROVIDER=fixture, then curl against
+ * /api/v1/config/capabilities and POST /api/v1/demo/scenarios {"scenarioId":
+ * "s1-clear"} and its GET /api/v1/analyses/{id}). Each is parsed with the
+ * shared contracts schemas, so a contract change that the fixtures no longer
+ * satisfy fails here first.
  */
 import {
+  AnalysisCreatedSchema,
+  AnalysisReferencesSchema,
   AnalysisResultSchema,
+  AnalysisStatusSchema,
   AnswerSchema,
+  CapabilitiesSchema,
   DemoScenarioSummarySchema,
   type AnalysisResult,
 } from '@medilens/contracts';
 import { z } from 'zod';
-import { ReferencesSchema } from '../../src/api/client';
+import goCapabilities from '../fixtures/go-capabilities.json';
+import goS1Created from '../fixtures/go-s1.created.json';
+import goS1Status from '../fixtures/go-s1.status.json';
 import presetsJson from '../fixtures/presets.json';
 import s1Refs from '../fixtures/s1-clear.references.json';
 import s1 from '../fixtures/s1-clear.result.json';
@@ -41,8 +52,8 @@ export const RESULTS = {
 };
 
 export const REFERENCES = {
-  s1: ReferencesSchema.parse(s1Refs),
-  s4: ReferencesSchema.parse(s4Refs),
+  s1: AnalysisReferencesSchema.parse(s1Refs),
+  s4: AnalysisReferencesSchema.parse(s4Refs),
 };
 
 export const ANSWERS = {
@@ -52,6 +63,13 @@ export const ANSWERS = {
 
 export const SCENARIOS = z.array(DemoScenarioSummarySchema).parse(scenariosJson);
 export const PRESETS = z.array(z.string()).parse(presetsJson);
+
+/** The Go API in mock/fixture mode: modelProvider "mock", so the app shows the demo notice. */
+export const CAPABILITIES = CapabilitiesSchema.parse(goCapabilities);
+/** POST /api/v1/demo/scenarios {"scenarioId":"s1-clear"}: 202. */
+export const S1_CREATED = AnalysisCreatedSchema.parse(goS1Created);
+/** GET /api/v1/analyses/{id} once that analysis completed: every stage it ran, in order. */
+export const S1_STATUS = AnalysisStatusSchema.parse(goS1Status);
 
 /** The scenario id (as the server lists it) whose result fixture is `key`. */
 export const SCENARIO_IDS = {

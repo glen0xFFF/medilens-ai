@@ -1,6 +1,7 @@
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
+import { useApi } from '../../src/api/ApiContext';
 import { BigButton } from '../../src/components/BigButton';
 import { ConflictRow } from '../../src/components/ConflictRow';
 import { DemoBanner } from '../../src/components/DemoBanner';
@@ -22,6 +23,7 @@ export default function ResultScreen() {
   const router = useRouter();
   const focused = useIsFocused();
   const theme = useTheme();
+  const client = useApi();
 
   const announced = useRef<string | null>(null);
   useEffect(() => {
@@ -41,6 +43,13 @@ export default function ResultScreen() {
   }
 
   const go = (pathname: ResultRoute) => router.push({ pathname, params: { id: result.id } });
+  // Go port spec §7: done with this result, so the server's copy is dropped
+  // now rather than at its 15-minute expiry. Best effort: going home never
+  // waits for it or reports its failure.
+  const home = () => {
+    client.deleteAnalysis(result.id).catch(() => {});
+    router.dismissTo('/');
+  };
   const { explanation, match } = result;
 
   return (
@@ -102,7 +111,7 @@ export default function ResultScreen() {
         variant="secondary"
         onPress={() => router.push('/safety')}
       />
-      <BigButton label="Back to home" variant="secondary" onPress={() => router.dismissTo('/')} />
+      <BigButton label="Back to home" variant="secondary" onPress={home} />
     </Screen>
   );
 }

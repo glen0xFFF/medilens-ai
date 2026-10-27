@@ -1,3 +1,4 @@
+import type { AnalysisEvent } from '@medilens/contracts';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Text } from 'react-native';
@@ -9,7 +10,7 @@ import { BigButton } from '../src/components/BigButton';
 import { Body, Heading, Notice, Screen } from '../src/components/Screen';
 import { useResults } from '../src/state/results';
 import { useTheme } from '../src/theme/theme';
-import { LIVE_MODE_PHOTOS, analyzeErrorMessage } from '../src/ui/text';
+import { LIVE_MODE_PHOTOS, analyzeErrorMessage, isTerminalStage } from '../src/ui/text';
 
 /** How often a long upload re-announces that it is still working. */
 export const STILL_WORKING_MS = 15_000;
@@ -23,7 +24,10 @@ function announce(message: string) {
   AccessibilityInfo.announceForAccessibility(message);
 }
 
-/** Analysis progress: uploads the held photos once per attempt and announces progress. */
+/**
+ * Analysis progress: uploads the held photos once per attempt, then shows and
+ * announces each stage the server reports until the result opens.
+ */
 export default function Analyzing() {
   const theme = useTheme();
   const router = useRouter();
@@ -42,9 +46,10 @@ export default function Analyzing() {
   const mounted = useRef(true);
   const started = useRef(-1);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  // The upload in flight. Leaving this screen (Back, Home) aborts it (final
-  // review Minor 22): an upload still sending its photos stops there; a model
-  // call the server has already started still runs to the end on the server.
+  // The analysis in flight. Leaving this screen (Back, Home) aborts it (final
+  // review Minor 22): an upload still sending its photos stops there; once
+  // the server has accepted it, polling stops and the client asks the server
+  // to delete it (best effort), which cancels the server's work on it.
   const upload = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -88,7 +93,15 @@ export default function Analyzing() {
       return mounted.current && !controller.signal.aborted;
     };
 
-    client.analyze([...photos], { signal: controller.signal }).then(
+    // Go port spec §7: the server's own stage labels, shown and announced as
+    // they arrive. The end of the analysis is announced by its outcome below.
+    const onStage = (event: AnalysisEvent) => {
+      if (!mounted.current || controller.signal.aborted || isTerminalStage(event.stage)) return;
+      setStatus(event.label);
+      announce(event.label);
+    };
+
+    client.analyze([...photos], { signal: controller.signal, onStage }).then(
       (result) => {
         if (!finish()) return;
         latest.current.saveResult(result);

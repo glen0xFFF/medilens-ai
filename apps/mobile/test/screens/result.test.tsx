@@ -154,6 +154,37 @@ describe('result screen', () => {
     expect(await screen.findByText('That result has expired.')).toBeTruthy();
   });
 
+  // Go port spec §7: the server copy is deleted when the user is done with it.
+  it('Back to home deletes the analysis on the server and goes home', async () => {
+    const client = clientFor(RESULTS.s1);
+    await openResult(client, RESULTS.s1.id);
+    await screen.findByText('Matches FDA registry');
+    expect(client.deleteAnalysis).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to home' }));
+    expect(client.deleteAnalysis).toHaveBeenCalledWith(RESULTS.s1.id);
+    expect(client.deleteAnalysis).toHaveBeenCalledTimes(1);
+    expect(screen).toHavePathname('/');
+  });
+
+  it('Back to home still goes home when the delete fails (best effort)', async () => {
+    const client = clientFor(RESULTS.s1, {
+      deleteAnalysis: jest.fn(() => Promise.reject(new ApiError('NETWORK', 'offline'))),
+    });
+    await openResult(client, RESULTS.s1.id);
+    await screen.findByText('Matches FDA registry');
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to home' }));
+    expect(screen).toHavePathname('/');
+    expect(screen.queryByText('offline')).toBeNull();
+  });
+
+  it('opening the fields, sources or ask screen keeps the analysis on the server', async () => {
+    const client = clientFor(RESULTS.s1);
+    await openResult(client, RESULTS.s1.id);
+    await screen.findByText('Matches FDA registry');
+    await fireEvent.press(screen.getByRole('button', { name: 'Label fields' }));
+    expect(client.deleteAnalysis).not.toHaveBeenCalled();
+  });
+
   it('opens the label fields screen', async () => {
     await openResult(clientFor(RESULTS.s1), RESULTS.s1.id);
     await screen.findByText('Matches FDA registry');
@@ -352,7 +383,10 @@ describe('demo flow', () => {
     await renderRouter(appRoutes(client), { initialUrl: '/demo' });
     const title = 'DEMO DATA: Label strength differs from the registry';
     await fireEvent.press(await screen.findByRole('button', { name: title }));
-    expect(client.scenario).toHaveBeenCalledWith(SCENARIO_IDS.s4);
+    expect(client.scenario).toHaveBeenCalledWith(SCENARIO_IDS.s4, {
+      signal: expect.any(AbortSignal),
+      onStage: expect.any(Function),
+    });
     expect(await screen.findByText('500 mg on label, 250 mg Tablet in registry')).toBeTruthy();
     expect(screen).toHavePathname(`/result/${RESULTS.s4.id}`);
     expect(client.result).not.toHaveBeenCalled();

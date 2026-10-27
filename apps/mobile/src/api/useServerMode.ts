@@ -1,20 +1,28 @@
+import type { Capabilities } from '@medilens/contracts';
 import { useEffect, useState } from 'react';
 import { useApi } from './ApiContext';
-import type { Health } from './client';
+
+/** 'demo' when the server runs the mock model (every scan is a made-up example), else 'live'. */
+export type ServerMode = 'demo' | 'live';
+
+export function serverModeOf(capabilities: Capabilities): ServerMode {
+  return capabilities.modelProvider === 'mock' ? 'demo' : 'live';
+}
 
 /**
- * The server's provider mode from GET /health: 'live', 'demo', or null while
- * it is being checked or when the server cannot be reached.
+ * The server's mode from GET /api/v1/config/capabilities (Go port spec §7):
+ * 'demo', 'live', or null while it is being checked or when the server
+ * cannot be reached.
  */
-export function useServerMode(): Health['providerMode'] | null {
+export function useServerMode(): ServerMode | null {
   const client = useApi();
-  const [mode, setMode] = useState<Health['providerMode'] | null>(null);
+  const [mode, setMode] = useState<ServerMode | null>(null);
 
   useEffect(() => {
     let active = true;
-    client.health().then(
-      (h) => {
-        if (active) setMode(h.providerMode);
+    client.capabilities().then(
+      (c) => {
+        if (active) setMode(serverModeOf(c));
       },
       () => {
         if (active) setMode(null);

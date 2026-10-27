@@ -1,0 +1,50 @@
+{
+  "id": "78eb1bc9-aec1-4ccd-a28d-a8ee10dac3f3",
+  "status": "completed",
+  "stage": "completed",
+  "events": [
+    {
+      "seq": 1,
+      "stage": "received",
+      "label": "Request received.",
+      "at": "2026-10-27T21:03:19.843Z"
+    },
+    {
+      "seq": 2,
+      "stage": "reading",
+      "label": "Reading the label.",
+      "at": "2026-10-27T21:03:19.843Z"
+    },
+    {
+      "seq": 3,
+      "stage": "reviewing_fields",
+      "label": "Reviewing what was read.",
+      "at": "2026-10-27T21:03:19.844Z"
+    },
+    {
+      "seq": 4,
+      "stage": "checking_references",
+      "label": "Checking the registry.",
+      "at": "2026-10-27T21:03:19.844Z"
+    },
+    {
+      "seq": 5,
+      "stage": "comparing",
+      "label": "Comparing the label with the registry.",
+      "at": "2026-10-27T21:03:19.844Z"
+    },
+    {
+      "seq": 6,
+      "stage": "explaining",
+      "label": "Preparing the summary.",
+      "at": "2026-10-27T21:03:19.844Z"
+    },
+    {
+      "seq": 7,
+      "stage": "completed",
+      "label": "The result is ready.",
+      "at": "2026-10-27T21:03:19.844Z"
+    }
+  ],
+  "isDemo": true
+}
