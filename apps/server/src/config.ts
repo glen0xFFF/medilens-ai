@@ -21,3 +21,6 @@ export const DEFAULT_THRESHOLDS: QualityThresholds = {
  * bombs: a solid 16000x16000 PNG is under 1 MB on disk but ~768 MB decoded.
  */
 export const MAX_IMAGE_PIXELS = 40_000_000;
+
+/** How long an analysis result stays retrievable for follow-up calls (15 min, memory only). */
+export const RESULT_TTL_MS = 15 * 60 * 1000;

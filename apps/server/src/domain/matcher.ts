@@ -25,7 +25,7 @@ import {
 
 const EXPIRY_NOTE = "Registration expiry is not the product's expiry date.";
 const UNAVAILABLE_NOTE = 'Registry lookup unavailable; nothing was verified.';
-const NOT_ATTEMPTED_NOTE = 'Registry lookup was not attempted.';
+export const NOT_ATTEMPTED_NOTE = 'Registry lookup was not attempted.';
 export const REG_NOT_FOUND_NOTE = 'The registration number on the pack was not found in the registry.';
 export const ADVISORIES_UNCHECKED_NOTE =
   'FDA safety advisories for this product could not be checked.';
@@ -57,7 +57,7 @@ interface Evaluation {
  * The value of a label field, or null when it is absent, unreadable or not
  * `clear` (rule 10). A key that appears more than once is not comparable.
  */
-function clearValue(label: ExtractedLabel, key: FieldKey): string | null {
+export function clearValue(label: ExtractedLabel, key: FieldKey): string | null {
   const found: LabelField[] = label.fields.filter((f) => f.key === key);
   if (found.length !== 1) return null;
   const [field] = found;
