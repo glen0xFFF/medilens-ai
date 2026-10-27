@@ -1171,6 +1171,29 @@ describe('answerer grounding round 5 (finding 2 (A): printed line breaks)', () =
     expect(a.spokenChunks.join(' ')).not.toMatch(/8 tablets/);
   });
 
+  test.each([
+    ['answer-r5-table-dots-split', 'a heading and the wrong dose in separate answer sentences'],
+    ['answer-r5-heading-last', 'a dose followed by a heading it is not printed under'],
+  ])('%s (%s), where each line ends in a period, is unclear', async (name) => {
+    const a = await ask(name, 'read_label', withField(LABEL_PROBE, 'directions', TABLE_DOTS));
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/children/i);
+  });
+
+  test.each([
+    'answer-r5-ctrl-table-dots-split',
+    'answer-r5-ctrl-table-dots-all',
+    'answer-r5-ctrl-heading-alone',
+  ])(
+    'control: %s restates a heading only with its own printed dose (or with no dose) and is answered',
+    async (name) => {
+      expectRecordedAnswer(
+        await ask(name, 'read_label', withField(LABEL_PROBE, 'directions', TABLE_DOTS)),
+        name,
+      );
+    },
+  );
+
   test('a printed dose sentence given another printed sentence as its heading is unclear', async () => {
     const label = withField(LABEL_PROBE, 'directions', BARE_DOSE);
     const a = await ask('answer-r5-reach-dose', 'read_label', label);

@@ -1030,7 +1030,11 @@ function brokenPrintedSentence(text: string, cited: LabelField[]): boolean {
       ),
     ...sources.flatMap((src) => src.tokens).filter(isPopulation),
   ]);
-  return sentenceTokens(text).some((a) => brokenAnswerSentence(a, sources, anchored));
+  const answer = sentenceTokens(text).map((a) => ({ a, copies: copiesIn(a, sources) }));
+  return (
+    answer.some(({ a, copies }) => brokenAnswerSentence(a, copies, anchored)) ||
+    headingWithoutItsDose(answer.map(({ copies }) => copies))
+  );
 }
 
 /** One printed sentence of a cited field, with its position in that field. */
@@ -1063,12 +1067,7 @@ function holdsDose(c: PrintedSentence): boolean {
   return c.key === 'directions' || (c.key === 'warnings' && c.tokens.some(isNumberWord));
 }
 
-function brokenAnswerSentence(
-  a: string[],
-  sources: PrintedSentence[],
-  anchored: Set<string>,
-): boolean {
-  const copies = copiesIn(a, sources);
+function brokenAnswerSentence(a: string[], copies: Copy[], anchored: Set<string>): boolean {
   const inCopy = (i: number, which: (c: Copy) => boolean = () => true) =>
     copies.some((c) => c.start <= i && i < c.end && which(c));
   const doseCopyAt = (i: number) =>
@@ -1126,6 +1125,43 @@ function doseGivenNewHeading(copies: Copy[]): boolean {
     if (before.length === 0) return false;
     const last = Math.max(...before.map((o) => o.end));
     return !before.some((o) => o.end === last && o.key === c.key && o.idx === c.idx - 1);
+  });
+}
+
+/**
+ * A printed directions or warnings sentence that is only a heading: population,
+ * age or weight words and numbers ("Children 6 to 12 years."), with at least
+ * one word that is not a number, "and" or "or".
+ */
+function isHeadingSentence(c: PrintedSentence): boolean {
+  const words = c.tokens.filter((t) => t !== COLON);
+  return (
+    (c.key === 'directions' || c.key === 'warnings') &&
+    words.every((t) => isPopulation(t) || isNumberWord(t) || HEADING_STEMS.has(t)) &&
+    words.some((t) => !isNumberWord(t) && !KEPT_STEMS.has(t))
+  );
+}
+
+/**
+ * Review round 5, finding 2 (A), across answer sentences: when the reader ends
+ * a table heading with a period ("Children 6 to 12 years. 1 tablet every 6
+ * hours."), the heading is its own printed sentence. A copy of it must be
+ * followed, as the next copy anywhere in the answer, by the sentence printed
+ * right after it in the same field. So "Children 6 to 12 years. 2 tablets every
+ * 6 hours." fails. A heading with nothing after it fails only when the answer
+ * restates a dose or limit too ("2 tablets every 6 hours. Children 6 to 12
+ * years."); restated on its own it pairs with nothing.
+ * `perSentence` holds each answer sentence's copies, in answer order.
+ */
+function headingWithoutItsDose(perSentence: Copy[][]): boolean {
+  const all = perSentence.flatMap((copies, k) => copies.map((c) => ({ ...c, k })));
+  const at = (o: { k: number; start: number }) => o.k * 1_000_000 + o.start;
+  return all.some((h) => {
+    if (!isHeadingSentence(h)) return false;
+    const after = all.filter((o) => o.k > h.k || (o.k === h.k && o.start >= h.end));
+    if (after.length === 0) return all.some((o) => holdsDose(o) && !isHeadingSentence(o));
+    const first = Math.min(...after.map(at));
+    return !after.some((o) => at(o) === first && o.key === h.key && o.idx === h.idx + 1);
   });
 }
 
