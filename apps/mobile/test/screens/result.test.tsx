@@ -94,6 +94,33 @@ describe('result screen', () => {
     expect(announce).toHaveBeenCalledWith('Verification: Label unreadable');
   });
 
+  // Final review Minor 24: an unreadable result offers a retake from the result itself.
+  it('offers "Retake photos" on an unreadable result, opening the camera', async () => {
+    const view = await openResult(clientFor(RESULTS.s2), RESULTS.s2.id);
+    await screen.findByText('Label unreadable');
+    expectPressablesLabelled(view);
+    await fireEvent.press(screen.getByRole('button', { name: 'Retake photos' }));
+    expect(screen).toHavePathname('/scan');
+  });
+
+  it('offers "Retake photos" when the reader found no readable label text', async () => {
+    const unreadable = {
+      ...RESULTS.s1,
+      id: 'live-unreadable',
+      isDemo: false,
+      pipelineState: 'label_unreadable' as const,
+      label: { ...RESULTS.s1.label!, imageKind: 'unreadable' as const },
+    };
+    await openResult(clientFor(unreadable), unreadable.id);
+    expect(await screen.findByRole('button', { name: 'Retake photos' })).toBeTruthy();
+  });
+
+  it('offers no retake on a result that was read', async () => {
+    await openResult(clientFor(RESULTS.s1), RESULTS.s1.id);
+    await screen.findByText('Matches FDA registry');
+    expect(screen.queryByRole('button', { name: 'Retake photos' })).toBeNull();
+  });
+
   it.each([
     ['s3', 'Several possible matches'],
     ['s5', 'No registry match'],

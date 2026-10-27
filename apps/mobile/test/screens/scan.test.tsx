@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCameraPermissions } from 'expo-camera';
 import { launchImageLibraryAsync } from 'expo-image-picker';
+import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
+import { StrictMode } from 'react';
 import { AccessibilityInfo, Linking } from 'react-native';
 import { ApiError, type ApiErrorCode } from '../../src/api/client';
 import { RESULTS } from '../helpers/fixtures';
@@ -237,10 +239,14 @@ describe('analyzing screen', () => {
       'Sending 2 photos and reading the label. This can take up to a minute.',
     );
     expect(client.analyze).toHaveBeenCalledTimes(1);
-    expect(client.analyze).toHaveBeenCalledWith([
-      { uri: prepared(1), type: 'image/jpeg' },
-      { uri: prepared(2), type: 'image/jpeg' },
-    ]);
+    expect(client.analyze).toHaveBeenCalledWith(
+      [
+        { uri: prepared(1), type: 'image/jpeg' },
+        { uri: prepared(2), type: 'image/jpeg' },
+      ],
+      // The screen can stop the upload when the user leaves (final review Minor 22).
+      { signal: expect.any(AbortSignal) },
+    );
     deleted.mockClear();
     await act(async () => resolve(RESULTS.s1));
     expect(await screen.findByText('Matches FDA registry')).toBeTruthy();
@@ -248,6 +254,69 @@ describe('analyzing screen', () => {
     // Upload done: the prepared photos are deleted and nothing else re-reads them.
     expect(deleted.mock.calls).toEqual([[prepared(1)], [prepared(2)]]);
     expect(client.result).not.toHaveBeenCalled();
+  });
+
+  // Final review Minor 22: a double tap must not upload (and spend) twice.
+  it('a double tap on Analyze sends the photos once', async () => {
+    const client = mockClient({ analyze: jest.fn(() => new Promise(() => {})) });
+    await openAt('/scan', client);
+    await takePhotos(1);
+    await fireEvent.press(screen.getByRole('button', { name: 'Review photos' }));
+    const button = await screen.findByRole('button', { name: 'Analyze' });
+    await fireEvent.press(button);
+    await fireEvent.press(button);
+    expect(
+      await screen.findByText(
+        'Sending 1 photo and reading the label. This can take up to a minute.',
+      ),
+    ).toBeTruthy();
+    expect(client.analyze).toHaveBeenCalledTimes(1);
+  });
+
+  it('Back during an upload aborts it and keeps the photos', async () => {
+    let signal: AbortSignal | undefined;
+    const client = mockClient({
+      analyze: jest.fn((_images: unknown, options?: { signal?: AbortSignal }) => {
+        signal = options?.signal;
+        return new Promise(() => {});
+      }),
+    });
+    await analyze(client, 1);
+    await screen.findByText('Sending 1 photo and reading the label. This can take up to a minute.');
+    expect(signal?.aborted).toBe(false);
+    deleted.mockClear();
+    await act(async () => router.back());
+    expect(screen).toHavePathname('/preview');
+    expect(signal?.aborted).toBe(true);
+    expect(await screen.findByLabelText('Photo 1 of 1')).toBeTruthy();
+    expect(deleted).not.toHaveBeenCalled();
+  });
+
+  it('still uploads under StrictMode, which mounts, unmounts and remounts each screen', async () => {
+    let resolve: (r: typeof RESULTS.s1) => void = () => {};
+    const client = mockClient({ analyze: jest.fn(() => new Promise((r) => (resolve = r))) });
+    const routes = appRoutes(client);
+    const Layout = routes._layout;
+    await renderRouter(
+      {
+        ...routes,
+        _layout: () => (
+          <StrictMode>
+            <Layout />
+          </StrictMode>
+        ),
+      },
+      { initialUrl: '/scan' },
+    );
+    await takePhotos(1);
+    await fireEvent.press(screen.getByRole('button', { name: 'Review photos' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Analyze' }));
+    await screen.findByText('Sending 1 photo and reading the label. This can take up to a minute.');
+    const calls = client.analyze.mock.calls as [unknown, { signal: AbortSignal }][];
+    expect(calls.filter(([, options]) => !options.signal.aborted)).toHaveLength(1);
+    await act(async () => resolve(RESULTS.s1));
+    expect(await screen.findByText('Matches FDA registry')).toBeTruthy();
+    expect(screen.queryByText('The label was not read')).toBeNull();
   });
 
   it('says live mode sends the photos to the Meta Model API (final review Minor 21)', async () => {

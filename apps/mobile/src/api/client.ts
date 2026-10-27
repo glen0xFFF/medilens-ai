@@ -23,12 +23,13 @@ export const REQUEST_TIMEOUT_MS = 15_000;
 export const ANALYZE_TIMEOUT_MS = 60_000;
 export const MAX_IMAGES = 3;
 
-export type ApiErrorCode = ErrorCode | 'NETWORK' | 'TIMEOUT' | 'INVALID_RESPONSE';
+export type ApiErrorCode = ErrorCode | 'NETWORK' | 'TIMEOUT' | 'INVALID_RESPONSE' | 'CANCELLED';
 
 /** Messages for failures the server never saw or could not describe. */
 const CLIENT_MESSAGES = {
   NETWORK: "I couldn't reach the MediLens server. Check your connection and try again.",
   TIMEOUT: 'The server took too long to answer. Please try again.',
+  CANCELLED: 'The request was stopped.',
   INVALID_RESPONSE: 'The server sent an answer this app cannot read. Please update the app.',
   INTERNAL_ERROR: 'Something went wrong. Please try again.',
   VALIDATION_FAILED: 'Please choose 1 to 3 photos.',
@@ -73,9 +74,15 @@ export interface UploadImage {
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
+/** Lets the caller stop a request, e.g. when the user leaves the screen that started it. */
+export interface RequestOptions {
+  signal?: AbortSignal;
+}
+
 export interface ApiClient {
   health(): Promise<Health>;
-  analyze(images: UploadImage[]): Promise<AnalysisResult>;
+  /** Rejects with CANCELLED, and never reaches the server, once `options.signal` aborts. */
+  analyze(images: UploadImage[], options?: RequestOptions): Promise<AnalysisResult>;
   result(id: string): Promise<AnalysisResult>;
   scenario(scenarioId: string): Promise<AnalysisResult>;
   scenarios(): Promise<DemoScenarioSummary[]>;
@@ -99,18 +106,28 @@ export function createApiClient(baseUrl: string, fetchImpl: FetchLike = fetch): 
     schema: z.ZodType<T>,
     init: RequestInit = {},
     timeoutMs = REQUEST_TIMEOUT_MS,
+    caller?: AbortSignal,
   ): Promise<T> {
+    const cancelledError = () => new ApiError('CANCELLED', CLIENT_MESSAGES.CANCELLED);
+    if (caller?.aborted) throw cancelledError();
     const controller = new AbortController();
     let timedOut = false;
+    let cancelled = false;
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
     }, timeoutMs);
+    const onCallerAbort = () => {
+      cancelled = true;
+      controller.abort();
+    };
+    caller?.addEventListener('abort', onCallerAbort);
     try {
       let res: Response;
       try {
         res = await fetchImpl(url, { ...init, signal: controller.signal });
       } catch {
+        if (cancelled) throw cancelledError();
         throw timedOut
           ? new ApiError('TIMEOUT', CLIENT_MESSAGES.TIMEOUT)
           : new ApiError('NETWORK', CLIENT_MESSAGES.NETWORK);
@@ -121,9 +138,11 @@ export function createApiClient(baseUrl: string, fetchImpl: FetchLike = fetch): 
       try {
         body = await res.json();
       } catch {
+        if (cancelled) throw cancelledError();
         if (timedOut) throw new ApiError('TIMEOUT', CLIENT_MESSAGES.TIMEOUT);
         isJson = false;
       }
+      if (cancelled) throw cancelledError();
 
       if (!res.ok) {
         const error = ErrorBodySchema.safeParse(body);
@@ -140,6 +159,7 @@ export function createApiClient(baseUrl: string, fetchImpl: FetchLike = fetch): 
       return parsed.data;
     } finally {
       clearTimeout(timer);
+      caller?.removeEventListener('abort', onCallerAbort);
     }
   }
 
@@ -156,7 +176,7 @@ export function createApiClient(baseUrl: string, fetchImpl: FetchLike = fetch): 
   return {
     health: () => request(`${root}/health`, HealthSchema),
 
-    async analyze(images) {
+    async analyze(images, options = {}) {
       if (images.length === 0 || images.length > MAX_IMAGES) {
         throw new ApiError('VALIDATION_FAILED', CLIENT_MESSAGES.VALIDATION_FAILED);
       }
@@ -175,6 +195,7 @@ export function createApiClient(baseUrl: string, fetchImpl: FetchLike = fetch): 
         AnalysisResultSchema,
         { method: 'POST', headers: { Accept: 'application/json' }, body: form },
         ANALYZE_TIMEOUT_MS,
+        options.signal,
       );
     },
 

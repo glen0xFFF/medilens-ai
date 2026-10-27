@@ -73,6 +73,15 @@ export default function ResultScreen() {
         active={focused}
       />
 
+      {result.pipelineState === 'label_unreadable' ? (
+        // Final review Minor 24: the summary asks for a retake, so offer it here.
+        <BigButton
+          label="Retake photos"
+          accessibilityHint="Opens the camera to photograph the label again"
+          onPress={() => router.replace('/scan')}
+        />
+      ) : null}
+
       <BigButton
         label="Label fields"
         accessibilityHint="Shows each field read from the label and how clear it was"

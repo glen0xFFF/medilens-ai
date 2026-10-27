@@ -195,6 +195,37 @@ describe('createApiClient', () => {
       await jest.advanceTimersByTimeAsync(ANALYZE_TIMEOUT_MS);
       expect((await pending).code).toBe('TIMEOUT');
     });
+
+    // Final review Minor 22: leaving the analyzing screen stops the upload.
+    it('stops an analyze upload when the caller aborts, with CANCELLED', async () => {
+      const fetchImpl = hangingFetch();
+      const controller = new AbortController();
+      const pending = caught(
+        createApiClient(BASE, fetchImpl).analyze([{ uri: 'file:///a.jpg', type: 'image/jpeg' }], {
+          signal: controller.signal,
+        }),
+      );
+      await jest.advanceTimersByTimeAsync(1_000);
+      const sent = fetchImpl.mock.calls[0]![1]!.signal!;
+      expect(sent.aborted).toBe(false);
+      controller.abort();
+      const err = await pending;
+      expect(err.code).toBe('CANCELLED');
+      expect(sent.aborted).toBe(true);
+    });
+
+    it('never sends an analyze upload whose signal is already aborted', async () => {
+      const fetchImpl = hangingFetch();
+      const controller = new AbortController();
+      controller.abort();
+      const err = await caught(
+        createApiClient(BASE, fetchImpl).analyze([{ uri: 'file:///a.jpg', type: 'image/jpeg' }], {
+          signal: controller.signal,
+        }),
+      );
+      expect(err.code).toBe('CANCELLED');
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
   });
 
   it('uploads images as multipart under the "images" field', async () => {

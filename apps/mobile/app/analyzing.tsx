@@ -42,38 +42,54 @@ export default function Analyzing() {
   const mounted = useRef(true);
   const started = useRef(-1);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // The upload in flight. Leaving this screen (Back, Home) aborts it, so a
+  // request nobody waits for stops spending (final review Minor 22).
+  const upload = useRef<AbortController | null>(null);
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
       if (timer.current !== null) clearInterval(timer.current);
+      timer.current = null;
+      if (upload.current !== null) {
+        upload.current.abort();
+        upload.current = null;
+        // A remount (React StrictMode) sends this attempt again; a real unmount never remounts.
+        started.current = -1;
+      }
     };
   }, []);
 
   useEffect(() => {
     const photos: readonly PreparedImage[] = latest.current.images;
-    if (started.current === attempt || photos.length === 0) return;
+    // One upload at a time: a second Try again tap during an upload is ignored.
+    if (started.current === attempt || photos.length === 0 || upload.current !== null) return;
     started.current = attempt;
+    const controller = new AbortController();
+    upload.current = controller;
 
     const first = startMessage(photos.length);
     setFailure(null);
     setStatus(first);
     announce(first);
-    timer.current = setInterval(() => {
+    const interval = setInterval(() => {
       if (!mounted.current) return;
       setStatus(STILL_WORKING);
       announce(STILL_WORKING);
     }, STILL_WORKING_MS);
-    const stopTimer = () => {
-      if (timer.current !== null) clearInterval(timer.current);
-      timer.current = null;
+    timer.current = interval;
+    /** Ends this attempt; false when it was aborted or the screen has gone. */
+    const finish = () => {
+      clearInterval(interval);
+      if (timer.current === interval) timer.current = null;
+      if (upload.current === controller) upload.current = null;
+      return mounted.current && !controller.signal.aborted;
     };
 
-    client.analyze([...photos]).then(
+    client.analyze([...photos], { signal: controller.signal }).then(
       (result) => {
-        stopTimer();
-        if (!mounted.current) return;
+        if (!finish()) return;
         latest.current.saveResult(result);
         // Upload finished: the photos are no longer needed on the phone.
         latest.current.clear();
@@ -82,8 +98,7 @@ export default function Analyzing() {
         router.push({ pathname: '/result/[id]', params: { id: result.id } });
       },
       (error: unknown) => {
-        stopTimer();
-        if (!mounted.current) return;
+        if (!finish()) return;
         const message = analyzeErrorMessage(error);
         setStatus(null);
         setFailure({ code: error instanceof ApiError ? error.code : null, message });

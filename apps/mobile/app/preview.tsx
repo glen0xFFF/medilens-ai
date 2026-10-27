@@ -1,4 +1,5 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef } from 'react';
 import { AccessibilityInfo, Image, StyleSheet, View } from 'react-native';
 import { useCaptures } from '../src/capture/captures';
 import { BigButton } from '../src/components/BigButton';
@@ -10,6 +11,19 @@ export default function Preview() {
   const theme = useTheme();
   const router = useRouter();
   const { images, remaining, remove, clear } = useCaptures();
+  // One upload per tap (final review Minor 22): a second tap before the analyzing
+  // screen opens is ignored; coming back to this screen allows sending again.
+  const sending = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      sending.current = false;
+    }, []),
+  );
+  const send = () => {
+    if (sending.current) return;
+    sending.current = true;
+    router.push('/analyzing');
+  };
 
   const cancel = () => {
     clear();
@@ -71,7 +85,7 @@ export default function Preview() {
       <BigButton
         label="Analyze"
         accessibilityHint="Sends the photos to the MediLens server to read the label"
-        onPress={() => router.push('/analyzing')}
+        onPress={send}
       />
       <BigButton
         label="Cancel"
