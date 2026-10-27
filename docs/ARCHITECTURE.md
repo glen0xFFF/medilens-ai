@@ -52,14 +52,18 @@ docs/                Spec, plan, research and project documents
 4. **Read**: `LabelReader` returns an `ExtractedLabel`: every field's value, legibility and
    evidence text. Live: Muse Spark with a JSON schema, one retry on invalid output, and a guard
    that discards output from any model whose id contains "contributor".
-5. **Parse**: deterministic parsers for strength, registration number and dates.
+5. **Parse**: deterministic parsers for strength and registration number, plus name and
+   dosage-form normalisation. The expiry date is not parsed; it is kept and spoken exactly as
+   printed (only the offline accuracy eval parses its month and year).
 6. **Look up**: `ReferenceProvider` searches the registry by registration number, then by name.
 7. **Match**: pure deterministic rules produce a `MatchAssessment` (spec §5.4).
 8. **Summarise**: a deterministic template produces display text and spoken chunks (spec §5.5).
 9. **Store**: the `AnalysisResult` is kept in memory for 15 minutes for follow-up calls.
 
-**The model only transcribes.** Verification status, matching, the summary and the safety gate
-are deterministic code.
+**The model transcribes and decides nothing.** Its only other use is explaining one printed
+phrase in Q&A, after the safety gate, and that explanation is dropped unless it passes a strict
+content gate (see `QuestionAnswerer` below). Verification status, matching, the summary and the
+safety gate are deterministic code.
 
 ## Providers
 

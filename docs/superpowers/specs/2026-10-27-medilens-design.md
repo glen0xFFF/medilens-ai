@@ -1,7 +1,7 @@
 # MediLens AI — Design
 
 **Date:** 2026-10-27
-**Status:** Draft for owner approval
+**Status:** Approved (owner, 2026-10-27); amended by ledger rulings
 **Research basis:** `docs/research/2026-10-27-decision-memo.md` (adversarially verified; tags VERIFIED / UNVERIFIED there apply here)
 
 > MediLens AI — Medication Accessibility Assistant.
@@ -104,7 +104,7 @@ Model output is **never** authoritative about medication facts. The model only t
 | `LabelReader.read(images) → ReadResult` | `MuseSparkLabelReader` (json_schema response_format, transcribe-only prompt, validate with Zod, one retry on invalid JSON, contributor-model guard) | `FixtureLabelReader` keyed by scenario id |
 | `ReferenceProvider.search(query) → ReferenceSearchResult` | `PhFdaReferenceProvider` (timeout, cache, UA, rate-limit aware, maps `cdrr` records; surfaces `fdawebsite` advisories) | `FixtureReferenceProvider` |
 | `QuestionAnswerer.answer(evidence, question) → Answer` | `MuseSparkAnswerer` (evidence-only prompt, must cite field keys; uncited answer ⇒ fallback refusal) | `FixtureAnswerer` |
-| `GlassesBridge` | **not implemented** — interface + `UnavailableGlassesBridge` only, documented as roadmap | — |
+| `GlassesBridge` | **not built** — roadmap only. Amended (final review): no `GlassesBridge` interface or `UnavailableGlassesBridge` stub exists in the code; glasses appear only on the roadmap slide | — |
 
 `PROVIDER_MODE=live|demo` governs **only** `/labels/analyze` and `/labels/:id/explain` for scanned results. `/demo/*` endpoints are always available and always use fixture providers, so one deployed backend serves both the 8 scenarios and live scans (my call; result `isDemo` decides which answerer handles `/explain`). Live mode without `MODEL_API_KEY` fails fast at startup (env validated with Zod). Demo mode needs no keys. RxNav spelling correction for generic names is optional (`RXNAV_ENABLED`, default off) — my call, cut first if time is short.
 
@@ -118,10 +118,10 @@ Model output is **never** authoritative about medication facts. The model only t
 ### 4.4 Mobile app
 
 - expo-router, screens (§6). State: React context + reducer; settings persisted with AsyncStorage (in Expo Go).
-- Camera: `expo-camera` `CameraView` with torch toggle; `takePictureAsync({quality: 0.9})`; resize via `expo-image-manipulator` to 2048 px; gallery fallback `expo-image-picker`.
+- Camera: `expo-camera` `CameraView` with torch toggle; `takePictureAsync({quality: 0.9})`; resize via `expo-image-manipulator` to at most 2048 px on the long edge; gallery fallback `expo-image-picker`.
 - Speech: `SpeechQueue` pure-TS module over an injected engine (`expo-speech` in app, fake in tests). Chunks ≤ `Speech.maxSpeechInputLength`; pause = stop + remember chunk index; resume = restart chunk; repeat; rate 0.5–1.5.
 - `AccessibilityInfo.announceForAccessibility` for state changes; all controls have `accessibilityLabel`/`accessibilityRole`; ≥48dp targets; respects font scale; high-contrast theme.
-- Backend URL from `EXPO_PUBLIC_API_URL` (not a secret). No keys in the app.
+- Backend URL from `EXPO_PUBLIC_API_BASE_URL` (not a secret). No keys in the app.
 
 ## 5. Contracts
 
@@ -214,7 +214,7 @@ Fixture product names are fictional (e.g. "Paracelin 500") to avoid implying rea
 - **Real:** Muse Spark 1.3 (vision transcription with JSON schema; grounded Q&A). Shown live.
 - **Stretch S1 (real):** Muse Voice Transcribe for spoken questions, only if `expo-audio` can produce WAV/PCM in Expo Go on the owner's phone.
 - **Stretch S2:** multi-image (up to 3 sides of a box) in one Muse Spark request — already in the contract; prompt merges sides.
-- **Not built:** glasses (Wearables Device Access Toolkit is native-only, not fully available in the Philippines, apps unpublishable). `GlassesBridge` interface + roadmap slide. No footage implies glasses.
+- **Not built:** glasses (Wearables Device Access Toolkit is native-only, not fully available in the Philippines, apps unpublishable). Roadmap slide only: no `GlassesBridge` interface or stub was built (amended in the final review). No footage implies glasses.
 
 ## 9. Testing
 

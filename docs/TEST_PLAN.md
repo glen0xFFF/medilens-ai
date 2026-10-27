@@ -5,27 +5,36 @@ Automated suites run with `npm test`, `npm run typecheck` and `npm run lint` at 
 
 ## Automated results
 
-Run by the build agent on 2026-10-27 (Task 15), Node v24.21.0, Windows, branch `feat/mvp`.
-Summary lines copied from the real output:
+Run by the build agent on 2026-10-27 after the final-review fix waves, at commit `6f170a0`
+(the last code change; this file and other docs changed after it). Node v24.21.0, Windows,
+branch `feat/mvp`. Summary lines copied from the real output:
 
 `npm test` (exit 0):
 
 ```
 > @medilens/contracts@0.1.0 test
  Test Files  1 passed (1)
-      Tests  26 passed (26)
+      Tests  27 passed (27)
 > @medilens/mobile@0.1.0 test
 Test Suites: 17 passed, 17 total
-Tests:       254 passed, 254 total
+Tests:       284 passed, 284 total
 > @medilens/server@0.1.0 test
- Test Files  21 passed (21)
-      Tests  2926 passed (2926)
+ Test Files  23 passed (23)
+      Tests  3077 passed (3077)
 ```
 
 `npm run typecheck` (exit 0): `tsc --noEmit` passed for `@medilens/contracts`, `@medilens/mobile`
 and `@medilens/server` with no errors.
 
 `npm run lint` (exit 0): `eslint .` printed no problems.
+
+Known flake: in one of eight root runs during the mobile fix wave, the first test in
+`apps/mobile/test/screens/scan.test.tsx` exceeded Jest's 5 s timeout. That test normally takes
+about 0.7 s (it pays the cold load of every route file). The next two mobile runs and every later
+root run passed. Re-run once before treating such a timeout as a failure.
+
+Earlier result, for reference (Task 15, before the final review): contracts 26, mobile 254,
+server 2926 tests passed.
 
 ## Live smoke test
 
@@ -45,26 +54,31 @@ serving model id contains "contributor". Never run in CI.
 
 ## Secret scan
 
-`git grep -nE "(sk-|MODEL_API_KEY=.+)"` run on 2026-10-27 with this task's files staged. Every
-hit is a placeholder (`MODEL_API_KEY=...`), the scan command itself, the substring "sk-" inside
-"task-by-task" / "mvp.md", or the fake value in `apps/server/test/config.test.ts` that the test
-uses to prove keys are never echoed. No real key. `git ls-files .env apps/mobile/.env` printed
-nothing (neither file is tracked).
+The scan pattern was tightened in the final review (Minor 35). The old pattern,
+`(sk-|MODEL_API_KEY=.+)`, matched every placeholder, the scan command itself and words such as
+"task-by-task", so it gave 25 hits on 2026-10-27, none of them a key, and was easy to stop
+reading. The new pattern matches a value assigned to `MODEL_API_KEY` in env-file form (bare or
+double-quoted) and any `sk-` token of 20 or more characters:
 
 ```
-apps/server/scripts/eval-labels.ts:7: *   MODEL_API_KEY=... npm run eval:labels -w @medilens/server
-apps/server/scripts/smoke-live.ts:9: *   MODEL_API_KEY=... npx tsx apps/server/scripts/smoke-live.ts <image> [fda-search-term]
-apps/server/test/config.test.ts:79:      loadConfig({ PROVIDER_MODE: 'prod', MODEL_API_KEY: 'sk-secret-value-123' });
-apps/server/test/config.test.ts:84:    expect(message).not.toContain('sk-secret-value-123');
-docs/HACKATHON_CHECKLIST.md:39:- [ ] **Secret scan** before making it public: `git grep -nE "(sk-|MODEL_API_KEY=.+)"` must
-docs/PROJECT_PLAN.md:4:Task-level plan: [superpowers/plans/2026-10-27-medilens-mvp.md](superpowers/plans/2026-10-27-medilens-mvp.md).
-docs/superpowers/plans/2026-10-27-medilens-mvp.md:3:> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-docs/superpowers/plans/2026-10-27-medilens-mvp.md:244:- [ ] **Step 4:** Secret scan: `git grep -nE "(sk-|MODEL_API_KEY=.+)"` returns nothing outside `.env.example`.
-eval/README.md:64:MODEL_API_KEY=... npm run eval:labels -w @medilens/server
+git grep -nE "sk-[A-Za-z0-9_-]{20,}|MODEL_API_KEY=\"?[A-Za-z0-9_-]"
 ```
 
-The owner re-runs the scan before making the repository public (after this file is committed,
-it also matches the lines above).
+Run on 2026-10-27 over the tracked files with this file's changes in the working tree: no
+output, exit 1 (git grep's "no match"). It does not match its own text, the
+`MODEL_API_KEY=...` placeholders, the empty `MODEL_API_KEY=` in `.env.example`, or the short fake
+`sk-secret-value-123` in `apps/server/test/config.test.ts`.
+
+Negative control, same pattern with `grep -nE` over a scratch file outside the repo (its planted
+values are described here, not copied, so this file does not match the scan): it matched an
+env line assigning 12 letters and digits to `MODEL_API_KEY`, one assigning a double-quoted value,
+and a 24-character `sk-proj-` token in a quoted string; it did not match `MODEL_API_KEY=...`, an
+empty `MODEL_API_KEY=` or `sk-secret-value-123`.
+
+Not covered: a key of another shape pasted somewhere other than a `MODEL_API_KEY=` line. Before
+making the repository public the owner re-runs the scan, also confirms `.env` is not tracked
+(`git ls-files .env apps/mobile/.env` must print nothing), and searches for the first few
+characters of the real key.
 
 ## EAS build
 
@@ -91,3 +105,7 @@ These need the owner's Android phone (Expo Go, TalkBack). None has been run by t
 - NOT RUN — owner to perform: on the camera screen confirm "Torch: On" lights the phone torch, a 4th photo cannot be taken after 3, "Retake photo N" replaces only that photo, "Remove photo N" removes it, and "Read existing photo" (home and camera screens) lets you choose at most the free slots; with 4 chosen, only the first 3 are kept and the message is spoken (Task 14 capture limits).
 - NOT RUN — owner to perform: with TalkBack on, confirm each photo taken is announced ("Photo 1 of 3 taken."), the analyzing screen announces "Sending N photos and reading the label…" and, on a slow network, "Still reading the label. Please wait." every 15 seconds; switch the phone to airplane mode and confirm the "couldn't reach the MediLens server" message is shown and spoken with Try again and Back to photos (Task 14 progress and errors).
 - NOT RUN — owner to perform: after a scan completes or is cancelled, confirm no MediLens photos appear in the phone gallery (the app never writes to the media library) (Task 14 privacy).
+- NOT RUN — owner to perform: with the server in demo mode, confirm Home and the camera screen show and TalkBack reads "Server is in demo mode: scans return a made-up example."; with the server in live mode, confirm the notice is gone (final review Minor 17).
+- NOT RUN — owner to perform: on a live server, double-tap Analyze and confirm only one "Sending…" announcement and one request in the server log; start an upload, press the Android Back button within a few seconds and confirm the preview returns with the photos kept and no result screen opens later (final review Minor 22).
+- NOT RUN — owner to perform: pick a tall gallery image (for example a long screenshot) and confirm it uploads and is read; the app resizes its long edge to 2048 px (final review Minor 26).
+- NOT RUN — owner to perform: open demo s2, confirm a "Retake photos" button under the summary opens the camera; on a live scan of a loose tablet, confirm Label fields says "This looks like a loose tablet, not a label, so no label fields are shown." (final review Minor 24, I2).

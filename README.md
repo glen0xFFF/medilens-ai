@@ -5,8 +5,9 @@
 MediLens AI is an Android app for people with low vision, older adults and anyone who struggles
 with small print on medicine packaging. Point the phone at a medicine pack and MediLens:
 
-1. reads the printed label with **Meta Muse Spark** (vision, structured output; it only
-   **transcribes** the text),
+1. reads the printed label with **Meta Muse Spark** (vision, structured output; it
+   **transcribes** the text, and its only other job is a short explanation of one printed
+   phrase, kept only if it passes a strict content gate),
 2. checks what it read against the **Philippine FDA product registry**, using
    **deterministic code** (the model never decides whether a product matches),
 3. speaks a clear, ordered summary aloud, with pause, resume, repeat, stop and rate controls, and
@@ -101,8 +102,9 @@ for the diagram and pipeline, and [docs/API_SPEC.md](docs/API_SPEC.md) for the H
 
 ## Safety and privacy summary
 
-- Muse Spark only transcribes. Matching, verification status, the spoken summary and most
-  answers are **deterministic code**.
+- Muse Spark transcribes the label; its only other use is explaining one printed phrase on
+  request, kept only if it passes a strict content gate. Matching, verification status, the
+  spoken summary and every other answer are **deterministic code**.
 - Questions pass a **default-deny** safety gate: only label-reading questions are answered;
   dosing, diagnosis, interactions and "is it safe for me" are refused with a pharmacist redirect.
 - Uncertainty is spoken: unclear fields are marked unclear; a conflict with the registry is

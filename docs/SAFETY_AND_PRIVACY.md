@@ -7,11 +7,14 @@ every spoken summary ends with "Confirm with your pharmacist or doctor."
 
 ## What the AI does and does not decide
 
-- **Meta Muse Spark only transcribes** the printed label into structured fields, each with a
-  legibility flag (clear, partial, unreadable) and the evidence text it read.
-- **Verification is deterministic code**, not the model: parsers normalise strength,
-  registration number and dates, and a rule-based matcher compares them with the registry
-  (rules in the design spec §5.4).
+- **Meta Muse Spark transcribes** the printed label into structured fields, each with a
+  legibility flag (clear, partial, unreadable) and the evidence text it read. Its only other job
+  is the gated "explain this printed phrase" answer described below; it never decides a match,
+  a verification status or whether a question is answered.
+- **Verification is deterministic code**, not the model: parsers normalise strength and
+  registration number, names and dosage forms are normalised, and a rule-based matcher compares
+  them with the registry (rules in the design spec §5.4). The expiry date is not parsed: it is
+  read and spoken exactly as printed (only the offline accuracy eval parses its month and year).
 - The spoken summary is a **deterministic template**.
 - Questions are answered deterministically from the label. The only model use in answers is for
   "explain this printed phrase": the model sees only that printed field, and its explanation is
