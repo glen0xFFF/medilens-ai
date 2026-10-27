@@ -3,6 +3,79 @@
 Automated suites run with `npm test`, `npm run typecheck` and `npm run lint` at the repo root
 (contracts and server on Vitest, the mobile app on jest-expo).
 
+## Automated results
+
+Run by the build agent on 2026-10-27 (Task 15), Node v24.21.0, Windows, branch `feat/mvp`.
+Summary lines copied from the real output:
+
+`npm test` (exit 0):
+
+```
+> @medilens/contracts@0.1.0 test
+ Test Files  1 passed (1)
+      Tests  26 passed (26)
+> @medilens/mobile@0.1.0 test
+Test Suites: 17 passed, 17 total
+Tests:       254 passed, 254 total
+> @medilens/server@0.1.0 test
+ Test Files  21 passed (21)
+      Tests  2926 passed (2926)
+```
+
+`npm run typecheck` (exit 0): `tsc --noEmit` passed for `@medilens/contracts`, `@medilens/mobile`
+and `@medilens/server` with no errors.
+
+`npm run lint` (exit 0): `eslint .` printed no problems.
+
+## Live smoke test
+
+One Muse Spark label read on a real photo plus one PH FDA lookup, through the production
+adapters. Prints model id, finish reason, token usage (including `reasoning_tokens` when
+reported), HTTP status and response key names; never the read text. Aborts (exit 3) if the
+serving model id contains "contributor". Never run in CI.
+
+- NOT RUN — owner to run: `npx tsx apps/server/scripts/smoke-live.ts <image>` with
+  `MODEL_API_KEY` set (optional second argument: FDA search term, default `biogesic`). No key
+  was available to the build agent. Paste the printed lines here, and use the
+  `fdawebsite row keys` line to confirm the advisory field names assumed in
+  `apps/server/src/providers/phFda.ts`.
+- Checked by the build agent without a key (no network calls): with no arguments it prints the
+  usage line and exits 1; with an image path and no `MODEL_API_KEY` it prints
+  "MODEL_API_KEY is not set. The live smoke test needs it." and exits 1.
+
+## Secret scan
+
+`git grep -nE "(sk-|MODEL_API_KEY=.+)"` run on 2026-10-27 with this task's files staged. Every
+hit is a placeholder (`MODEL_API_KEY=...`), the scan command itself, the substring "sk-" inside
+"task-by-task" / "mvp.md", or the fake value in `apps/server/test/config.test.ts` that the test
+uses to prove keys are never echoed. No real key. `git ls-files .env apps/mobile/.env` printed
+nothing (neither file is tracked).
+
+```
+apps/server/scripts/eval-labels.ts:7: *   MODEL_API_KEY=... npm run eval:labels -w @medilens/server
+apps/server/scripts/smoke-live.ts:9: *   MODEL_API_KEY=... npx tsx apps/server/scripts/smoke-live.ts <image> [fda-search-term]
+apps/server/test/config.test.ts:79:      loadConfig({ PROVIDER_MODE: 'prod', MODEL_API_KEY: 'sk-secret-value-123' });
+apps/server/test/config.test.ts:84:    expect(message).not.toContain('sk-secret-value-123');
+docs/HACKATHON_CHECKLIST.md:39:- [ ] **Secret scan** before making it public: `git grep -nE "(sk-|MODEL_API_KEY=.+)"` must
+docs/PROJECT_PLAN.md:4:Task-level plan: [superpowers/plans/2026-10-27-medilens-mvp.md](superpowers/plans/2026-10-27-medilens-mvp.md).
+docs/superpowers/plans/2026-10-27-medilens-mvp.md:3:> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+docs/superpowers/plans/2026-10-27-medilens-mvp.md:244:- [ ] **Step 4:** Secret scan: `git grep -nE "(sk-|MODEL_API_KEY=.+)"` returns nothing outside `.env.example`.
+eval/README.md:64:MODEL_API_KEY=... npm run eval:labels -w @medilens/server
+```
+
+The owner re-runs the scan before making the repository public (after this file is committed,
+it also matches the lines above).
+
+## EAS build
+
+- NOT RUN — owner to run: replace `https://REPLACE-WITH-HOSTED-SERVER` in
+  `apps/mobile/eas.json` with the hosted server URL, then `cd apps/mobile && eas build --profile
+  preview --platform android` (APK, internal distribution) and install it on the phone.
+
+## Accuracy eval
+
+- NOT RUN — owner to run on 20 real packs by Oct 31; see `eval/README.md`.
+
 ## Manual device checks
 
 These need the owner's Android phone (Expo Go, TalkBack). None has been run by the build agents.
