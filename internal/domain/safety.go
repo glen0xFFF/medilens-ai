@@ -29,7 +29,11 @@ package domain
 // normalise and the u-flag INVISIBLE class are hand-written below:
 // TestJSUnicodeTables checks \s, the invisible class, toLowerCase and NFKC
 // per code point against V8, and the adversarial corpus covers the quote
-// mapping and whitespace runs.
+// mapping and whitespace runs. NFKC and toLowerCase are jsNFKC and jsLower
+// (jsunicode.go): ICU's algorithms, without the 30-character bounds of
+// golang.org/x/text (the Stream-Safe U+034F and the Final_Sigma
+// look-ahead). TestUnicodeRuns checks them, and the gate, on longer runs,
+// including questions that normalise to 299, 300 and 301 code units.
 //
 // Building blocks keep their TS names in camelCase; each comment of the TS
 // source applies unchanged.
@@ -39,10 +43,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-	"golang.org/x/text/unicode/norm"
 
 	"github.com/medilens-ai/medilens/internal/contracts"
 	"github.com/medilens-ai/medilens/internal/jsregex"
@@ -835,9 +835,9 @@ func jsTrim(s string) string { return strings.TrimFunc(s, isJSSpace) }
 
 // normalise is TS normalise:
 //
-//	q.normalize('NFKC')
+//	q.normalize('NFKC')                 jsNFKC: ICU, no Stream-Safe U+034F
 //	 .replace(INVISIBLE, '')            removed, not replaced by a space
-//	 .toLowerCase()                     full mapping (x/text cases, Und)
+//	 .toLowerCase()                     jsLower: ICU Final_Sigma, unbounded
 //	 .replace(/[‘’‛′`]/g, "'")
 //	 .replace(/[“”„‟″]/g, '"')
 //	 .replace(/\s+/g, ' ')              JS \s, not unicode.IsSpace
@@ -845,14 +845,14 @@ func jsTrim(s string) string { return strings.TrimFunc(s, isJSSpace) }
 //
 // then strips trailing ' ', '?', '.', '!', ',', ';', ':' with a linear scan.
 func normalise(q string) string {
-	t := norm.NFKC.String(q)
+	t := jsNFKC(q)
 	t = strings.Map(func(r rune) rune {
 		if isInvisible(r) {
 			return -1
 		}
 		return r
 	}, t)
-	t = cases.Lower(language.Und).String(t)
+	t = jsLower(t)
 	var b strings.Builder
 	b.Grow(len(t))
 	inSpace := false

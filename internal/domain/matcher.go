@@ -21,10 +21,6 @@ import (
 	"strings"
 	"unicode"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-	"golang.org/x/text/unicode/norm"
-
 	"github.com/medilens-ai/medilens/internal/contracts"
 )
 
@@ -332,7 +328,7 @@ func isVocabulary(word string) bool {
 // `10s`) is kept, so it counts as unrecognised.
 func formWords(text string) []string {
 	var words []string
-	tokens := replaceFilmCoated(cases.Lower(language.Und).String(norm.NFKC.String(text)))
+	tokens := replaceFilmCoated(jsLower(jsNFKC(text)))
 	for _, token := range splitFormTokens(tokens) {
 		parts := []string{token}
 		if !isVocabulary(token) {

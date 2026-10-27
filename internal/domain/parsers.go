@@ -29,7 +29,6 @@ import (
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"golang.org/x/text/unicode/norm"
 )
 
 // StrengthUnit is one of mg, mcg, g, mL, IU, %.
@@ -639,7 +638,7 @@ func jsNumber(s string) float64 {
 // ambiguous `1.000`, the result is nil.
 func ParseStrength(s string) []Strength {
 	// NFKC folds full-width `ｍｇ`, the `㎎` ligature and NBSP into plain text.
-	text := replaceMicroG([]rune(norm.NFKC.String(s)))
+	text := replaceMicroG([]rune(jsNFKC(s)))
 	for _, r := range text {
 		// The strength marker must not be forgeable from the input, and a
 		// format character can hide a join between numbers (`0<ZWSP>,5`).
@@ -865,7 +864,7 @@ func isFormWord(word string) bool {
 // NormalizeName lower-cases (JS full case mapping), turns ® and ™ into
 // spaces, splits on JS whitespace and drops dosage-form words and modifiers.
 func NormalizeName(s string) string {
-	lower := cases.Lower(language.Und).String(s)
+	lower := jsLower(s)
 	lower = strings.NewReplacer("\u00AE", " ", "\u2122", " ").Replace(lower)
 	words := strings.FieldsFunc(lower, isJSSpace)
 	kept := make([]string, 0, len(words))

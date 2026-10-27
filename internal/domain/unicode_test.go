@@ -9,10 +9,6 @@ import (
 	"testing"
 	"unicode"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-	"golang.org/x/text/unicode/norm"
-
 	"github.com/medilens-ai/medilens/internal/parity"
 )
 
@@ -27,6 +23,11 @@ type jsUnicode struct {
 	Invisible       [][2]int          `json:"invisible"`
 	Lower           map[string]string `json:"lower"`
 	NFKC            map[string]string `json:"nfkc"`
+	Cased           [][2]int          `json:"cased"`
+	CaseIgnorable   [][2]int          `json:"caseIgnorable"`
+	// SigmaFinal maps a template (c stands for the code point) to the code
+	// points for which V8 lowercases its Σ to the final form ς.
+	SigmaFinal map[string][][2]int `json:"sigmaFinal"`
 }
 
 func inRanges(rs [][2]int, cp int) bool {
@@ -42,8 +43,10 @@ func inRanges(rs [][2]int, cp int) bool {
 // behaviour the port re-implements against V8's (Node v24.21.0, Unicode
 // 17.0, recorded by scripts/parity/go-probes.ts): JS \s (isJSSpace),
 // \p{Cf}, \p{L}, \p{N}, \p{Pd}, the safety gate's
-// [\p{Cf}\p{Default_Ignorable_Code_Point}] (isInvisible), toLowerCase
-// (x/text cases, language.Und) and NFKC (x/text norm).
+// [\p{Cf}\p{Default_Ignorable_Code_Point}] (isInvisible), \p{Cased}
+// (isCased), \p{Case_Ignorable} (isCaseIgnorable), toLowerCase (jsLower),
+// NFKC (jsNFKC), and toLowerCase's Final_Sigma context: the Σ of AΣc,
+// AΣcA, cΣ and AcΣ for every code point c.
 func TestJSUnicodeTables(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "js_unicode.json"))
 	if err != nil {
@@ -56,7 +59,9 @@ func TestJSUnicodeTables(t *testing.T) {
 	if !strings.HasPrefix(unicode.Version, u.Unicode) {
 		t.Errorf("Node (%s) has Unicode %s, Go has %s", u.Node, u.Unicode, unicode.Version)
 	}
-	lower := cases.Lower(language.Und)
+	if len(u.SigmaFinal) != 4 {
+		t.Fatalf("js_unicode.json has %d Final_Sigma templates, want 4", len(u.SigmaFinal))
+	}
 	checks := []struct {
 		name string
 		rs   [][2]int
@@ -68,6 +73,8 @@ func TestJSUnicodeTables(t *testing.T) {
 		{"number", u.Number, unicode.IsNumber},
 		{"dashPunctuation", u.DashPunctuation, func(r rune) bool { return unicode.Is(unicode.Pd, r) }},
 		{"invisible", u.Invisible, isInvisible},
+		{"cased", u.Cased, isCased},
+		{"caseIgnorable", u.CaseIgnorable, isCaseIgnorable},
 	}
 	bad := map[string]int{}
 	for cp := 0; cp <= 0x10FFFF; cp++ {
@@ -89,7 +96,7 @@ func TestJSUnicodeTables(t *testing.T) {
 		if !ok {
 			wantLower = s
 		}
-		if got := lower.String(s); got != wantLower {
+		if got := jsLower(s); got != wantLower {
 			bad["lower"]++
 			if bad["lower"] <= 3 {
 				t.Errorf("toLowerCase(U+%04X) = %q, JS %q", cp, got, wantLower)
@@ -99,10 +106,24 @@ func TestJSUnicodeTables(t *testing.T) {
 		if !ok {
 			wantNFKC = s
 		}
-		if got := norm.NFKC.String(s); got != wantNFKC {
+		if got := jsNFKC(s); got != wantNFKC {
 			bad["nfkc"]++
 			if bad["nfkc"] <= 3 {
 				t.Errorf("NFKC(U+%04X) = %q, JS %q", cp, got, wantNFKC)
+			}
+		}
+		for template, rs := range u.SigmaFinal {
+			in := strings.Replace(template, "c", s, 1)
+			out := []rune(jsLower(in))
+			sigma := out[len(out)-1]
+			if strings.HasPrefix(template, "AΣ") {
+				sigma = out[1]
+			}
+			if want := inRanges(rs, cp); (sigma == 'ς') != want {
+				bad["sigma "+template]++
+				if bad["sigma "+template] <= 3 {
+					t.Errorf("jsLower(%+q) = %+q, JS final sigma %v", in, string(out), want)
+				}
 			}
 		}
 	}

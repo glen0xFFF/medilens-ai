@@ -26,11 +26,19 @@
  *    sources are exactly these and that its matcher agrees on every pair.
  * 4. internal/domain/testdata/js_unicode.json: per code point, the JS
  *    Unicode behaviour the Go port re-implements: \s, \p{Cf}, \p{L}, \p{N},
- *    \p{Pd}, [\p{Cf}\p{Default_Ignorable_Code_Point}], toLowerCase and NFKC.
+ *    \p{Pd}, [\p{Cf}\p{Default_Ignorable_Code_Point}], toLowerCase and NFKC,
+ *    plus \p{Cased}, \p{Case_Ignorable} and toLowerCase's Final_Sigma
+ *    context (whether the Σ in `AΣc`, `AΣcA`, `cΣ` and `AcΣ` becomes ς).
  * 5. internal/domain/testdata/matcher_regexps.jsonl: the matcher's i- and
  *    u-flag RegExps (each checked to appear verbatim in matcher.ts) on every
  *    string in fixtures/parity/matcher.jsonl plus Unicode edge cases; the Go
  *    port replaces each with a hand-written scanner.
+ * 6. internal/domain/testdata/unicode_runs.jsonl: NFKC and toLowerCase on
+ *    strings with long runs of combining marks and case-ignorables (past the
+ *    30-character bounds of golang.org/x/text: the UAX #15 Stream-Safe
+ *    U+034F insertion and the Final_Sigma look-ahead), and the safety,
+ *    parser and matcher functions on inputs built from such runs, including
+ *    questions that normalise to exactly 299, 300 and 301 code units.
  *
  * Every recorded string is well-formed UTF-16 (no lone surrogate), because
  * a Go string decoded from JSON cannot carry one.
@@ -715,7 +723,329 @@ function unicodeTables(): object {
     invisible: ranges((cp) => /[\p{Cf}\p{Default_Ignorable_Code_Point}]/u.test(ch(cp))),
     lower,
     nfkc,
+    cased: ranges((cp) => /\p{Cased}/u.test(ch(cp))),
+    caseIgnorable: ranges((cp) => /\p{Case_Ignorable}/u.test(ch(cp))),
+    sigmaFinal: sigmaFinalTables(),
   };
+}
+
+/**
+ * toLowerCase's Final_Sigma context, per code point: for each template (`c`
+ * stands for the code point), the code points for which V8 lowercases the Σ
+ * to the final form ς. The Σ is the second character of the `AΣ…`
+ * templates and the last of the others.
+ */
+function sigmaFinalTables(): Record<string, Range[]> {
+  const ch = (cp: number) => String.fromCodePoint(cp);
+  const tables: Record<string, Range[]> = {};
+  for (const template of ['AΣc', 'AΣcA', 'cΣ', 'AcΣ']) {
+    tables[template] = ranges((cp) => {
+      const lower = template.replace('c', ch(cp)).toLowerCase();
+      const sigma = template.startsWith('AΣ') ? lower.charAt(1) : lower.charAt(lower.length - 1);
+      if (sigma !== 'σ' && sigma !== 'ς') throw new Error(`no sigma in ${template}`);
+      return sigma === 'ς';
+    });
+  }
+  return tables;
+}
+
+/* --------------------------- 6. long non-starter and case-ignorable runs */
+
+/**
+ * golang.org/x/text bounds two contexts at 30 characters where ICU, and so
+ * V8, has no bound: its NFKC follows the UAX #15 Stream-Safe Text Format (a
+ * U+034F after 30 non-starters, which blocks canonical reordering and
+ * composition), and its Final_Sigma look-ahead stops after 30
+ * case-ignorables. These probes cross both bounds.
+ */
+const RUN_MARKS = [
+  '̖', // ccc 220
+  '́', // ccc 230
+  '̧', // ccc 202
+  '̛', // ccc 216
+  'ͅ', // ccc 240
+  '̸', // ccc 1
+  'ְ', // ccc 10
+  'ً', // ccc 27
+  '़', // ccc 7
+  '゙', // ccc 8
+  '̕', // ccc 232
+  '͜', // ccc 233
+  '͝', // ccc 234
+  '̣', // ccc 220
+  '̈', // ccc 230
+  '̄', // ccc 230
+  '͂', // ccc 230
+  '̓', // ccc 230
+  'ཱ', // ccc 129
+  'ི', // ccc 130
+  '᷎', // ccc 214
+  '̈́', // NFKC: U+0308 U+0301
+  'ཱི', // NFKC: U+0F71 U+0F72
+];
+/** Starters that compose with marks or with each other, and compatibility characters. */
+const RUN_STARTERS = [
+  'a',
+  'e',
+  'o',
+  'u',
+  'A',
+  'i',
+  's',
+  'x',
+  '1',
+  ' ',
+  'α',
+  'ω',
+  'η',
+  'ι',
+  'Ω',
+  'Σ',
+  'ᄀ', // Hangul choseong, jungseong, jongseong, a syllable and compatibility jamo
+  'ᅡ',
+  'ᆨ',
+  '가',
+  'ㄱ',
+  'ㅏ',
+  'ে', // Bengali two-part vowel: starter + starter
+  'া',
+  'ﬁ',
+  '½',
+  '¨',
+  '΅',
+  'K',
+  'Å',
+];
+/** Case-ignorable characters; U+02B0 and U+0345 are cased as well. */
+const RUN_IGNORABLES = [
+  "'",
+  '.',
+  ':',
+  '·',
+  'ʰ',
+  'ͅ',
+  '́',
+  '­',
+  'ˆ',
+  '’',
+  '‘',
+  '︓',
+  '״',
+  '՟',
+  '·',
+  '​',
+];
+
+function runNfkcStrings(rnd: () => number): string[] {
+  const ss = new Set<string>();
+  const pairs: [low: string, high: string][] = [
+    ['̖', '́'],
+    ['̧', '́'],
+    ['́', 'ͅ'],
+    ['ְ', '́'],
+    ['̸', '̈'],
+  ];
+  for (const n of [1, 2, 28, 29, 30, 31, 32, 33, 40, 60, 61, 64, 100, 300]) {
+    for (const [low, high] of pairs) {
+      ss.add(`a${low.repeat(n)}${high}`);
+      ss.add(`a${high.repeat(n)}${low}`);
+      ss.add(`${low.repeat(n)}${high}`);
+      ss.add(`a${low.repeat(n)}${high}b${high}`);
+    }
+    ss.add(`ᄀ${'̖'.repeat(n)}ᅡ`);
+    ss.add(`a${'̈́'.repeat(n)}`);
+    ss.add(`ཀ${'ཱི'.repeat(n)}`);
+    ss.add(`ω${'̓'.repeat(n)}ͅ`);
+  }
+  for (let i = 0; i < 400; i++) {
+    let s = '';
+    const segments = 1 + Math.floor(rnd() * 4);
+    for (let k = 0; k < segments; k++) {
+      if (rnd() < 0.85) s += pick(rnd, RUN_STARTERS);
+      const len = pick(rnd, [0, 1, 2, 3, 5, 29, 30, 31, 32, 35, 45, 70]);
+      if (rnd() < 0.5) for (let j = 0; j < len; j++) s += pick(rnd, RUN_MARKS);
+      else s += pick(rnd, RUN_MARKS).repeat(len) + pick(rnd, RUN_MARKS);
+    }
+    ss.add(s);
+  }
+  return [...ss];
+}
+
+function runLowerStrings(rnd: () => number): string[] {
+  const ss = new Set<string>();
+  for (const n of [0, 1, 29, 30, 31, 32, 64]) {
+    for (const ign of RUN_IGNORABLES) {
+      const run = ign.repeat(n);
+      ss.add(`AΣ${run}A`);
+      ss.add(`AΣ${run}`);
+      ss.add(`A${run}Σ`);
+      ss.add(`${run}Σ`);
+      ss.add(`AΣ${run} `);
+      ss.add(`A${run}Σ${run}A`);
+    }
+  }
+  const pool = ['Σ', 'Α', 'a', 'x', ' ', '1', 'ǅ', ...RUN_IGNORABLES];
+  for (let i = 0; i < 300; i++) {
+    let s = '';
+    const pieces = 1 + Math.floor(rnd() * 6);
+    for (let k = 0; k < pieces; k++) {
+      s += pick(rnd, pool).repeat(pick(rnd, [1, 1, 2, 29, 30, 31, 32, 40]));
+    }
+    ss.add(s);
+  }
+  return [...ss];
+}
+
+/** The safety gate's normalisation, only to place a question at an exact normalised length. */
+const gateLength = (q: string) =>
+  q
+    .normalize('NFKC')
+    .replace(/[\p{Cf}\p{Default_Ignorable_Code_Point}]/gu, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim().length;
+
+function runQuestions(): string[] {
+  const heads = [
+    'my baby swallowed some pills ',
+    'i took too much ',
+    'how many should i take ',
+    'is it safe for my son ',
+    'can i drink alcohol with this ',
+    'can you read this label ',
+  ];
+  const combining = `a${'̖'.repeat(30)}́`;
+  const runs = [
+    combining,
+    `a${'́'.repeat(30)}̖`,
+    `ΑΣ${"'".repeat(31)}Α`,
+    `a${'̖'.repeat(64)}́`,
+    [combining, combining, combining].join(' '),
+  ];
+  const qs = new Set<string>();
+  for (const head of heads) {
+    for (const run of runs) {
+      for (const target of [299, 300, 301]) {
+        for (const where of ['end', 'start']) {
+          for (let k = 0; ; k++) {
+            const pad = 'x'.repeat(k);
+            const q = where === 'end' ? `${head}${pad} ${run}` : `${run} ${head}${pad}`;
+            if (gateLength(q) < target) continue;
+            if (gateLength(q) !== target) throw new Error(`cannot place ${JSON.stringify(q)}`);
+            qs.add(q);
+            break;
+          }
+        }
+      }
+    }
+  }
+  for (const n of [29, 30, 31, 32, 40]) {
+    const sigma = `ΑΣ${"'".repeat(n)}Α`;
+    qs.add(`What does "${sigma}" mean?`);
+    qs.add(`what does the word ${sigma} mean`);
+    qs.add(`What does "a${'́'.repeat(n)}̖" mean?`);
+    qs.add(`what does a${'̖'.repeat(n)}́ mean`);
+    qs.add(`What does "Σ${'́'.repeat(n)}" mean?`);
+  }
+  qs.add('what does "ʰΣ" mean');
+  qs.add('what does "xʰΣ" mean');
+  return [...qs];
+}
+
+async function unicodeRunProbes(
+  safety: typeof import('../../apps/server/src/domain/safety'),
+): Promise<string[]> {
+  const parsers = await import('../../apps/server/src/domain/parsers');
+  const matcher = await import('../../apps/server/src/domain/matcher');
+  const rnd = prng(20261031);
+  const lines = new Map<string, string>();
+  const add = (fn: string, args: unknown[], result: unknown) => {
+    for (const a of args) if (typeof a === 'string') assertWellFormed(a, fn);
+    lines.set(`${fn}\u0000${JSON.stringify(args)}`, encodeJson({ fn, args, result }));
+  };
+  for (const s of runNfkcStrings(rnd)) add('nfkc', [s], s.normalize('NFKC'));
+  for (const s of runLowerStrings(rnd)) add('lower', [s], s.toLowerCase());
+  for (const q of runQuestions()) {
+    add('classifyQuestion', [q], safety.classifyQuestion(q));
+    add('extractExplainPhrase', [q], safety.extractExplainPhrase(q));
+    add('askedFields', [q], safety.askedFields(q));
+  }
+
+  const names = ['ʰΣ', 'x ʰΣ', 'ͅΣ Tablet'];
+  const strengths: string[] = [];
+  for (const n of [29, 30, 31, 32, 40]) {
+    names.push(`ΑΣ${"'".repeat(n)}Α`, `ΑΣ${"'".repeat(n)}Α Tablet`);
+    names.push(`BΣ${'́'.repeat(n)} Capsule`);
+    strengths.push(`500 m${'̖'.repeat(n)}g`, `500 mg a${'̖'.repeat(n)}́`);
+    strengths.push(`5${'́'.repeat(n)}̖ mg`, `500 ㎎${'̖'.repeat(n)}`);
+  }
+  // a mark after 30 others still composes with the letter before the run
+  // in ICU (g + U+0301 is U+01F5), which x/text's U+034F prevented
+  for (const base of ['500 mg', '250 mg/5 mL', '0.5 g', '100 IU']) {
+    const units = [...base];
+    for (let i = 1; i <= units.length; i++) {
+      for (const mark of ['́', '̇']) {
+        const run = '̖'.repeat(30) + mark;
+        strengths.push(units.slice(0, i).join('') + run + units.slice(i).join(''));
+      }
+    }
+  }
+  for (const s of names) add('normalizeName', [s], parsers.normalizeName(s));
+  for (const s of strengths) add('parseStrength', [s], parsers.parseStrength(s));
+
+  // assessMatch: a verified corpus case whose brand or dosage form differs
+  // between the pack and the record only inside a long run
+  type Label = Parameters<typeof matcher.assessMatch>[0];
+  type Search = Parameters<typeof matcher.assessMatch>[1];
+  const verified = readFileSync(out('fixtures/parity/matcher.jsonl'), 'utf8')
+    .split('\n')
+    .filter((l) => l !== '')
+    .map((l) => JSON.parse(l) as { fn: string; args: [Label, Search]; result: unknown })
+    .find((c) => {
+      if (c.fn !== 'assessMatch' || c.args[1].kind !== 'ok') return false;
+      const keys = c.args[0].fields.map((f) => f.key);
+      return (
+        (c.result as { status: string }).status === 'verified' &&
+        c.args[1].records.length === 1 &&
+        keys.includes('brandName') &&
+        keys.includes('dosageForm')
+      );
+    });
+  if (verified === undefined) throw new Error('no verified assessMatch case in matcher.jsonl');
+  const variant = (labelValue: [string, string], recordValue?: [string, string]) => {
+    const [label, search] = structuredClone(verified.args);
+    const field = label.fields.find((f) => f.key === labelValue[0]);
+    if (field === undefined || search.kind !== 'ok' || search.records[0] === undefined) {
+      throw new Error('unexpected verified case shape');
+    }
+    field.value = labelValue[1];
+    if (recordValue !== undefined) {
+      const record = search.records[0] as unknown as Record<string, string>;
+      record[recordValue[0]] = recordValue[1];
+    }
+    add('assessMatch', [label, search], matcher.assessMatch(label, search));
+  };
+  for (const n of [29, 30, 31, 32, 40]) {
+    const ticks = "'".repeat(n);
+    variant(['brandName', `ΑΣ${ticks}Α`], ['brandName', `ασ${ticks}α`]);
+    variant(['brandName', `ΑΣ${ticks}Α`], ['brandName', `ας${ticks}α`]);
+    const form = `a${'̖'.repeat(n)}́ Tablet`;
+    variant(['dosageForm', form], ['strengthForm', `500 mg á${'̖'.repeat(n)} Tablet`]);
+    variant(['dosageForm', form], ['strengthForm', `500 mg a Tablet`]);
+  }
+  variant(['brandName', 'ʰΣ'], ['brandName', 'ʰσ']);
+  variant(['brandName', 'ʰΣ'], ['brandName', 'ʰς']);
+  // the pack's dosage form followed by a run whose last mark composes with
+  // its last letter in ICU (capsule + U+0301, tablet + U+0307), so the form
+  // word is no longer the form; x/text's U+034F kept it
+  const packForm = verified.args[0].fields.find((f) => f.key === 'dosageForm')?.value ?? '';
+  for (const n of [29, 30, 31]) {
+    for (const mark of ['̀', '́', '̇', '̈', '̧', '̌']) {
+      const form = `${packForm}${'̖'.repeat(n)}${mark}`;
+      variant(['dosageForm', form]);
+    }
+  }
+  return [...lines.entries()].sort(([a], [b]) => byCodeUnits(a, b)).map(([, l]) => l);
 }
 
 /* ---------------------------------------------------------------- main */
@@ -813,6 +1143,8 @@ async function main(): Promise<void> {
   console.log('internal/domain/testdata/js_unicode.json: written');
 
   writeLines('internal/domain/testdata/matcher_regexps.jsonl', matcherRegexpProbes());
+
+  writeLines('internal/domain/testdata/unicode_runs.jsonl', await unicodeRunProbes(safety));
 }
 
 /* ------------------------------------- 5. the matcher's flagged RegExps */
