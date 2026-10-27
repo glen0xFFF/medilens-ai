@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   ALLOWED_QUESTION_EXAMPLES,
   classifyQuestion,
+  extractExplainPhrase,
   REFUSAL_TEXT,
   type AllowedIntent,
   type RefusalReason,
@@ -1897,5 +1898,27 @@ describe('REFUSAL_TEXT', () => {
       if (reason === 'possible_overdose') continue;
       expect(REFUSAL_TEXT[reason].toLowerCase().endsWith(REDIRECT.toLowerCase())).toBe(true);
     }
+  });
+});
+
+describe('extractExplainPhrase (Task 7: explain_text grounding)', () => {
+  test.each([
+    ['What does fake mean?', 'fake'],
+    ['What does "you can take as many as you need" mean?', 'you can take as many as you need'],
+    ["What does the word 'non-drowsy' mean in simpler words?", 'non-drowsy'],
+    ['What does keep out of reach of children mean?', 'keep out of reach of children'],
+    ['what does the phrase “store below 30°C” mean', 'store below 30°c'],
+  ])('%s -> %s', (q, phrase) => {
+    expect(extractExplainPhrase(q)).toBe(phrase);
+  });
+
+  test.each([
+    'What does this warning mean?',
+    'What do these directions mean?',
+    'What does it mean?',
+    'Explain the directions in simpler words.',
+    'Can you read this label?',
+  ])('%s has no printed phrase', (q) => {
+    expect(extractExplainPhrase(q)).toBeNull();
   });
 });

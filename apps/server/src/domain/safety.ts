@@ -1419,3 +1419,37 @@ export function classifyQuestion(q: string): QuestionClass {
   }
   return { allowed: false, reason: 'outside_label' };
 }
+
+/*
+ * Task 7 (controller ruling, Task 5b breaker): the printed phrase an
+ * explain_text question asks about, so the answerer can check that the phrase
+ * really occurs on the label before any model call. Additive: the classifier
+ * above does not use it.
+ */
+const EXPLAIN_PHRASE = new RegExp(
+  String.raw`^what (?:does|do) (?:the (?:word|term|phrase|abbreviation|sentence|line|warning|instruction|direction) )?(?:"([^"]*)"|'([^']*)'|(.+?)) mean${SIMPLER}$`,
+);
+/** "what does this warning mean": a pointer to a section, not a printed phrase. */
+const DEICTIC =
+  /^(?:it|this|that|these|those|(?:this|that|these|those|the) (?:warning|caution|precaution|direction|instruction|word|phrase|sentence|line|term|abbreviation|symbol|sign|icon|statement|note|part|section|bit|text|storage instruction)s?)$/;
+const ANY_QUOTED = /"([^"]+)"/;
+
+/**
+ * The phrase a question asks to have explained, normalised like the
+ * classifier's input (lowercase, NFKC, straight quotes, single spaces), or
+ * null when the question names no printed phrase ("what does this warning
+ * mean?", "explain the directions"). Quoted or unquoted; a quoted phrase
+ * anywhere in the question also counts.
+ */
+export function extractExplainPhrase(question: string): string | null {
+  const text = typeof question === 'string' ? normalise(question) : '';
+  const m = EXPLAIN_PHRASE.exec(text);
+  if (m !== null) {
+    const quoted = m[1] ?? m[2];
+    if (quoted !== undefined) return quoted.trim();
+    const bare = (m[3] ?? '').trim();
+    return DEICTIC.test(bare) ? null : bare;
+  }
+  const q = ANY_QUOTED.exec(text);
+  return q?.[1] === undefined ? null : q[1].trim();
+}

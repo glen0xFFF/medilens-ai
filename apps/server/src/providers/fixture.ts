@@ -102,7 +102,7 @@ function fieldOf(fields: LabelField[], key: FieldKey): LabelField | undefined {
  * Fixed warning for a cited field the FDA registry record contradicts
  * (spec §5.3 rule 6): the printed value is never read back as certain.
  */
-function conflictWarning(key: FieldKey, referenceValue: string): string {
+export function conflictWarning(key: FieldKey, referenceValue: string): string {
   const ref = referenceValue.trim().replace(/\.+$/, '');
   return `The FDA registry record lists ${ref} for the ${FIELD_NAMES[key].toLowerCase()}, which does not match the pack. Confirm with your pharmacist.`;
 }

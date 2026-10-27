@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@medilens/contracts": "*",
-    "sharp": "^0.35.5"
+    "openai": "^7.32.0",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7"
   }
 }
