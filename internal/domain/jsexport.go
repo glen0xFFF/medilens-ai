@@ -42,3 +42,8 @@ func uriUnreserved(c byte) bool {
 	}
 	return strings.IndexByte("-_.!~*'()", c) >= 0
 }
+
+// JSFields is s.split(/\s+/) with the empty strings dropped: the runs of
+// s between JS whitespace (the WhiteSpace and LineTerminator set, as \s in
+// a JS RegExp).
+func JSFields(s string) []string { return strings.FieldsFunc(s, isJSSpace) }

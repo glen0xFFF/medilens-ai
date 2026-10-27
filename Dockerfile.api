@@ -1,0 +1,30 @@
+# MediLens API (services/api): multi-stage build, distroless static image.
+#
+# UNVERIFIED on the dev machine: Docker is not installed there, so this file
+# has never been built. The build commands inside it (CGO_ENABLED=0 go build
+# of ./services/api) were run on the dev machine outside Docker.
+#
+#   docker build -f Dockerfile.api -t medilens-api .
+#   docker run --rm -p 127.0.0.1:8787:8787 medilens-api
+#
+# Configuration is environment only (no .env file in the image): see
+# .env.example. Without settings the API runs in demo mode
+# (MODEL_PROVIDER=mock, REFERENCE_PROVIDER=fixture). MODEL_API_KEY is a
+# runtime secret: never bake it into the image.
+
+FROM golang:1.27 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY internal ./internal
+COPY services ./services
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/api ./services/api
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/api /api
+ENV PORT=8787
+# Set to the container's memory limit less some headroom (services/api docs).
+# ENV GOMEMLIMIT=400MiB
+EXPOSE 8787
+USER nonroot:nonroot
+ENTRYPOINT ["/api"]

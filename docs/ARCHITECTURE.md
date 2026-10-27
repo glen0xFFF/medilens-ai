@@ -1,99 +1,188 @@
 # MediLens AI — Architecture
 
+Binding design: [the base spec](superpowers/specs/2026-10-27-medilens-design.md) as amended by
+[the Go port spec](superpowers/specs/2026-10-28-medilens-go-port-design.md).
+
 ## Overview
 
 ```mermaid
 flowchart LR
   subgraph Phone["Android phone (Expo app)"]
     CAM[Camera or photo picker] --> UP[Upload 1-3 photos]
-    RES[Result, fields, sources, ask screens] --> TTS[Speech queue over expo-speech]
+    POLL[Poll status every 750 ms] --> RES[Result, fields, sources, ask screens]
+    RES --> TTS[Speech queue over expo-speech]
   end
 
-  subgraph Server["MediLens server (Node, Express 5)"]
-    API["/api/v1 routes"] --> PIPE[Analyze pipeline]
-    PIPE --> Q[Validate, normalise, quality check]
-    Q --> READ[LabelReader]
-    READ --> MATCH[Deterministic matcher]
-    REF[ReferenceProvider] --> MATCH
-    MATCH --> SUM[Deterministic summary]
-    SUM --> STORE[(In-memory store, 15 min)]
-    API --> GATE[Default-deny safety gate] --> ANS[QuestionAnswerer]
+  subgraph API["services/api (Go)"]
+    MW[Request id, access log, recover, CORS, rate limits] --> H[internal/httpapi routes + SSE]
   end
 
-  UP -- "POST /labels/analyze" --> API
-  API -- "AnalysisResult" --> RES
-  READ -- "live: transcription only" --> META["Meta Model API (muse-spark-1.3)"]
-  REF -- "live: server-only lookup" --> FDA["PH FDA verification search (undocumented endpoint)"]
-  READ -. "demo: fixtures (simulated)" .-> FIX[Fixture providers]
-  REF -. "demo: fixtures (simulated)" .-> FIX
+  subgraph MCP["services/mcp (Go)"]
+    AUTH[Bearer token check] --> TOOLS[internal/mcptools: 6 tools]
+  end
+
+  subgraph Core["Shared Go packages (one instance per process)"]
+    SVC[internal/application AnalysisService]
+    SVC --> POOL[Worker pool: 2 running, 8 queued]
+    POOL --> PIPE[internal/pipeline analyze steps]
+    PIPE --> IMG[internal/imaging: validate, normalise, quality]
+    PIPE --> READ[LabelReader]
+    PIPE --> MATCH[internal/domain matcher]
+    REF[references.Provider] --> MATCH
+    MATCH --> SUM[internal/domain summary]
+    SUM --> STORE[(Result store + event log, 15 min TTL, 500 max)]
+    SVC --> GATE[Default-deny safety gate] --> ANS[Deterministic answers + gated phrase explanation]
+  end
+
+  UP -- "POST /api/v1/analyses" --> MW
+  POLL -- "GET /api/v1/analyses/{id}, /result" --> MW
+  H --> SVC
+  TOOLS --> SVC
+  READ -- "muse_spark: transcription only" --> META["Meta Model API (muse-spark-1.3)"]
+  REF -- "ph_fda: server-only lookup" --> FDA["PH FDA verification search (undocumented endpoint)"]
+  READ -. "mock: fictional s1 label" .-> FIX[Mock reader + fixture registry]
+  REF -. "fixture: fictional rows" .-> FIX
 ```
 
-The phone never talks to Meta or the FDA and holds no keys. It talks only to the MediLens server
-at `EXPO_PUBLIC_API_BASE_URL`.
+The phone never talks to Meta or the FDA and holds no keys. It talks only to the MediLens API at
+`EXPO_PUBLIC_API_BASE_URL`. The API and the MCP server are separate processes built from the same
+packages and configured by the same environment; **each has its own in-memory store**, so an
+analysis id from one is unknown to the other.
+
+**Meta glasses are not part of the architecture.** They are roadmap only; there is no glasses
+code or interface in this repository.
 
 ## Repository layout
 
 ```
-packages/contracts   Zod schemas and TypeScript types shared by app and server
-apps/server          Express 5 API, pipeline, providers, domain rules (Vitest)
-apps/mobile          Expo SDK 58 app with expo-router screens (jest-expo)
-eval/                Label accuracy eval instructions (packs are git-ignored)
-docs/                Spec, plan, research and project documents
+go.mod                 module github.com/medilens-ai/medilens (Go 1.27)
+services/api           REST + SSE API binary
+services/mcp           MCP server binary (Streamable HTTP)
+services/eval          live label accuracy eval (owner-run, costs money)
+services/smoke         live smoke test (owner-run, costs money)
+internal/config        env loading (stdlib .env loader), validation
+internal/contracts     Go structs mirroring packages/contracts (identical JSON keys)
+internal/domain        parsers, matcher, safety gate, summary, answers (pure, no I/O)
+internal/jsregex       ECMAScript regex matcher for the safety patterns (lookarounds)
+internal/imaging       validate, normalise, quality (parity with the Node sharp pipeline)
+internal/ai            provider interfaces, Muse Spark adapters, mock, factory
+internal/metaapi       hand-written net/http client for api.meta.ai chat completions
+internal/references    PH FDA, fixture registry, TTL cache
+internal/demo          the 8 demo scenarios
+internal/application   AnalysisService: create, run, events, explain, speak, delete
+internal/pipeline      analyze steps, result store, spend meter, event log
+internal/httpapi       routes, handlers, error mapping, SSE, graceful shutdown
+internal/middleware    request id, access log, CORS, rate limit, recover
+internal/mcptools      MCP tools (typed in/out), auth, output caps
+internal/observability slog JSON with redaction
+internal/eval          eval scoring and smoke-test recorders
+internal/parity        corpus loader for the parity tests
+fixtures/parity        golden corpora recorded from the Node build
+packages/contracts     Zod schemas (the app and the contract test use them)
+apps/mobile            Expo SDK 58 app with expo-router screens (jest-expo)
+scripts/contract       Zod contract test against the running Go API (root npm test)
+scripts/parity         the Node recorder (needs git checkout node-fallback-v1)
+scripts/dev            cross-platform launchers for the root npm scripts
+eval/                  label accuracy eval instructions (packs are git-ignored)
+docs/                  spec, plans, research and project documents
 ```
 
-## Server pipeline (one synchronous request)
+The Node/Express server (`apps/server`) was the reference implementation. It was removed from
+the tree after the Go build passed the parity corpora, the contract test and the mobile tests;
+the tag `node-fallback-v1` keeps it runnable.
 
-`POST /api/v1/labels/analyze`:
+## Analysis pipeline (asynchronous)
 
-1. **Validate** each upload: at most 8 MB, JPEG/PNG/WebP by content, pixel-count limit.
-2. **Normalise**: auto-rotate, resize to 2048 px on the long edge, re-encode as JPEG, in memory.
-3. **Quality check**: sharpness, luminance and glare. A failed check returns a
-   `label_unreadable` result with reasons and **no model call**.
-4. **Read**: `LabelReader` returns an `ExtractedLabel`: every field's value, legibility and
-   evidence text. Live: Muse Spark with a JSON schema, one retry on invalid output, and a guard
-   that discards output from any model whose id contains "contributor".
-5. **Parse**: deterministic parsers for strength and registration number, plus name and
+`POST /api/v1/analyses` validates the upload synchronously (400/413/415), checks the daily budget
+for a live model (503 `LIVE_BUDGET_EXHAUSTED`), and returns `202 {id, status: "processing"}`. A
+worker then runs these steps; each one emits a progress event **only when it actually starts**
+(a step that does not run is skipped, never faked):
+
+1. `received`
+2. `quality`: normalise (EXIF orientation, Lanczos3 fit inside 2048 px, never enlarging, JPEG
+   q85, in memory) and measure sharpness, luminance and glare on the re-encoded JPEG. A failed
+   check ends the analysis as `needs_attention` with reasons and **no model call**.
+3. `reading`: `LabelReader` returns an `ExtractedLabel`: every field's value, legibility and
+   evidence text. Live: Muse Spark with a strict JSON schema, one retry on invalid output, and a
+   guard that discards output from a response whose model id is empty or contains
+   "contributor".
+4. `reviewing_fields`: deterministic parsers for strength and registration number, plus name and
    dosage-form normalisation. The expiry date is not parsed; it is kept and spoken exactly as
    printed (only the offline accuracy eval parses its month and year).
-6. **Look up**: `ReferenceProvider` searches the registry by registration number, then by name.
-7. **Match**: pure deterministic rules produce a `MatchAssessment` (spec §5.4).
-8. **Summarise**: a deterministic template produces display text and spoken chunks (spec §5.5).
-9. **Store**: the `AnalysisResult` is kept in memory for 15 minutes for follow-up calls.
+5. `checking_references`: `references.Provider` searches by registration number, then by name
+   (at most 2 lookups).
+6. `comparing`: pure deterministic rules produce a `MatchAssessment` (base spec §5.4).
+7. `explaining`: a deterministic template produces display text and spoken chunks (§5.5).
+8. `completed`, or `needs_attention` for a quality failure, a loose pill, no label or an
+   unreadable label. `failed` means an error (`ANALYSIS_FAILED`, `OCR_FAILED`, ...).
+
+The result is kept for 15 minutes for follow-up calls (`/result`, `/explanation`, `/speak`,
+`/references`) and dropped on `DELETE`. Demo scenarios (`POST /api/v1/demo/scenarios`) run the
+same pipeline from the read step with the fixture providers, so their events are genuine.
 
 **The model transcribes and decides nothing.** Its only other use is explaining one printed
-phrase in Q&A, after the safety gate, and that explanation is dropped unless it passes a strict
-content gate (see `QuestionAnswerer` below). Verification status, matching, the summary and the
-safety gate are deterministic code.
+phrase in Q&A, after the safety gate, and that explanation is dropped unless it passes the
+closed-vocabulary gate. Verification status, matching, the summary, the answers and the safety
+gate are deterministic code.
 
 ## Providers
 
-| Interface | Live | Demo (simulated) |
+| Interface | `muse_spark` / `ph_fda` | `mock` / `fixture` (default) |
 |---|---|---|
-| `LabelReader` | Muse Spark reader | `FixtureLabelReader`, by scenario id |
-| `ReferenceProvider` | PH FDA search: 5 s timeout, 24 h cache, honest User-Agent, at most 2 lookups per scan | `FixtureReferenceProvider` |
-| `QuestionAnswerer` | Deterministic answers from the label; only "explain this printed phrase" sends that printed field to Muse Spark, and its reply must pass a strict content gate or is dropped (the quote alone is spoken) | `FixtureAnswerer` (deterministic) |
+| `LabelReader` | Muse Spark vision transcription (`internal/ai/muse_spark.go` over `internal/metaapi`) | Mock reader: the fictional s1 label for any upload, model `"mock"` |
+| `PhraseExplainer` | Muse Spark, sent only the whole printed field; the reply must pass the gate or is dropped | None (the printed text is quoted alone) |
+| `references.Provider` | PH FDA search: 5 s timeout, 24 h cache of successful lookups, honest User-Agent | Fixture rows of demo scenario s1 |
 
-`PROVIDER_MODE` selects live or demo for `/labels/analyze`. `/demo/*` always uses the fixture
-providers, so one server serves both demo scenarios and live scans. In demo mode an uploaded
-photo still gets real validation and quality checks, then is read as demo scenario s1 and marked
-`isDemo: true`.
+`MODEL_PROVIDER` and `REFERENCE_PROVIDER` select the providers; there is **no fallback** between
+them, and `muse_spark` without `MODEL_API_KEY` is a startup error. A result made with any mock or
+fixture provider is `isDemo: true`. The active providers and model id are logged at startup and
+returned by `GET /api/v1/config/capabilities`.
 
-Live spend is metered per UTC day from each completion's token usage; once `DAILY_SPEND_CAP_USD`
-is reached, live calls return `503 LIVE_BUDGET_EXHAUSTED`.
+Why Muse Spark is also the OCR: on-device ML Kit needs an Expo dev build, Tesseract needs cgo,
+and a third-party cloud OCR would send health images to a second vendor
+([MUSE_SPARK_INTEGRATION.md](MUSE_SPARK_INTEGRATION.md)).
 
-**Meta glasses are not part of the architecture.** They are roadmap only; there is no glasses
-code or interface in this repository.
+Live spend is metered per UTC day from each completion's token usage ($1.25 input and $4.25
+output per million tokens); once `DAILY_SPEND_CAP_USD` is reached, live analyses and explanations
+return `503 LIVE_BUDGET_EXHAUSTED`.
+
+## Operational behaviour
+
+- **Limits:** per-IP token buckets, 30/min for writes (POST, DELETE) and 240/min for reads, so
+  polling is not throttled. `TRUSTED_PROXIES` (CIDR list, empty by default) names the only hops
+  whose `X-Forwarded-For` is honoured.
+- **Uploads:** read only through `MultipartReader` with a 3 × 8 MiB + 64 KiB body cap and an
+  8 MiB part cap; `ParseMultipartForm`/`FormValue`/`FormFile` are not used, so nothing spills to
+  disk (a guard test points the temp dir at an empty directory and checks it stays empty).
+- **Imaging:** magic-byte sniff, header-only size check (≤ 40 MP) before any decode, one decode
+  at a time. Set `GOMEMLIMIT` in containers.
+- **Logging:** `slog` JSON; the access log has method, route pattern, status, duration and
+  request id only. Label text, questions, evidence and keys are redacted or never logged.
+- **Shutdown:** SIGINT/SIGTERM → `/readyz` 503 → event streams closed → 10 s to drain →
+  in-flight analyses cancelled.
+
+## MCP server
+
+`services/mcp` serves six typed tools over stateless Streamable HTTP at `/mcp` on
+`127.0.0.1:8788` by default, with bearer-token auth (required off loopback). It builds the same
+`AnalysisService` with the same providers. See [MCP_TOOLS.md](MCP_TOOLS.md).
 
 ## Mobile app
 
 expo-router screens: welcome and disclaimer, home, camera, preview, analyzing, result, label
 fields, verification and sources, ask a question (preset buttons first, free text second),
-safety, settings, and the demo scenario picker. Only settings and the disclaimer acknowledgement
-are persisted (AsyncStorage). Photos exist only as temporary files in the app's cache directory
-until they are uploaded (deleted after upload or on cancel; never written to the gallery), and
-results are held in memory only. Speech is a
+safety, settings, and the demo scenario picker. The app posts the photos to `/analyses`, polls
+`GET /analyses/{id}` every 750 ms and shows and announces the real stage labels, then fetches
+`/result`. It uses polling rather than SSE because React Native EventSource / fetch streaming was
+not verified. `GET /config/capabilities` replaces the old health check for mode detection
+(`modelProvider: "mock"` shows "Server is in demo mode"). The app deletes the analysis when the
+user leaves a result (best effort).
+
+Only settings and the disclaimer acknowledgement are persisted (AsyncStorage). Photos exist only
+as temporary files in the app's cache directory until they are uploaded (deleted after upload or
+on cancel; never written to the gallery), and results are held in memory only. Speech is a
 pure-TypeScript chunk queue over `expo-speech`.
 
 ## API
 
-See [API_SPEC.md](API_SPEC.md).
+See [API.md](API.md).

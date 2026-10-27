@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const testKey = "sk-test-not-a-real-key-123"
+const testKey = "sk-test.not.a.real.key.123"
 
 // step is one canned API response: a status, optional headers and a body,
 // a request that hangs until the client gives up, or a dropped connection.

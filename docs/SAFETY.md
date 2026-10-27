@@ -1,9 +1,11 @@
-# MediLens AI — Safety and Privacy
+# MediLens AI — Safety
 
 MediLens AI is an **accessibility reader for medicine labels**. It is not a medical device, not a
 diagnostic tool, not a prescription generator, not a dosing calculator and not a pill
 identifier. Users are told this in a spoken first-run disclaimer and on the Safety screen, and
 every spoken summary ends with "Confirm with your pharmacist or doctor."
+
+Privacy, secrets and data handling are in [PRIVACY.md](PRIVACY.md).
 
 ## What the AI does and does not decide
 
@@ -13,15 +15,32 @@ every spoken summary ends with "Confirm with your pharmacist or doctor."
   a verification status or whether a question is answered.
 - **Verification is deterministic code**, not the model: parsers normalise strength and
   registration number, names and dosage forms are normalised, and a rule-based matcher compares
-  them with the registry (rules in the design spec §5.4). The expiry date is not parsed: it is
-  read and spoken exactly as printed (only the offline accuracy eval parses its month and year).
+  them with the registry (rules in the base design spec §5.4). The expiry date is not parsed: it
+  is read and spoken exactly as printed (only the offline accuracy eval parses its month and
+  year).
 - The spoken summary is a **deterministic template**.
 - Questions are answered deterministically from the label. The only model use in answers is for
   "explain this printed phrase": the model sees only that printed field, and its explanation is
   used only if it passes a strict content gate (no numbers, units, populations, verdict or advice
   words); otherwise the printed text is quoted alone.
-- A model response from any model id containing "contributor" is discarded (Meta Model API
-  terms, routing caveat).
+- A model response whose model id is missing, empty or contains "contributor" is discarded (Meta
+  Model API terms, routing caveat).
+- Claude is never a runtime model in MediLens; the only runtime model is Muse Spark, and only when
+  `MODEL_PROVIDER=muse_spark`. There is no silent fallback from Muse Spark to any other model.
+
+## The same rules in Go
+
+The Go port re-implements the Node domain logic and is held to it, not re-derived: golden corpora
+recorded from the TypeScript test suite (`fixtures/parity/`) must pass 100% in `go test`, and a
+Go/TS difference counts as a Go bug. No safety rule was loosened to make a Go test pass. The
+safety patterns use lookarounds that Go's RE2 lacks, so the Go build runs the **same pattern
+text** through an ECMAScript-semantics matcher (`internal/jsregex`) instead of hand-translating
+them. String handling that differs between Go and JS (NFKC, case mapping, `\p{Cf}`, word
+boundaries, UTF-16 lengths) was re-implemented to the JS behaviour and is covered by non-ASCII
+corpus cases.
+
+The MCP tool `explain_verified_label` calls the same service method as
+`POST /analyses/{id}/explanation`, so it runs the same gate; refusals are results, not errors.
 
 ## Honesty rules
 
@@ -35,14 +54,16 @@ every spoken summary ends with "Confirm with your pharmacist or doctor."
   status and is spoken with a warning.
 - "No match" is spoken as: "No matching registration found. This does not mean the product is
   fake. Ask your pharmacist." The app never calls a product fake or counterfeit. The one
-  exception is the fixed advisory sentence used when the FDA itself has published an advisory:
-  "The FDA has issued an advisory about counterfeit versions of this product. Check with your
-  pharmacist." Printed pack text is read back verbatim.
+  exception is the fixed advisory sentence, used only when an FDA advisory's title mentions
+  counterfeits: "The FDA has issued an advisory about counterfeit versions of this product. Check
+  with your pharmacist." Printed pack text is read back verbatim.
 - FDA advisories are a separate flag, never folded into a "verified" status.
 - The registry's expiry date is the **registration certificate's** expiry. It is never read as
   the medicine's expiry; the medicine's expiry is read only from the pack.
 - A loose tablet is never identified: "This looks like a loose tablet. I can't identify a medicine
   from how it looks. Please ask a pharmacist."
+- Progress stages are reported only when a step actually runs; a skipped step is never shown as
+  done.
 
 ## Question safety gate (default-deny)
 
@@ -51,15 +72,17 @@ patterns run first: personal dosing, starting or stopping a medicine, diagnosis 
 pregnancy, children and other special populations, interactions, "is it safe for me", pill
 identification and possible overdose. Anything that does not match an explicit allowed intent
 (read the label, explain printed text, a printed field, which parts were unclear, the registry
-result, repeat) is refused. Refusals redirect to a pharmacist; possible-overdose wording, and
-the dose and safety refusals, include "If someone has already taken too much, call 911."
-The app shows preset questions as buttons because free-typed questions are often refused.
+result, repeat) is refused. Questions over 300 UTF-16 code units are refused before any pattern
+runs. Refusals redirect to a pharmacist; possible-overdose wording, and the dose and safety
+refusals, include "If someone has already taken too much, call 911." The app shows preset
+questions as buttons because free-typed questions are often refused.
 
 ## Demo mode is simulated
 
-Demo mode uses **fixture (simulated) data**: fictional products, fictional registry records, no
-calls to Meta or the FDA. Every demo response has `isDemo: true` and every demo screen shows
-**DEMO DATA**. A demo result is never a real verification.
+Demo scenarios and the mock/fixture providers use **fixture (simulated) data**: fictional
+products, fictional registry records, no calls to Meta or the FDA. Every such response has
+`isDemo: true` and every demo screen shows **DEMO DATA**. A demo result is never a real
+verification.
 
 ## External data sources
 
@@ -68,36 +91,18 @@ calls to Meta or the FDA. Every demo response has `isDemo: true` and every demo 
   with an honest `User-Agent` naming the project, a 5-second timeout, a 24-hour cache and at most
   two lookups per scan. If it fails, the result says the registry check is unavailable; the
   label is still read. The owner intends to request permission from PH FDA after the hackathon.
-- **Meta Model API** (`muse-spark-1.3`, Standard mode).
-
-## Privacy
-
-- **Photos are never stored.** On the phone, photos exist only as temporary files in the app's
-  cache directory until upload and are deleted after upload or on cancel; the app never writes
-  to the photo gallery. On the server, uploads are held in memory (no disk writes) and discarded
-  after the request.
-- Analysis results (read text, match, summary) are held **in server memory for 15 minutes** so
-  follow-up questions work, then dropped. There are no accounts, no scan history and no database.
-- On the phone only settings (speech rate, contrast, text size) and the disclaimer
-  acknowledgement are saved.
-- Server logs contain method, path, status, duration and request id only; image bytes, read
-  text, evidence and questions are not logged.
-- Live mode sends the photos to the Meta Model API for transcription; the PH FDA lookup sends
-  only a registration number or product name.
-
-## Secrets
-
-- The Meta Model API key lives only in the server environment (`MODEL_API_KEY`, in a git-ignored
-  `.env`). The mobile app contains no keys and only talks to the MediLens server.
-- `EXPO_PUBLIC_API_BASE_URL` is a public URL, not a secret.
-- A secret scan is part of the submission checklist.
+- **Meta Model API** (`muse-spark-1.3`, Standard mode). See
+  [MUSE_SPARK_INTEGRATION.md](MUSE_SPARK_INTEGRATION.md).
 
 ## Abuse and cost controls
 
-- 30 requests per minute per IP on the API.
+- Per-IP rate limits on the API: 30 writes and 240 reads per minute. A bounded worker pool (2
+  running, 8 queued) answers `503 RATE_LIMITED` with `Retry-After` when full.
 - A daily (UTC) spend cap on live model calls (`DAILY_SPEND_CAP_USD`, default 5); when reached,
-  live scans and live explanations return `503 LIVE_BUDGET_EXHAUSTED` and the app suggests Demo
-  Mode.
+  live analyses and explanations return `503 LIVE_BUDGET_EXHAUSTED` and the app suggests Demo
+  Mode. The API and the MCP server each have their own meter, and a restart resets it.
+- The MCP server needs bearer tokens off loopback, caps each tool output at 64 KiB, and has no
+  free-text query, URL, browsing or shell tool.
 
 ## Out of scope
 

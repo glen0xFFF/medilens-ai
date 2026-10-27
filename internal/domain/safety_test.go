@@ -360,7 +360,7 @@ func TestClassifyEdges(t *testing.T) {
 		}
 	}
 	refuse("", "outside_label")
-	refuse("​­", "outside_label")
+	refuse("\u200b\u00ad", "outside_label")
 	refuse(" ?!. ", "outside_label")
 	at300 := "How many should I take" + strings.Repeat(" x", 139)
 	if jsregex.Len(at300) != 300 {
@@ -377,10 +377,10 @@ func TestClassifyEdges(t *testing.T) {
 	if c := ClassifyQuestion("ＣＡＮ ＹＯＵ ＲＥＡＤ ＴＨＩＳ ＬＡＢＥＬ？"); !c.Allowed || c.Intent != "read_label" {
 		t.Errorf("fullwidth preset: %+v", c)
 	}
-	if c := ClassifyQuestion("can you read​ this label?"); !c.Allowed {
+	if c := ClassifyQuestion("can you read\u200b this label?"); !c.Allowed {
 		t.Errorf("zero-width space not stripped: %+v", c)
 	}
-	if c := ClassifyQuestion("is it s​afe?"); c.Allowed {
+	if c := ClassifyQuestion("is it s\u200bafe?"); c.Allowed {
 		t.Errorf("a zero-width space hid a refusal word: %+v", c)
 	}
 }

@@ -1,0 +1,49 @@
+# The Go API and the Go MCP server as two containers (Go port spec §8).
+#
+# UNVERIFIED on the dev machine: Docker is not installed there, so this file
+# has never been run. Each process has its own analysis store: an analysis id
+# from the API is unknown to the MCP server, and the other way round.
+#
+#   MCP_API_TOKENS=<long random token> docker compose up --build
+#
+# Values come from the shell or from .env next to this file (compose reads it
+# for ${...} substitution). The defaults are demo mode: mock model, fixture
+# registry, no key needed. Ports are published on 127.0.0.1 only.
+#
+# Rate limits key on the client address. Behind Docker's port publishing the
+# peer address can be the bridge gateway for every client; put a reverse
+# proxy in front and list it in TRUSTED_PROXIES for per-client limits.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      PORT: "8787"
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-mock}
+      REFERENCE_PROVIDER: ${REFERENCE_PROVIDER:-fixture}
+      MODEL_API_KEY: ${MODEL_API_KEY:-}
+      DAILY_SPEND_CAP_USD: ${DAILY_SPEND_CAP_USD:-5}
+      PUBLIC_REPO_URL: ${PUBLIC_REPO_URL:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+    ports:
+      - "127.0.0.1:8787:8787"
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    environment:
+      MCP_ADDR: 0.0.0.0:8788
+      MCP_API_TOKENS: ${MCP_API_TOKENS:?set MCP_API_TOKENS; off loopback the MCP server requires bearer tokens}
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-mock}
+      REFERENCE_PROVIDER: ${REFERENCE_PROVIDER:-fixture}
+      MODEL_API_KEY: ${MODEL_API_KEY:-}
+      DAILY_SPEND_CAP_USD: ${DAILY_SPEND_CAP_USD:-5}
+      PUBLIC_REPO_URL: ${PUBLIC_REPO_URL:-}
+    ports:
+      - "127.0.0.1:8788:8788"
+    restart: unless-stopped

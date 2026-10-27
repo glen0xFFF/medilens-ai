@@ -1294,7 +1294,7 @@ func TestCapabilitiesOfTheMockProviders(t *testing.T) {
 func TestCapabilitiesOfMuseSparkNameTheModelAndNoSecret(t *testing.T) {
 	p, err := ai.NewFromConfig(config.Config{
 		ModelProvider: config.ModelMuseSpark, ReferenceProvider: config.ReferencePHFDA,
-		ModelAPIKey: config.Secret("sk-test-not-a-real-key-0123456789"), DailySpendCapUSD: 5,
+		ModelAPIKey: config.Secret("sk-test.not.a.real.key.0123456789"), DailySpendCapUSD: 5,
 	})
 	if err != nil {
 		t.Fatal(err)
