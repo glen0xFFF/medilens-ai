@@ -9,8 +9,13 @@ import {
 } from '@medilens/contracts';
 import { describe, expect, test } from 'vitest';
 import { answerFromLabel } from '../../src/domain/answers';
-import type { AllowedIntent } from '../../src/domain/safety';
+import {
+  ALLOWED_QUESTION_EXAMPLES,
+  classifyQuestion,
+  type AllowedIntent,
+} from '../../src/domain/safety';
 import { FINAL_LINE } from '../../src/domain/summary';
+import { FixtureAnswerer } from '../../src/providers/fixture';
 import {
   ANSWER_FALLBACK_TEXT,
   MUSE_MODEL,
@@ -33,6 +38,13 @@ function fixture(name: string): unknown {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Body = Record<string, any>;
+
+/** The answer-explain-ok completion with a different explanation (synthetic, DEMO DATA). */
+function completion(explanation: string): unknown {
+  const res = fixture('answer-explain-ok') as Body;
+  res.choices[0].message.content = JSON.stringify({ explanation });
+  return res;
+}
 
 function fakeClient(...responses: (unknown | Error)[]) {
   const calls: Body[] = [];
@@ -406,18 +418,90 @@ describe('createMuseSparkAnswerer: explain_text', () => {
     expect(calls).toHaveLength(0);
   });
 
+  // Task 7b review round 1: these are preset buttons (ALLOWED_QUESTION_EXAMPLES);
+  // with no phrase the live answerer reads the printed directions and warnings
+  // back, as FixtureAnswerer does, instead of a non-answer.
   test.each(['What does this warning mean?', 'Explain the directions in simpler words.'])(
-    '%s names no printed phrase: unclear with the fallback text and no model call',
+    '%s names no printed phrase: reads the directions and warnings back, no model call',
     async (q) => {
+      const usage: ModelUsage[] = [];
       const { client, calls } = fakeClient(fixture('answer-explain-ok'));
-      const a = await createMuseSparkAnswerer(client).answer(input(q), CTX);
-      expect(ANSWER_FALLBACK_TEXT).toBe('I can only answer from what is printed on the label.');
-      expect(a.status).toBe('unclear');
-      expect(a.text).toBe(ANSWER_FALLBACK_TEXT);
-      expect(a.citedFields).toEqual([]);
+      const a = await createMuseSparkAnswerer(client, { onUsage: (u) => usage.push(u) }).answer(
+        input(q),
+        CTX,
+      );
       expect(calls).toHaveLength(0);
+      expect(usage).toEqual([]);
+      expect(AnswerSchema.safeParse(a).success).toBe(true);
+      expect(a).toEqual(answerFromLabel(input(q)));
+      expect(a.status).toBe('answered');
+      expect(a.text).not.toBe(ANSWER_FALLBACK_TEXT);
+      expect(a.citedFields).toEqual(['directions', 'warnings']);
     },
   );
+
+  test('every preset question gets the same answer live as in demo mode, with no model call', async () => {
+    for (const q of ALLOWED_QUESTION_EXAMPLES) {
+      const c = classifyQuestion(q);
+      expect(c.allowed).toBe(true);
+      if (!c.allowed) continue;
+      const { client, calls } = fakeClient();
+      const live = await createMuseSparkAnswerer(client).answer(input(q, c.intent), CTX);
+      const demo = await new FixtureAnswerer().answer(input(q, c.intent), CTX);
+      expect(calls).toHaveLength(0);
+      expect(live).toEqual(demo);
+      expect(live.text).not.toBe(ANSWER_FALLBACK_TEXT);
+    }
+  });
+
+  // Task 7b review round 1: a fragment without its printed "Do not" could be
+  // explained as the opposite advice. The model is sent, and the answer
+  // quotes, the whole printed sentence.
+  test('a fragment of a negated warning: the whole printed sentence is sent and quoted', async () => {
+    const q = 'What does "with other products containing paracetamol" mean?';
+    expect(classifyQuestion(q)).toEqual({ allowed: true, intent: 'explain_text' });
+    const label: ExtractedLabel = {
+      ...LABEL,
+      fields: [
+        ...LABEL.fields.filter((f) => f.key !== 'warnings'),
+        lf('warnings', 'Do not use with other products containing paracetamol.'),
+      ],
+    };
+    const { client, calls } = fakeClient(
+      completion('You can use it together with other paracetamol products.'),
+    );
+    const a = await createMuseSparkAnswerer(client).answer(
+      input(q, 'explain_text', { label }),
+      CTX,
+    );
+    expect(calls).toHaveLength(1);
+    const user = (calls[0]?.messages as Body[])[1]?.content as string;
+    expect(JSON.parse(user)).toEqual({
+      phrase: 'Do not use with other products containing paracetamol',
+    });
+    const quote =
+      'The warnings on the label says "Do not use with other products containing paracetamol".';
+    expect(a).toEqual({
+      status: 'answered',
+      text: `${quote} ${NO_EXPLANATION}`,
+      spokenChunks: [quote, NO_EXPLANATION, FINAL_LINE],
+      citedFields: ['warnings'],
+      safetyNotice: null,
+    });
+  });
+
+  test('a fragment with an explanation that passes the gate quotes the whole sentence', async () => {
+    const { client, calls } = fakeClient(fixture('answer-explain-ok'));
+    const a = await createMuseSparkAnswerer(client).answer(
+      input('What does "cool dry place" mean?'),
+      CTX,
+    );
+    const user = (calls[0]?.messages as Body[])[1]?.content as string;
+    expect(JSON.parse(user)).toEqual({ phrase: 'Store in a cool dry place' });
+    expect(a.text).toBe(
+      `${STORAGE_QUOTE} In plain words: Keep it somewhere that is not hot or damp.`,
+    );
+  });
 
   test('an explanation that fails the content gate gives the quote-only answer', async () => {
     const { client, calls } = fakeClient(fixture('answer-explain-dose'));

@@ -14,6 +14,7 @@ import {
   answerFromLabel,
   composeExplainAnswer,
   conflictWarning,
+  explainQuote,
   explanationAllowed,
   findPhraseInFields,
 } from '../../src/domain/answers';
@@ -160,6 +161,59 @@ describe('findPhraseInFields', () => {
   });
 });
 
+describe('explainQuote (Task 7b review round 1)', () => {
+  const WARNINGS =
+    'Do not use with other products containing paracetamol. Keep out of reach of children.';
+
+  test('a fragment is widened to its whole printed sentence, end punctuation dropped', () => {
+    const label = labelOf([lf('warnings', WARNINGS)]);
+    expect(explainQuote('other products', label)).toBe(
+      'Do not use with other products containing paracetamol',
+    );
+    expect(explainQuote('out of reach', label)).toBe('Keep out of reach of children');
+  });
+
+  test('a phrase that is a whole sentence is quoted as printed', () => {
+    expect(explainQuote('store in a cool dry place', LABEL)).toBe('Store in a cool dry place');
+    expect(explainQuote('store in a cool dry place.', LABEL)).toBe('Store in a cool dry place');
+    expect(explainQuote('paracetamol', LABEL)).toBe('Paracetamol');
+  });
+
+  test('a period not followed by a capital letter does not end the sentence', () => {
+    const label = labelOf([
+      lf('warnings', 'Do not use with other medicines, e.g. cold remedies. Keep dry.'),
+      lf('directions', 'Approx. 5 ml after meals.'),
+    ]);
+    expect(explainQuote('cold remedies', label)).toBe(
+      'Do not use with other medicines, e.g. cold remedies',
+    );
+    expect(explainQuote('after meals', label)).toBe('Approx. 5 ml after meals');
+  });
+
+  test('a phrase across a sentence end quotes both sentences', () => {
+    const label = labelOf([lf('warnings', WARNINGS)]);
+    expect(explainQuote('paracetamol. keep out', label)).toBe(WARNINGS.replace(/\.$/, ''));
+  });
+
+  test('whitespace runs are collapsed in the quote', () => {
+    const label = labelOf([lf('warnings', 'Do  not use\nwith other products.')]);
+    expect(explainQuote('other products', label)).toBe('Do not use with other products');
+  });
+
+  test('the first field that prints the phrase is quoted', () => {
+    const label = labelOf([
+      lf('warnings', 'Contains paracetamol. Do not exceed.'),
+      lf('genericNames', 'Paracetamol'),
+    ]);
+    expect(explainQuote('paracetamol', label)).toBe('Contains paracetamol');
+  });
+
+  test('a phrase printed nowhere has no quote', () => {
+    expect(explainQuote('shake well before use', LABEL)).toBeNull();
+    expect(explainQuote('', LABEL)).toBeNull();
+  });
+});
+
 describe('explanationAllowed', () => {
   test.each([
     'Take 2 tablets.',
@@ -224,9 +278,10 @@ describe('explanationAllowed', () => {
   });
 
   test.each([
-    'A few mg of it.',
-    'A few mcg of it.',
-    'A few \u00B5g of it.',
+    // "Some", not "A few": "few" is itself blocked (round 1), and each case must isolate one word
+    'Some mg of it.',
+    'Some mcg of it.',
+    'Some \u00B5g of it.',
     'Some g of it.',
     'A gram of it.',
     'Some ml of it.',
@@ -250,9 +305,9 @@ describe('explanationAllowed', () => {
     'The dosage of it.',
     'Wait an hour.',
     'Hourly use.',
-    'Each day.',
+    'For a day.',
     'Daily use.',
-    'Each week.',
+    'For a week.',
     'Weekly use.',
     'In the morning.',
     'At night.',
@@ -287,7 +342,7 @@ describe('explanationAllowed', () => {
     'Aged people.',
     'By age.',
     'By weight.',
-    'Per kg of it.',
+    'In kg.',
   ])('rejects the population word in %j', (text) => {
     expect(explanationAllowed(text)).toBe(false);
   });
@@ -378,6 +433,86 @@ describe('explanationAllowed', () => {
     'Keep it from young ones.',
   ])('rejects the medical-claim word in %j', (text) => {
     expect(explanationAllowed(text)).toBe(false);
+  });
+
+  // Task 7b review round 1: the reviewer's probes, each accepted by the round 0 gate.
+  test.each([
+    'This number shows the product is verified.',
+    'It means the product has passed checks and is legitimate.',
+    'It is legit and real.',
+    'Use it as often as you need.',
+    'Use it several times.',
+    'Use a little more each time.',
+    'Use it as much as you like.',
+    'Use a lot of it.',
+    'Use it again later.',
+    'Use it for a fortnight.',
+    'Use it at lunch and dinner.',
+    'Keep using it until you feel better.',
+    'Not for minors.',
+    'Not for men or women.',
+    'Give it to your son.',
+    'Do not give to boys or girls.',
+    'Grown ups.',
+    'You can drink it with wine.',
+    'You can use it together with other paracetamol products.',
+    'Paracetamol is the active ingredient that lowers a high temperature.',
+  ])('rejects the round 1 probe %j', (text) => {
+    expect(explanationAllowed(text)).toBe(false);
+  });
+
+  // Each blocked word on its own, in a frame the gate accepts, so no case
+  // passes on the strength of another word.
+  const FRAME = (w: string) => `It is ${w} here.`;
+
+  test('the frame alone is accepted', () => {
+    expect(explanationAllowed(FRAME('kept'))).toBe(true);
+  });
+
+  // prettier-ignore
+  test.each([
+    // verdicts (round 1 review list)
+    'verified', 'verify', 'legit', 'legitimate', 'valid', 'validated', 'real', 'official',
+    'officially', 'certified', 'certificate', 'authorized', 'authorised', 'authority', 'FDA',
+    'registry',
+    // frequencies and amounts (round 1 review list)
+    'often', 'frequent', 'frequently', 'regular', 'regularly', 'several', 'many', 'few', 'more',
+    'less', 'much', 'lot', 'lots', 'little', 'extra', 'again', 'repeat', 'repeated', 'each',
+    'every', 'per', 'times', 'fortnight', 'meal', 'meals', 'breakfast', 'lunch', 'dinner', 'until',
+    // groups of people (round 1 review list)
+    'minor', 'minors', 'men', 'man', 'women', 'woman', 'boy', 'boys', 'girl', 'girls', 'son',
+    'sons', 'daughter', 'daughters', 'mother', 'mothers', 'father', 'fathers', 'grown ups',
+    'grown-ups', 'grownups',
+    // interactions and indications (round 1 review list)
+    'together', 'along', 'alongside', 'drink', 'drinking', 'wine', 'beer', 'temperature',
+  ])('rejects the round 1 review word %j', (w) => {
+    expect(explanationAllowed(FRAME(w))).toBe(false);
+  });
+
+  // Same classes, not in the review list: synonyms the round 1 probes imply.
+  // prettier-ignore
+  test.each([
+    // verdicts
+    'invalid', 'licensed', 'licenced', 'legal', 'illegal', 'lawful', 'trusted', 'original',
+    'guaranteed', 'checked', 'tested', 'passed',
+    // permission and advice
+    'can', 'cannot', 'could', 'may', 'might', 'allowed', 'permitted', 'give', 'given', 'gave',
+    'continue', 'continuing',
+    // frequencies, times and amounts
+    'time', 'always', 'usually', 'sometimes', 'occasionally', 'whenever', 'later', 'amount',
+    'quantity', 'enough', 'plenty', 'most', 'least', 'fewer', 'couple', 'pair', 'till', 'supper',
+    'food', 'eat', 'eating', 'ate',
+    // groups of people
+    'people', 'person', 'persons', 'individuals', 'male', 'female', 'lady', 'ladies', 'wife',
+    'wives', 'husband', 'parent', 'parents', 'mum', 'mom', 'dad', 'brother', 'sister', 'family',
+    'families', 'youth', 'everyone', 'everybody', 'anyone', 'anybody', 'someone', 'somebody',
+    // interactions
+    'other', 'others', 'drug', 'drugs', 'liquor', 'drank', 'drunk',
+    // indications and how the body feels
+    'lower', 'lowers', 'reduce', 'reduces', 'ease', 'eases', 'soothe', 'heal', 'healing', 'health',
+    'help', 'helps', 'better', 'worse', 'feel', 'ill', 'sick', 'unwell', 'hurt', 'sore',
+  ])('rejects the round 1 synonym %j', (w) => {
+    expect(explanationAllowed(FRAME(w))).toBe(false);
   });
 
   test('curly apostrophes are plain English', () => {
@@ -483,6 +618,38 @@ describe('composeExplainAnswer', () => {
     expect(a.text.startsWith('The generic name on the label says "Paracetamol".')).toBe(true);
   });
 
+  // Task 7b review round 1: a fragment is never quoted without the rest of its
+  // printed sentence, so a printed "Do not" can never be dropped.
+  test('a fragment of a negated warning is quoted as its whole sentence, never inverted', () => {
+    const phrase = 'with other products containing paracetamol';
+    const a = composeExplainAnswer(
+      input(),
+      phrase,
+      'You can use it together with other paracetamol products.',
+    );
+    const quote =
+      'The warnings on the label says "Do not use with other products containing paracetamol".';
+    expect(AnswerSchema.safeParse(a).success).toBe(true);
+    expect(a).toEqual({
+      status: 'answered',
+      text: `${quote} ${NO_EXPLANATION}`,
+      spokenChunks: [quote, NO_EXPLANATION, FINAL_LINE],
+      citedFields: ['warnings'],
+      safetyNotice: null,
+    });
+  });
+
+  test('a fragment is quoted as its whole printed sentence when the explanation passes too', () => {
+    const a = composeExplainAnswer(
+      input(),
+      'cool dry place',
+      'Keep it somewhere that is not hot or damp.',
+    );
+    expect(a.text).toBe(
+      `${STORAGE_QUOTE} In plain words: Keep it somewhere that is not hot or damp.`,
+    );
+  });
+
   test('a cited field the registry contradicts gets the conflict warning', () => {
     const label = labelOf([lf('strength', '500 mg tablet strength')]);
     const match: MatchAssessment = {
@@ -492,8 +659,9 @@ describe('composeExplainAnswer', () => {
     };
     const a = composeExplainAnswer(input({ label, match }), 'tablet strength', null);
     const warning = conflictWarning('strength', '250 mg Tablet');
+    // round 1: the fragment is quoted as its whole printed sentence
     expect(a.text).toBe(
-      `The strength on the label says "tablet strength". ${NO_EXPLANATION} ${warning}`,
+      `The strength on the label says "500 mg tablet strength". ${NO_EXPLANATION} ${warning}`,
     );
     expect(a.safetyNotice).toBe(warning);
     expect(a.spokenChunks.at(-1)).toBe(FINAL_LINE);

@@ -1,8 +1,9 @@
 /**
  * Meta Muse Spark adapters (spec §4.2). The label reader only transcribes. The
  * answerer is deterministic for every intent but explain_text; for that one
- * the model sees only the printed phrase and returns a short explanation that
- * the server gates and composes around a verbatim quote (domain/answers.ts).
+ * the model sees only the printed sentence around the asked phrase and returns
+ * a short explanation that the server gates and composes around a verbatim
+ * quote of that sentence (domain/answers.ts).
  * No env access here: the HTTP layer builds the client and passes it in.
  */
 import {
@@ -21,8 +22,8 @@ import {
   PHRASE_NOT_FOUND_TEXT,
   answerFromLabel,
   composeExplainAnswer,
+  explainQuote,
   explanationAllowed,
-  findPhraseInFields,
   unclearAnswer,
 } from '../domain/answers';
 import { extractExplainPhrase } from '../domain/safety';
@@ -249,9 +250,12 @@ export function createMuseSparkLabelReader(
 /**
  * Answers for questions the safety gate already allowed (the caller never
  * sends refused questions here). Every intent but explain_text is answered by
- * `answerFromLabel` with no model call. For explain_text the model is sent
- * only the printed phrase, as JSON {"phrase": ...}; its explanation is used
- * only if `explanationAllowed` passes, else the answer is the quote alone.
+ * `answerFromLabel` with no model call, and so is an explain_text question
+ * that names no printed phrase (the "What does this warning mean?" preset),
+ * exactly as FixtureAnswerer does. For a printed phrase the model is sent only
+ * the whole printed sentence around it (`explainQuote`), as JSON
+ * {"phrase": ...}; its explanation is used only if `explanationAllowed`
+ * passes, else the answer is the quote alone.
  */
 export function createMuseSparkAnswerer(
   client: ChatClient,
@@ -262,15 +266,18 @@ export function createMuseSparkAnswerer(
     async answer(input: AnswerInput, _ctx: ProviderContext): Promise<Answer> {
       if (input.intent !== 'explain_text') return answerFromLabel(input);
       const phrase = extractExplainPhrase(input.question);
-      if (phrase === null) return unclearAnswer(ANSWER_FALLBACK_TEXT);
-      const hit = findPhraseInFields(phrase, input.label)[0];
-      if (hit === undefined) return unclearAnswer(PHRASE_NOT_FOUND_TEXT);
+      // Task 7b review round 1: a preset that names no phrase reads the printed
+      // directions and warnings back, as in demo mode; no model call
+      if (phrase === null) return answerFromLabel(input);
+      // the whole printed sentence, never a fragment without its "Do not"
+      const quote = explainQuote(phrase, input.label);
+      if (quote === null) return unclearAnswer(PHRASE_NOT_FOUND_TEXT);
 
       const params: Params = {
         ...baseParams(model),
         messages: [
           { role: 'system', content: EXPLAIN_SYSTEM_PROMPT },
-          { role: 'user', content: JSON.stringify({ phrase: hit.printed }) },
+          { role: 'user', content: JSON.stringify({ phrase: quote }) },
         ],
         response_format: {
           type: 'json_schema',
