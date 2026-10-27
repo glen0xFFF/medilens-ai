@@ -413,13 +413,65 @@ function ungroundedFigures(text: string, evidence: string[]): boolean {
     if (!pairs.has(p)) return true;
   }
   const printed = new Set(evidence.flatMap(words));
-  return monthsIn(text).some((names) => !names.some((n) => printed.has(n)));
+  if (monthsIn(text).some((names) => !names.some((n) => printed.has(n)))) return true;
+  return ungroundedFrequency(text, evidence);
+}
+
+/* Dose frequency, grounded as a whole expression (review round 2). */
+
+const FREQ_WORD_CANON: Record<string, string> = {
+  once: '1 times',
+  twice: '2 times',
+  thrice: '3 times',
+  time: 'times',
+  hours: 'hour',
+  hrs: 'hour',
+  hr: 'hour',
+  days: 'day',
+  weeks: 'week',
+  minutes: 'minute',
+  mins: 'minute',
+  min: 'minute',
+  hourly: 'per hour',
+  daily: 'per day',
+  weekly: 'per week',
+};
+
+/** Folded text with spelled numbers as digits and every way of saying "per day" as "per day". */
+function frequencyCanon(s: string): string {
+  const ws = words(s).map((w) => {
+    const n = NUMBER_WORDS[w];
+    if (n !== undefined && !n.includes('/') && FREQ_WORD_CANON[w] === undefined) return n;
+    return FREQ_WORD_CANON[w] ?? w;
+  });
+  return ` ${ws.join(' ')} `
+    .replace(/ (?:a|an|each|every|per) (hour|day|week)(?= )/g, ' per $1')
+    .replace(/ (\d+) (?:to|or) (\d+)(?= )/g, ' $1 $2');
+}
+
+// Greedy, so "3 times per day" is one expression and never matches a printed "per day" alone.
+const FREQUENCY_RE =
+  /(?<= )(?:every other (?:hour|day|week)|every \d+(?: \d+)? (?:minute|hour|day|week)|(?:\d+(?: \d+)? times )?per (?:hour|day|week)|\d+(?: \d+)? times)(?= )/g;
+
+function frequencies(s: string): Set<string> {
+  return new Set(frequencyCanon(s).match(FREQUENCY_RE) ?? []);
+}
+
+/**
+ * Every frequency the answer states ("every hour", "hourly", "6 times a day",
+ * "twice daily") must be printed, as the same whole expression, in a cited
+ * field. A bare number check lets the 6 in "every 4 to 6 hours" ground "6
+ * times a day".
+ */
+function ungroundedFrequency(text: string, evidence: string[]): boolean {
+  const printed = new Set(evidence.flatMap((e) => [...frequencies(e)]));
+  return [...frequencies(text)].some((f) => !printed.has(f));
 }
 
 /**
  * Clinical-claim screen. Each pattern is matched against the folded answer; a
- * hit is allowed only when the same words are printed in a cited field (for
- * example "Keep out of reach of children" in the warnings).
+ * hit is allowed only in the context a cited field prints it in (see
+ * unsupportedClaim), for example "Keep out of reach of children" in the warnings.
  */
 const CLINICAL_TERMS = [
   String.raw`safe(?:ly|r|st|ty)?`,
@@ -475,17 +527,83 @@ const CLINICAL_TERMS = [
   'real',
   'verified',
   'approved',
+  // Indication and efficacy (review round 2).
+  'good for',
+  'used for',
+  String.raw`help(?:s|ed|ing|ful)?`,
+  String.raw`reliev\w*`,
+  'relief',
+  String.raw`pain\w*`,
+  String.raw`aches?`,
+  String.raw`fevers?`,
+  String.raw`headaches?`,
+  String.raw`works?`,
+  'working',
+  String.raw`effective\w*`,
+  'useful',
+  String.raw`indicat\w*`,
+  String.raw`colds?`,
+  'flu',
+  String.raw`infections?`,
 ];
 const CLINICAL_RE = new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${CLINICAL_TERMS.join('|')})(?![\\p{L}\\p{N}])`,
   'gu',
 );
 
+/** Words that turn a statement around ("do not", "don't", "never", "avoid"). */
+const NEGATIONS = new Set(['not', 'no', 'never', 'avoid', 'cannot', 'nor', 'without', 't']);
+const CONTEXT_WORDS = 2;
+
+/**
+ * Folded clauses as word lists. A clause ends at punctuation followed by a
+ * space (so "2.5 mg" stays whole); a negation never reaches across one.
+ */
+function clauses(s: string): string[][] {
+  return s
+    .normalize('NFKC')
+    .split(/[.;:!?,](?=\s|$)|\n/)
+    .map((c) => words(c))
+    .filter((c) => c.length > 0);
+}
+
+/** True when a negation comes before word i in its clause. */
+function negatedAt(ws: string[], i: number): boolean {
+  return ws.slice(0, i).some((w) => NEGATIONS.has(w));
+}
+
+/** Start indexes of `needle` as a run of whole words in `hay`. */
+function wordRunAt(hay: string[], needle: string[]): number[] {
+  const out: number[] = [];
+  for (let p = 0; p + needle.length <= hay.length; p++) {
+    if (needle.every((w, k) => hay[p + k] === w)) out.push(p);
+  }
+  return out;
+}
+
+/**
+ * Review round 2: a screened term is allowed only in the context the label
+ * prints it in. The term with up to two words either side must be printed as
+ * the same run of words in a cited field, and a negation earlier in the
+ * clause must be there in both or in neither. So "keep out of reach of children" is
+ * allowed, but "children take 1 tablet too", "you can exceed the stated dose"
+ * and "take it with alcohol" are not.
+ */
 function unsupportedClaim(text: string, evidence: string[]): boolean {
-  const printed = evidence.map((e) => ` ${fold(e)} `);
-  for (const m of fold(text).matchAll(CLINICAL_RE)) {
-    const term = ` ${m[0]} `;
-    if (!printed.some((p) => p.includes(term))) return true;
+  const printed = evidence.flatMap(clauses);
+  for (const ws of clauses(text)) {
+    const folded = ws.join(' ');
+    for (const m of folded.matchAll(CLINICAL_RE)) {
+      const start = folded.slice(0, m.index).split(' ').length - 1;
+      const end = start + m[0].split(' ').length; // exclusive
+      const from = Math.max(0, start - CONTEXT_WORDS);
+      const window = ws.slice(from, Math.min(ws.length, end + CONTEXT_WORDS));
+      const negated = negatedAt(ws, start);
+      const supported = printed.some((ev) =>
+        wordRunAt(ev, window).some((p) => negatedAt(ev, p + (start - from)) === negated),
+      );
+      if (!supported) return true;
+    }
   }
   return false;
 }
@@ -515,7 +633,8 @@ function mentionsTopic(foldedText: string, key: FieldKey): boolean {
  * Finding 1 (review round 1), spec §4.3 rule 4: decided from what the answer
  * says, not from what it cites. An answer is about a field that is not clear
  * when it cites it, when the intent asks for it, when it names the field, or
- * when it repeats the field's printed value or any of its numbers.
+ * when it repeats the field's printed value, any of its numbers or (review
+ * round 2) any of its content words, so a mis-cited paraphrase is caught.
  */
 function aboutUnclearField(
   text: string,
@@ -529,6 +648,7 @@ function aboutUnclearField(
   const folded = fold(text);
   const padded = ` ${folded} `;
   const nums = numberTokens(text);
+  const content = contentTerms(text);
   return unclearFields.some((f) => {
     if (cited.has(f.key)) return true;
     if (intent === 'strength' && f.key === 'strength') return true;
@@ -537,9 +657,42 @@ function aboutUnclearField(
       if (v === null) return false;
       const fv = fold(v);
       if (fv !== '' && padded.includes(` ${fv} `)) return true;
-      return [...numberTokens(v)].some((n) => nums.has(n));
+      if ([...numberTokens(v)].some((n) => nums.has(n))) return true;
+      // Review round 2: a paraphrase shares content words even when it is not verbatim.
+      return [...contentTerms(v)].some((t) => content.has(t));
     });
   });
+}
+
+/** Function words and answer framing that say nothing about a field's content. */
+const STOP_WORDS = new Set(
+  (
+    'a an the of to in on at by for from with and or nor if is it its be been being are was were ' +
+    'as do does did done not no this that these those there their they them then than when what ' +
+    'which where who whom whose why how you your yours we our us he she his her i me my can could ' +
+    'will would shall should may might must have has had having into onto over under about after ' +
+    'before also only just very each some such any all more most other so too up out off s t ' +
+    'label labels pack package packet box printed print says say said reads read shows show ' +
+    'written text part parts unclear clear words word phrase means mean meaning medicine product ' +
+    'here states stated'
+  ).split(' '),
+);
+
+/**
+ * Content terms of a text: each non-stop word of 4 or more letters, and each
+ * pair of consecutive folded words of which at least one is not a stop word.
+ */
+function contentTerms(s: string): Set<string> {
+  const ws = words(s);
+  const out = new Set<string>();
+  ws.forEach((w, i) => {
+    if (!STOP_WORDS.has(w) && /^\p{L}{4,}$/u.test(w)) out.add(w);
+    const next = ws[i + 1];
+    if (next !== undefined && (!STOP_WORDS.has(w) || !STOP_WORDS.has(next))) {
+      out.add(`${w} ${next}`);
+    }
+  });
+  return out;
 }
 
 function sentences(text: string): string[] {

@@ -650,3 +650,130 @@ describe('answerer grounding (finding 2: text must match the cited evidence)', (
     expect(a.citedFields).toEqual(['warnings']);
   });
 });
+
+/* -------------------- review round 2: frequency, polarity, population, indication */
+
+const LABEL_PROBE: ExtractedLabel = {
+  ...LABEL,
+  fields: LABEL.fields.map((f) =>
+    f.key === 'warnings'
+      ? lf(
+          'warnings',
+          'Do not exceed the stated dose. Keep out of reach of children. Do not take with alcohol.',
+        )
+      : f,
+  ),
+};
+
+function expectFallback(a: Awaited<ReturnType<typeof ask>>) {
+  expect(AnswerSchema.safeParse(a).success).toBe(true);
+  expect(a.status).toBe('unclear');
+  expect(a.text).toBe(ANSWER_FALLBACK_TEXT);
+  expect(a.citedFields).toEqual([]);
+  expect(a.safetyNotice).toBeNull();
+}
+
+describe('answerer grounding round 2 (finding 2: same class of unsafe output)', () => {
+  test.each([
+    ['answer-freq-every-hour', 'every hour, when the label prints every 4 to 6 hours'],
+    ['answer-freq-times-a-day', '6 times a day, grounded only by the 6 in 6 hours'],
+    ['answer-freq-hourly', 'hourly, with no number at all'],
+  ])('%s (%s) is unclear', async (name) => {
+    expectFallback(await ask(name, 'read_label', LABEL_PROBE));
+  });
+
+  test.each([
+    ['Take 1 tablet three times daily.', 'answered'],
+    ['Take 1 tablet 3 times a day.', 'answered'],
+    ['Take 1 tablet 3 times per day with water.', 'answered'],
+    ['Take 1 tablet every 3 hours.', 'unclear'],
+    ['Take 1 tablet once a day for 3 days.', 'unclear'],
+  ])('frequency is grounded as a whole (printed: %s)', async (printed, status) => {
+    const label = {
+      ...LABEL,
+      fields: LABEL.fields.map((f) => (f.key === 'directions' ? lf('directions', printed) : f)),
+    };
+    const a = await ask('answer-freq-three-times', 'read_label', label);
+    expect(a.status).toBe(status);
+  });
+
+  test.each([
+    ['answer-negation-exceed', 'can exceed, when the label prints do not exceed'],
+    [
+      'answer-negation-alcohol',
+      'take with alcohol, when the label prints do not take with alcohol',
+    ],
+    ['answer-negation-children', 'a "do not" added more than four words before the term'],
+  ])('%s (%s) is unclear', async (name) => {
+    expectFallback(await ask(name, 'read_label', LABEL_PROBE));
+  });
+
+  test('children allowed only by "keep out of reach of children" is unclear', async () => {
+    const a = await ask('answer-children-too', 'read_label', LABEL_PROBE);
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/children/i);
+  });
+
+  test('an indication claim citing the generic name is unclear', async () => {
+    const a = await ask('answer-indication', 'read_label', LABEL_PROBE);
+    expectFallback(a);
+    expect(a.spokenChunks.join(' ')).not.toMatch(/headache|fever/i);
+  });
+
+  test.each([
+    ['answer-printed-alcohol', 'The warnings say do not take with alcohol.'],
+    ['answer-printed-exceed', 'The warnings say do not exceed the stated dose.'],
+    [
+      'answer-printed-children',
+      'The warning printed on the pack says keep out of reach of children.',
+    ],
+  ])('%s: a screened word restated with its printed context is answered', async (name, text) => {
+    const a = await ask(name, 'read_label', LABEL_PROBE);
+    expect(a.status).toBe('answered');
+    expect(a.text).toBe(text);
+    expect(a.safetyNotice).toBeNull();
+  });
+
+  test('an indication printed on the label may be restated', async () => {
+    const label = {
+      ...LABEL,
+      fields: [
+        ...LABEL.fields.filter((f) => f.key !== 'genericNames'),
+        lf('genericNames', 'Paracetamol is good for headaches and fever.'),
+      ],
+    };
+    const a = await ask('answer-indication', 'read_label', label);
+    expect(a.status).toBe('answered');
+  });
+});
+
+describe('answerer uncertainty round 2 (finding 1: a mis-cited paraphrase)', () => {
+  const LABEL_ALLERGY: ExtractedLabel = {
+    ...LABEL,
+    fields: LABEL.fields.map((f) =>
+      f.key === 'warnings'
+        ? lf(
+            'warnings',
+            'Do not use if allergic to aspirin. Do not exceed the stated dose.',
+            'partial',
+          )
+        : f,
+    ),
+  };
+
+  test('paraphrasing a partial warning while citing the brand is uncertain', async () => {
+    expectUncertain(await ask('answer-allergy-miscited', 'read_label', LABEL_ALLERGY));
+  });
+
+  test('the same paraphrase is not flagged when the warning is clear', async () => {
+    const label = {
+      ...LABEL_ALLERGY,
+      fields: LABEL_ALLERGY.fields.map((f) =>
+        f.key === 'warnings' ? { ...f, legibility: 'clear' as const } : f,
+      ),
+    };
+    const a = await ask('answer-allergy-miscited', 'read_label', label);
+    expect(a.status).toBe('answered');
+    expect(a.safetyNotice).toBeNull();
+  });
+});
