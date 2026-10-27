@@ -150,6 +150,37 @@ func TestContributorAborts(t *testing.T) {
 	}
 }
 
+// Final review I2 ruling: an empty response model aborts with exit 3, as
+// the spec says (Go port spec §3), and PH FDA is never called.
+func TestEmptyModelAborts(t *testing.T) {
+	dir, err := parity.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok, err := os.ReadFile(filepath.Join(dir, "providers", "muse", "label-ok.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := bytes.Replace(ok, []byte(`"model": "muse-spark-1.3"`), []byte(`"model": ""`), 1)
+	if bytes.Equal(body, ok) {
+		t.Fatal("label-ok.json has no model to blank")
+	}
+	meta := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(meta.Close)
+	fda, fdaCalls := serveFixture(t, "phfda", "search-paracelin.json")
+	r := runSmoke(t, []string{writeJPEG(t)}, map[string]string{"MODEL_API_KEY": "test-key"}, meta, fda)
+	if r.code != 3 || !strings.Contains(r.stdout, "model= finish_reason") || !strings.Contains(r.stdout, "ABORT:") {
+		t.Fatalf("got %+v", r)
+	}
+	if fdaCalls.Load() != 0 {
+		t.Error("PH FDA was called after an abort")
+	}
+}
+
 func TestInvalidRepoURL(t *testing.T) {
 	meta, _ := serveFixture(t, "muse", "label-ok.json")
 	r := runSmoke(t, []string{writeJPEG(t)}, map[string]string{"MODEL_API_KEY": "test-key", "PUBLIC_REPO_URL": "not a url"}, meta, nil)

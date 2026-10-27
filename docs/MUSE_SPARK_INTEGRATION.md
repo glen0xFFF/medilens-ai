@@ -104,7 +104,8 @@ by its current name `max_completion_tokens` (Node sent the deprecated alias `max
    ```
    It prints the serving model id, finish reason, token usage (including `reasoning_tokens` when
    reported), the PH FDA HTTP status and response key names, never read text. Exit 3 means a
-   contributor model served the request: stop and investigate. Paste the printed lines into
+   contributor model served the request, or the response named no model (missing or empty): stop
+   and investigate. Paste the printed lines into
    [TESTING.md](TESTING.md).
 4. Run the API live: set `MODEL_PROVIDER=muse_spark` and `REFERENCE_PROVIDER=ph_fda` in `.env`,
    `npm run dev:api`, and check `GET /api/v1/config/capabilities` reports

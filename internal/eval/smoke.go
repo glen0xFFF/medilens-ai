@@ -47,11 +47,14 @@ type FetchRecord struct {
 }
 
 // IsContributorModel is the ToS routing caveat (spec §3): a contributor
-// model, or no model id at all, aborts. The match folds ASCII case only,
-// as /contributor/i (no u flag) does: a JS RegExp never folds a non-ASCII
+// model, or no model id at all, aborts. An empty model id aborts too: the
+// Go port spec says so, and the final review's ruling is that the spec wins
+// over the TS script here (which let "" through), matching the production
+// adapter (internal/ai/muse_spark.go). The match folds ASCII case only, as
+// /contributor/i (no u flag) does: a JS RegExp never folds a non-ASCII
 // letter such as U+0130 onto an ASCII one, while strings.ToLower would.
 func IsContributorModel(model *string) bool {
-	if model == nil {
+	if model == nil || *model == "" {
 		return true
 	}
 	lower := []byte(*model)
@@ -244,10 +247,18 @@ type SmokeReportInput struct {
 	FDA *contracts.SearchResult
 }
 
-// jsNumberString is JS String(n) for a finite number.
+// jsNumberString is JS String(n). A count beyond float64 is ±Infinity
+// (final review M13: it used to panic on the exponent slice).
 func jsNumberString(n float64) string {
-	if n == 0 {
+	switch {
+	case n == 0:
 		return "0"
+	case math.IsInf(n, 1):
+		return "Infinity"
+	case math.IsInf(n, -1):
+		return "-Infinity"
+	case math.IsNaN(n):
+		return "NaN"
 	}
 	if a := math.Abs(n); a >= 1e-6 && a < 1e21 {
 		return strconv.FormatFloat(n, 'f', -1, 64)

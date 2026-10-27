@@ -15,7 +15,8 @@
 // variable set in the environment wins.
 //
 // Exit codes: 0 done, 1 setup or request error, 3 aborted because a
-// contributor model served the request.
+// contributor model served the request or the response named no model
+// (missing or empty).
 package main
 
 import (

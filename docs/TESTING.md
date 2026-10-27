@@ -236,7 +236,8 @@ characters of the real key.
 One Muse Spark label read on a real photo plus one PH FDA lookup, through the production Go
 adapters. Prints model id, finish reason, token usage (including `reasoning_tokens` when
 reported), HTTP status and response key names; never the read text. Aborts (exit 3) if the
-serving model id is missing or contains "contributor". Never run in CI.
+serving model id is missing, empty or contains "contributor" (the empty case follows the Go port
+spec, not the Node script, per the final-review ruling). Never run in CI.
 
 - **NOT RUN — owner:** `npm run smoke:live -- <image> [fda-search-term]` (default term
   `biogesic`) with `MODEL_API_KEY` set. No key was available to the build agents. Paste the
@@ -245,7 +246,7 @@ serving model id is missing or contains "contributor". Never run in CI.
 - Checked without a key, by `services/smoke` tests against local fakes: usage line and exit 1 with
   no arguments; "MODEL_API_KEY is not set. The live smoke test needs it." and exit 1 with a blank
   key; "Image rejected: INVALID_IMAGE"; metadata-only report (no label or registry value in the
-  output); exit 3 and no registry call for a contributor model.
+  output); exit 3 and no registry call for a contributor model or an empty model id.
 
 ## Accuracy eval
 

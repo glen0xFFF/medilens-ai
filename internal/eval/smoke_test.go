@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -104,6 +105,12 @@ func TestIsContributorModel(t *testing.T) {
 	}
 	if !IsContributorModel(nil) {
 		t.Error("no model not flagged")
+	}
+	// Final review I2 ruling: the spec wins over the TS script here; an
+	// empty response model aborts (Go port spec §3), as the production
+	// adapter already does (internal/ai/muse_spark.go).
+	if !IsContributorModel(contracts.Ptr("")) {
+		t.Error("an empty model not flagged")
 	}
 	// node: /contributor/i.test('muse-CONTRİBUTOR') is false (ASCII
 	// folding only), /contributor/i.test('x-CONTRIBUTOR') is true
@@ -268,10 +275,37 @@ func TestRenderSmokeReportOtherLines(t *testing.T) {
 }
 
 func TestJSNumberString(t *testing.T) {
-	for in, want := range map[float64]string{0: "0", 1200: "1200", 0.5: "0.5", 1e21: "1e+21", 1.5e-7: "1.5e-7", -3: "-3", 123456789012: "123456789012"} {
+	for in, want := range map[float64]string{0: "0", 1200: "1200", 0.5: "0.5", 1e21: "1e+21", 1.5e-7: "1.5e-7", -3: "-3", 123456789012: "123456789012", math.Inf(1): "Infinity", math.Inf(-1): "-Infinity"} {
 		if got := jsNumberString(in); got != want {
 			t.Errorf("jsNumberString(%v) = %q, want %q", in, got, want)
 		}
+	}
+	if got := jsNumberString(math.NaN()); got != "NaN" {
+		t.Errorf("jsNumberString(NaN) = %q, want NaN", got)
+	}
+}
+
+// Final review M13: a usage count beyond float64 (1e400) is +Inf, as in
+// JS; the report prints it as String(Infinity) instead of panicking.
+func TestRenderSmokeReportPrintsAnInfiniteCount(t *testing.T) {
+	c := smokeCompletion
+	c.PromptTokens = num(json.Number("1e400"))
+	lines, _ := RenderSmokeReport(SmokeReportInput{Completions: []CompletionRecord{c}, Read: ai.ReadResult{Detail: "request_failed"}})
+	if !strings.Contains(lines[0], " prompt_tokens=Infinity ") {
+		t.Errorf("line 0 %q", lines[0])
+	}
+}
+
+func TestRenderSmokeReportAbortsOnAnEmptyModel(t *testing.T) {
+	c := smokeCompletion
+	c.Model = contracts.Ptr("")
+	lines, aborted := RenderSmokeReport(SmokeReportInput{
+		Completions: []CompletionRecord{c},
+		Read:        ai.ReadResult{Detail: "contributor_model"},
+		FDA:         &contracts.SearchResult{Kind: contracts.SearchNotAttempted},
+	})
+	if !aborted || lines[len(lines)-1] != "ABORT: a contributor model served this request; its output is not used." {
+		t.Errorf("aborted=%v lines=%q", aborted, lines)
 	}
 }
 
