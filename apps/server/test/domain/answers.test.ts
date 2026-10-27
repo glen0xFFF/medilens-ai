@@ -11,6 +11,7 @@ import {
   ANSWER_FALLBACK_TEXT,
   EXPLANATION_WORDS,
   FIELD_NAMES,
+  NO_LABEL_TEXT,
   PHRASE_NOT_FOUND_TEXT,
   answerFromLabel,
   composeExplainAnswer,
@@ -25,6 +26,8 @@ import { ADVISORIES_UNCHECKED_NOTE, REG_NOT_FOUND_NOTE } from '../../src/domain/
 import {
   ADVISORY_SENTENCE,
   FINAL_LINE,
+  LOOSE_PILL_SENTENCE,
+  NOT_A_LABEL_SENTENCE,
   NEUTRAL_ADVISORY_SENTENCE,
   PARTLY_UNCLEAR,
   STATUS_SENTENCE,
@@ -1313,5 +1316,37 @@ describe('final review Minor 8: the counterfeit sentence only for a counterfeit 
     expect(advisorySentence([{ title: 'Recall notice' }, { title: 'Counterfeit alert' }])).toBe(
       ADVISORY_SENTENCE,
     );
+  });
+});
+
+describe('final review I2: no field is read back from a label that is not a readable pack', () => {
+  test.each([
+    ['loose_pill', LOOSE_PILL_SENTENCE],
+    ['not_medicine', NOT_A_LABEL_SENTENCE],
+    ['unreadable', NO_LABEL_TEXT],
+  ] as const)('%s: every intent is unclear with "%s"', (kind, text) => {
+    const label: ExtractedLabel = { ...FULL_LABEL, imageKind: kind };
+    const expected = {
+      status: 'unclear',
+      text,
+      spokenChunks: [text, FINAL_LINE],
+      citedFields: [],
+      safetyNotice: null,
+    };
+    for (const intent of [
+      'read_label',
+      'explain_text',
+      'strength',
+      'unclear_parts',
+      'registry',
+      'other_label',
+    ] as const) {
+      expect(answerFromLabel(input({ label, intent }))).toEqual(expected);
+    }
+    expect(composeExplainAnswer(input({ label }), 'paracetamol', null)).toEqual(expected);
+  });
+
+  test('NO_LABEL_TEXT is the fixed unreadable sentence', () => {
+    expect(NO_LABEL_TEXT).toBe("I couldn't read this label, so I can't answer questions about it.");
   });
 });

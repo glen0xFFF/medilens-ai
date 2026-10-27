@@ -19,10 +19,18 @@ import type {
 import type { AnswerInput } from '../providers/types';
 import { ADVISORIES_UNCHECKED_NOTE, REG_NOT_FOUND_NOTE } from './matcher';
 import { askedFields, type AllowedIntent } from './safety';
-import { FINAL_LINE, PARTLY_UNCLEAR, advisorySentence, verificationSentences } from './summary';
+import {
+  FINAL_LINE,
+  LOOSE_PILL_SENTENCE,
+  NOT_A_LABEL_SENTENCE,
+  PARTLY_UNCLEAR,
+  advisorySentence,
+  verificationSentences,
+} from './summary';
 
 export const ANSWER_FALLBACK_TEXT = 'I can only answer from what is printed on the label.';
 export const PHRASE_NOT_FOUND_TEXT = "I can't find that phrase on this label.";
+export const NO_LABEL_TEXT = "I couldn't read this label, so I can't answer questions about it.";
 const NO_EXPLANATION = "I can't explain this phrase further.";
 const UNCERTAIN = 'Some of this was not clear on the pack, so it may be wrong.';
 const NOTHING_READ = 'I could not read that on this label.';
@@ -152,10 +160,31 @@ function build(
 /* -------------------------------------------------------- label answers */
 
 /**
+ * Final review I2: a scan that is not a readable medicine pack answers every
+ * label question with the summary's own sentence, never a field value: a
+ * loose tablet is never identified, even if the model filled fields from its
+ * imprint. Null for a label.
+ */
+export function notALabelAnswer(label: ExtractedLabel): Answer | null {
+  switch (label.imageKind) {
+    case 'loose_pill':
+      return unclearAnswer(LOOSE_PILL_SENTENCE);
+    case 'not_medicine':
+      return unclearAnswer(NOT_A_LABEL_SENTENCE);
+    case 'unreadable':
+      return unclearAnswer(NO_LABEL_TEXT);
+    case 'label':
+      return null;
+  }
+}
+
+/**
  * Deterministic answer from the label fields of the scan, for every allowed
  * intent. Printed values are read back verbatim; nothing is inferred.
  */
 export function answerFromLabel({ label, match, intent, question }: AnswerInput): Answer {
+  const notALabel = notALabelAnswer(label);
+  if (notALabel !== null) return notALabel;
   switch (intent) {
     case 'unclear_parts':
       return unclearParts(label.fields, match);
@@ -526,6 +555,8 @@ export function composeExplainAnswer(
   phrase: string,
   explanation: string | null,
 ): Answer {
+  const notALabel = notALabelAnswer(input.label);
+  if (notALabel !== null) return notALabel;
   const hits = locate(phrase, input.label);
   const first = hits[0];
   if (first === undefined) return unclearAnswer(PHRASE_NOT_FOUND_TEXT);

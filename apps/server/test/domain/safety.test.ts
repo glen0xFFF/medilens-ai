@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { beforeAll, describe, expect, test } from 'vitest';
 import {
   ALLOWED_QUESTION_EXAMPLES,
   classifyQuestion,
@@ -7,6 +7,13 @@ import {
   type AllowedIntent,
   type RefusalReason,
 } from '../../src/domain/safety';
+
+// The first classification compiles the whole pattern set (about 5 s measured
+// on this machine, the same before and after the final-review fixes). Pay it
+// once here, so the first test's 5 s budget does not, under a full parallel run.
+beforeAll(() => {
+  classifyQuestion('warm up');
+}, 60_000);
 
 /**
  * Task 5b: the gate is default-deny. Refusal patterns run first and win; a

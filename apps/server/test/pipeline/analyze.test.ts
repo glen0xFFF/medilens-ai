@@ -281,14 +281,15 @@ describe('analyzeImages', () => {
     );
   });
 
-  test('reader says unreadable: no lookup, label_unreadable with the label kept', async () => {
+  test('reader says unreadable: no lookup, label_unreadable with the label kept, text emptied', async () => {
     const unreadable = label([], 'unreadable');
     const { deps, references } = setup({ read: okRead(unreadable) });
     const result = await analyzeImages([await sharpJpeg()], deps);
 
     expect(references.calls).toHaveLength(0);
     expect(result.pipelineState).toBe('label_unreadable');
-    expect(result.label).toEqual(unreadable);
+    // final review I2: no transcribed text is kept for an unreadable read
+    expect(result.label).toEqual({ ...unreadable, rawText: '' });
     expect(result.match.status).toBe('not_attempted');
     expect(result.explanation.displayText).toContain("I couldn't read this label.");
   });
@@ -481,5 +482,64 @@ describe('analyzeScenario', () => {
     const { deps, reader } = demoSetup();
     await expectPipelineError(analyzeScenario('s99-nope', deps), 'NOT_FOUND');
     expect(reader.calls).toHaveLength(0);
+  });
+});
+
+describe('final review I2: no transcribed value survives a loose pill, a non-medicine or an unreadable read', () => {
+  /** A model that copies a tablet imprint into the fields despite reader rule 7. */
+  function filled(imageKind: ExtractedLabel['imageKind']): ExtractedLabel {
+    return {
+      imageKind,
+      fields: [
+        { ...field('brandName', 'Paracelin 500'), notes: 'Imprint on the tablet.' },
+        field('genericNames', 'Paracetamol'),
+        field('strength', '500 mg'),
+        field('dosageForm', 'Tablet'),
+      ],
+      rawText: 'PARACELIN 500 imprint',
+      warnings: ['DEMO DATA photo note'],
+    };
+  }
+
+  test.each([
+    ['loose_pill', 'loose_pill'],
+    ['not_medicine', 'not_a_label'],
+    ['unreadable', 'label_unreadable'],
+  ] as const)(
+    '%s: every field value, evidence and note is null and unreadable',
+    async (kind, state) => {
+      const { deps, references, store } = setup({ read: okRead(filled(kind)) });
+      const result = await analyzeImages([await sharpJpeg()], deps);
+
+      expect(references.calls).toHaveLength(0);
+      expect(result.pipelineState).toBe(state);
+      expect(result.label?.imageKind).toBe(kind);
+      expect(result.label?.rawText).toBe('');
+      expect(result.label?.warnings).toEqual(['DEMO DATA photo note']);
+      expect(result.label?.fields.map((f) => f.key)).toEqual([
+        'brandName',
+        'genericNames',
+        'strength',
+        'dosageForm',
+      ]);
+      for (const f of result.label?.fields ?? []) {
+        expect(f).toEqual({
+          key: f.key,
+          value: null,
+          legibility: 'unreadable',
+          evidenceText: null,
+          imageIndex: null,
+          notes: null,
+        });
+      }
+      expect(JSON.stringify(store.get(result.id))).not.toMatch(/Paracelin|Paracetamol|500 mg/);
+      expect(result.explanation.displayText).not.toMatch(/Paracelin|Paracetamol|500 mg/);
+    },
+  );
+
+  test('a label read keeps its values', async () => {
+    const { deps } = setup({});
+    const result = await analyzeImages([await sharpJpeg()], deps);
+    expect(result.label).toEqual(PARACELIN);
   });
 });

@@ -1,15 +1,25 @@
-import { AnswerSchema, type Answer } from '@medilens/contracts';
+import { AnswerSchema, type Answer, type ExtractedLabel } from '@medilens/contracts';
 import request from 'supertest';
 import { describe, expect, test } from 'vitest';
 import { getScenario } from '../../src/demo/scenarios';
-import { ANSWER_FALLBACK_TEXT, PHRASE_NOT_FOUND_TEXT } from '../../src/domain/answers';
+import {
+  ANSWER_FALLBACK_TEXT,
+  PHRASE_NOT_FOUND_TEXT,
+  conflictWarning,
+} from '../../src/domain/answers';
 import { ALLOWED_QUESTION_EXAMPLES, REFUSAL_TEXT } from '../../src/domain/safety';
-import { ADVISORY_SENTENCE, FINAL_LINE, STATUS_SENTENCE } from '../../src/domain/summary';
+import {
+  ADVISORY_SENTENCE,
+  FINAL_LINE,
+  LOOSE_PILL_SENTENCE,
+  NOT_A_LABEL_SENTENCE,
+  STATUS_SENTENCE,
+} from '../../src/domain/summary';
 import { createSpendMeter } from '../../src/pipeline/budget';
 import { NO_LABEL_TEXT, mentionsFake } from '../../src/pipeline/explain';
 import type { QuestionAnswerer } from '../../src/providers/types';
 import { sharpJpeg } from '../helpers/images';
-import { T0, expectError, makeApp, stubLive, type TestAppOptions } from './helpers';
+import { SCENARIO_IDS, T0, expectError, makeApp, stubLive, type TestAppOptions } from './helpers';
 
 type App = ReturnType<typeof makeApp>['app'];
 
@@ -441,4 +451,172 @@ describe('POST /api/v1/labels/:id/explain: validation and errors', () => {
     expect(log).not.toContain('dry place');
     expect(log).not.toContain('Rosalinda');
   });
+});
+
+/* ------------------------------------------------------ final review fixes */
+
+/** A live read whose model filled the fields anyway (synthetic DEMO DATA). */
+function filledLabel(imageKind: ExtractedLabel['imageKind']): ExtractedLabel {
+  const s1 = getScenario('s1-clear');
+  if (s1 === undefined) throw new Error('missing s1 fixture');
+  return { ...structuredClone(s1.label), imageKind };
+}
+
+function liveAppReading(label: ExtractedLabel) {
+  const stub = stubLive({
+    reader: { read: () => Promise.resolve({ ok: true, label, model: 'muse-spark-1.3' }) },
+  });
+  return { ...makeApp({ providerMode: 'live', live: stub.providers }), calls: stub.calls };
+}
+
+describe('final review I2: a loose pill, non-medicine or unreadable result reads out no field', () => {
+  const QUESTIONS = [
+    ...ALLOWED_QUESTION_EXAMPLES.filter((q) => q !== 'Can you repeat that?'),
+    'What is the brand name?',
+    'What does "Paracelin" mean?',
+  ];
+
+  test.each([
+    ['loose_pill', LOOSE_PILL_SENTENCE],
+    ['not_medicine', NOT_A_LABEL_SENTENCE],
+    ['unreadable', NO_LABEL_TEXT],
+  ] as const)('%s: every label question gets "%s", unclear, no answerer', async (kind, text) => {
+    const { app, calls } = liveAppReading(filledLabel(kind));
+    const r = await liveResult(app);
+    expect(r.label.fields.length).toBeGreaterThan(0);
+    for (const f of r.label.fields) expect(f.value).toBeNull();
+    for (const q of QUESTIONS) {
+      const a = expectAnswer((await ask(app, r.id, q)).body);
+      expect(a).toEqual({
+        status: 'unclear',
+        text,
+        spokenChunks: [text, FINAL_LINE],
+        citedFields: [],
+        safetyNotice: null,
+      });
+    }
+    expect(calls.answer).toBe(0);
+  });
+
+  test('s6 demo loose pill: "Which parts were unclear?" never says "on the pack"', async () => {
+    const { app } = makeApp();
+    const r = await scenarioResult(app, 's6-loose-pill');
+    const a = expectAnswer((await ask(app, r.id, 'Which parts were unclear?')).body);
+    expect(a.status).toBe('unclear');
+    expect(a.text).toBe(LOOSE_PILL_SENTENCE);
+  });
+});
+
+describe('final review Minor 3: repeat replays printed text verbatim', () => {
+  test('a summary whose printed warning says "counterfeit" is replayed, not replaced', async () => {
+    const label = filledLabel('label');
+    const warnings = label.fields.find((f) => f.key === 'warnings');
+    if (warnings === undefined) throw new Error('missing warnings');
+    warnings.value = 'Beware of counterfeit products. Keep out of reach of children.';
+    const { app } = liveAppReading(label);
+    const r = await liveResult(app);
+    expect(r.explanation.displayText).toContain('Beware of counterfeit products.');
+    const a = expectAnswer((await ask(app, r.id, 'Can you repeat that?')).body);
+    expect(a.status).toBe('answered');
+    expect(a.text).toBe(r.explanation.displayText);
+    expect(a.spokenChunks).toEqual(r.explanation.spokenChunks);
+  });
+});
+
+describe('final review Minor 34: explain over HTTP for all 8 demo scenarios', () => {
+  type Check = (a: Answer) => void;
+  const answered =
+    (first: string): Check =>
+    (a) => {
+      expect(a.status).toBe('answered');
+      expect(a.spokenChunks[0]).toBe(first);
+      expect(a.spokenChunks.at(-1)).toBe(FINAL_LINE);
+    };
+  const unclear =
+    (text: string): Check =>
+    (a) =>
+      expect(a).toEqual({
+        status: 'unclear',
+        text,
+        spokenChunks: [text, FINAL_LINE],
+        citedFields: [],
+        safetyNotice: null,
+      });
+
+  const TABLE: [scenarioId: string, question: string, check: Check][] = [
+    ['s1-clear', 'What strength is printed here?', answered('Strength as printed: 500 mg.')],
+    ['s2-blurry', 'Can you read this label?', unclear(NO_LABEL_TEXT)],
+    [
+      's3-similar',
+      'What is the brand name?',
+      (a) => {
+        answered('Brand name as printed, partly unclear: Paracel.')(a);
+        expect(a.citedFields).toEqual(['brandName']);
+      },
+    ],
+    ['s3-similar', 'What did the FDA registry say?', answered(STATUS_SENTENCE.ambiguous)],
+    [
+      's4-conflict',
+      'What strength is printed here?',
+      (a) => {
+        answered('Strength as printed: 500 mg.')(a);
+        expect(a.spokenChunks).toContain(conflictWarning('strength', '250 mg Tablet'));
+      },
+    ],
+    [
+      's4-conflict',
+      'What did the FDA registry say?',
+      answered('The strength on the label does not match the registry.'),
+    ],
+    ['s5-nomatch', 'What did the FDA registry say?', answered(STATUS_SENTENCE.no_match)],
+    ['s6-loose-pill', 'Can you read this label?', unclear(LOOSE_PILL_SENTENCE)],
+    [
+      's7-unsupported-question',
+      'How many should I take for my headache?',
+      (a) => {
+        expect(a.status).toBe('refused');
+        expect(a.text).toBe(REFUSAL_TEXT.personal_dose);
+      },
+    ],
+    [
+      's7-unsupported-question',
+      'Who makes this medicine?',
+      answered('Manufacturer as printed: Demo Pharma Labs.'),
+    ],
+    ['s8-registry-down', 'What did the FDA registry say?', answered(STATUS_SENTENCE.unavailable)],
+    [
+      's8-registry-down',
+      'What is the expiry date on the pack?',
+      answered('Expiry date as printed: 05/2028.'),
+    ],
+  ];
+
+  test('the table covers every scenario', () => {
+    expect([...new Set(TABLE.map(([id]) => id))]).toEqual([...SCENARIO_IDS]);
+  });
+
+  test.each(TABLE)('%s: "%s"', async (scenarioId, question, check) => {
+    const { app } = makeApp();
+    const r = await scenarioResult(app, scenarioId);
+    const res = await ask(app, r.id, question);
+    expect(res.status).toBe(200);
+    check(expectAnswer(res.body));
+  });
+
+  test.each(SCENARIO_IDS)(
+    '%s: every preset is answered or unclear, never refused or an error',
+    async (id) => {
+      const { app } = makeApp();
+      const r = await scenarioResult(app, id);
+      for (const q of ALLOWED_QUESTION_EXAMPLES) {
+        const res = await ask(app, r.id, q);
+        expect(res.status).toBe(200);
+        const a = expectAnswer(res.body);
+        expect(a.status).not.toBe('refused');
+        expect(a.spokenChunks.at(-1)).toBe(FINAL_LINE);
+        // only the fixed no-match / advisory sentences may say fake or counterfeit
+        expect([a.text, ...a.spokenChunks].some(mentionsFake)).toBe(false);
+      }
+    },
+  );
 });

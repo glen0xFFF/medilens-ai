@@ -5,8 +5,9 @@
  * 1. The safety gate runs first: a refused question gets its fixed refusal
  *    text and never reaches an answerer (an overdose report on an unreadable
  *    scan still gets the emergency text).
- * 2. A repeat request replays the stored summary; no answerer.
- * 3. No label was read (quality failure): a fixed "unclear" answer.
+ * 2. A repeat request replays the stored summary as it was spoken; no answerer.
+ * 3. No label was read (quality failure), or the scan is a loose pill, not a
+ *    medicine or unreadable: a fixed "unclear" answer.
  * 4. Grounding: an explain_text question about a phrase that is printed in no
  *    label field is answered "unclear" here, before any answerer, so demo and
  *    live behave the same and no model is asked about text the scan never
@@ -25,8 +26,10 @@ import {
 } from '@medilens/contracts';
 import {
   ANSWER_FALLBACK_TEXT,
+  NO_LABEL_TEXT,
   PHRASE_NOT_FOUND_TEXT,
   explainQuote,
+  notALabelAnswer,
   unclearAnswer,
 } from '../domain/answers';
 import {
@@ -39,7 +42,7 @@ import { ADVISORY_SENTENCE, STATUS_SENTENCE } from '../domain/summary';
 import type { QuestionAnswerer } from '../providers/types';
 import { PipelineError } from './analyze';
 
-export const NO_LABEL_TEXT = "I couldn't read this label, so I can't answer questions about it.";
+export { NO_LABEL_TEXT };
 
 export interface ExplainDeps {
   /** Answers questions about demo results (no model, no network). */
@@ -96,10 +99,17 @@ export async function explainQuestion(
 ): Promise<Answer> {
   const verdict = classifyQuestion(question);
   if (!verdict.allowed) return refusal(verdict.reason);
-  if (verdict.intent === 'other_label') return withoutFakeClaims(repeat(result.explanation));
+  // Final review Minor 3: the stored summary is replayed as it was spoken. It
+  // is deterministic (summary.ts): fixed sentences plus the pack's own printed
+  // text, which is read verbatim even when it says "counterfeit" (Task 5 ruling).
+  if (verdict.intent === 'other_label') return repeat(result.explanation);
 
   const label = result.label;
   if (label === null) return unclearAnswer(NO_LABEL_TEXT);
+  // Final review I2: a loose pill, a photo with no medicine or an unreadable
+  // label is answered with the summary's sentence, before any answerer.
+  const notALabel = notALabelAnswer(label);
+  if (notALabel !== null) return notALabel;
 
   if (verdict.intent === 'explain_text') {
     const phrase = extractExplainPhrase(question);

@@ -119,14 +119,17 @@ async function readMatchStore(
     switch (label.imageKind) {
       case 'loose_pill':
         pipelineState = 'loose_pill';
+        label = withoutValues(label);
         match = assessMatch(label, { kind: 'not_attempted' });
         break;
       case 'not_medicine':
         pipelineState = 'not_a_label';
+        label = withoutValues(label);
         match = assessMatch(label, { kind: 'not_attempted' });
         break;
       case 'unreadable':
         pipelineState = 'label_unreadable';
+        label = withoutValues(label);
         match = assessMatch(label, { kind: 'not_attempted' });
         break;
       case 'label': {
@@ -160,6 +163,29 @@ async function readMatchStore(
   }
   deps.store.put(parsed.data);
   return parsed.data;
+}
+
+/**
+ * Final review I2: a loose pill, a photo with no medicine or a label with no
+ * readable text keeps no transcribed text, so nothing downstream (Q&A, the
+ * Label fields screen) can show a value the summary never speaks, such as a
+ * tablet imprint the model copied into the fields. Every field keeps its key
+ * with value, evidence and notes null and legibility unreadable; rawText is
+ * emptied. The photo notes (`warnings`) are about the photo and stay.
+ */
+function withoutValues(label: ExtractedLabel): ExtractedLabel {
+  return {
+    ...label,
+    fields: label.fields.map((f) => ({
+      key: f.key,
+      value: null,
+      legibility: 'unreadable',
+      evidenceText: null,
+      imageIndex: null,
+      notes: null,
+    })),
+    rawText: '',
+  };
 }
 
 /**
