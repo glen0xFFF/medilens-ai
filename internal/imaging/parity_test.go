@@ -1,8 +1,10 @@
 package imaging
 
 import (
+	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/medilens-ai/medilens/internal/contracts"
@@ -26,19 +28,13 @@ type tolerance struct{ sharpness, luminance, glare, grid float64 }
 // knownGaps are parity images Go does not match within the spec
 // tolerance, each reported to the controller for a ruling (task G5 report,
 // concerns). The verdict must still be equal, and the gap may not grow past
-// the bound given, which sits just above the measured difference.
+// the bound given, which sits just above the measured difference. A gap
+// may relax only the block means: never a metric that decides the verdict
+// (TestKnownGapsKeepMetricTolerance).
 var knownGaps = map[string]struct {
 	why string
 	tol tolerance
 }{
-	// Measured: sharpness +1.17 / +0.95 (upload / normalised), luminance
-	// +2.92 / +3.48, block means up to +3.7, verdict equal.
-	"cmyk.jpg": {
-		why: "sharp converts CMYK to sRGB through lcms with libvips' built-in CMYK " +
-			"profile (pipeline.cc icc_transform); Go has no ICC support and uses " +
-			"image/color's naive CMYK conversion",
-		tol: tolerance{sharpness: 1.5, luminance: 4.0, glare: 0.005, grid: 4.5},
-	},
 	// Measured: the three metrics within the spec tolerance (luminance
 	// -0.31 / -0.27); block means of the saturated top-right corner up to
 	// -3.2. The same image without a profile (colour.jpg) is within 3.
@@ -134,5 +130,44 @@ func TestImageParity(t *testing.T) {
 	}
 	for file := range knownGaps {
 		ref.image(t, file) // a gap names a recorded image
+	}
+}
+
+// A known gap may not loosen sharpness, luminance or glare: those decide
+// the verdict, and a looser bound lets Go pass an image Node sends back
+// for a retake (task G5 review round 1: cmyk.jpg was exempted, and CMYK
+// images near the thresholds flipped from BLURRY to ok).
+func TestKnownGapsKeepMetricTolerance(t *testing.T) {
+	for file, gap := range knownGaps {
+		if gap.tol.sharpness > specTolerance.sharpness || gap.tol.luminance > specTolerance.luminance ||
+			gap.tol.glare > specTolerance.glare {
+			t.Errorf("%s: known gap loosens a metric past the spec tolerance: %+v", file, gap.tol)
+		}
+	}
+}
+
+// The CMYK parity images, including those either side of minSharpness and
+// minLuminance, are held to the spec tolerance with no exemption.
+func TestCMYKParityImagesHaveNoExemption(t *testing.T) {
+	ref := loadReference(t)
+	n, flips := 0, map[string]bool{}
+	for _, im := range ref.Images {
+		if !strings.Contains(im.File, "cmyk") {
+			continue
+		}
+		n++
+		if _, ok := knownGaps[im.File]; ok {
+			t.Errorf("%s: CMYK image listed as a known gap", im.File)
+		}
+		if im.Normalized != nil {
+			flips[fmt.Sprint(im.Normalized.Quality.Reasons)] = true
+		}
+	}
+	if n < 10 {
+		t.Errorf("%d CMYK parity images, want at least 10", n)
+	}
+	// Both sides of each threshold: ok, BLURRY alone, BLURRY+TOO_DARK.
+	if len(flips) < 3 {
+		t.Errorf("CMYK parity verdicts %v do not straddle the thresholds", flips)
 	}
 }

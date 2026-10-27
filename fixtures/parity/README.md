@@ -149,7 +149,8 @@ Per image, `reference.json` holds:
 
 - `validate`: `validateImage` as returned;
 - `assess`: `assessQuality` on the upload itself, or null (16-bit, alpha, rejected, and the large images);
-- `normalized`: `normalizeImage`, then `assessQuality` on the JPEG it returns (what the pipeline measures), with the output size, channel count and `grid`, the 4x4 block means of its greyscale.
+- `normalized`: `normalizeImage`, then `assessQuality` on the JPEG it returns (what the pipeline measures), with the output size, channel count and `grid`, the 4x4 block means of its greyscale;
+- `rgb` (decode probes only, which have no `normalized`): sharp's raw RGB decode of the image itself.
 
 `fit` lists input sizes with the size sharp's fit-inside resize gives them: rounding edge cases plus a seeded sample.
 
@@ -158,10 +159,17 @@ Per image, `reference.json` holds:
 | `sharp`, `blurred`, `dark`, `glare`, `blue`, `green`, `wide` (3000x1000), `orient6.jpg`, `sharp.gif`, `huge.png` (7000x7000) | the Node tests' own images (`apps/server/test/helpers/images.ts`) |
 | `sharp.png`, `sharp.webp`, `sharp-lossless.webp`, `progressive.jpg`, `grey16.png`, `alpha.png`, `tiny.jpg` (1x1) | formats and decoder paths |
 | `colour.*`, `colour-444.jpg`, `colour-p3.jpg`, `sharp-p3.jpg`, `cmyk.jpg` | colour to grey conversion, chroma subsampling, ICC profiles |
+| `cmyk-contrast-*.jpg`, `cmyk-dark-*.jpg`, `large-shrink3-cmyk.jpg` | CMYK either side of minSharpness (contrast 0.62 to 0.74) and minLuminance (brightness 0.30 to 0.38), and CMYK through the JPEG shrink-on-load |
+| `patches-*.jpg` | decode probes: saturated 1-2 px colour runs at odd and tiny sizes (4:2:0, one 4:4:4), checked pixel by pixel against sharp's decode (libjpeg's fancy chroma upsampling and its edge rules) |
 | `orient6.png`, `orient6.webp`, `cells-o1.jpg` to `cells-o8.jpg` | EXIF orientation in PNG and WebP, and all eight orientations (block means) |
 | `tall.jpg`, `large-*` | the resize: Lanczos3, JPEG shrink-on-load (1/2, 1/4, 1/8), libvips' box shrink, and libwebp's scaled decode for WebP over 2048 |
 
-The Go test (`internal/imaging/parity_test.go`) requires sharpness within 0.5, luminance within 0.5 and glare within 0.005, with the same `ok` and `reasons`. It also requires the same output size and block means within 3 grey levels. Two images are listed as known gaps, each with a bound just above the measured difference and the verdict still exactly equal:
+The Go test (`internal/imaging/parity_test.go`) requires sharpness within 0.5, luminance within 0.5 and glare within 0.005, with the same `ok` and `reasons`. It also requires the same output size and block means within 3 grey levels. A known gap may relax only the block means, never a metric (`TestKnownGapsKeepMetricTolerance`), and no CMYK image may be one. One image is a known gap, with the verdict still exactly equal:
 
-- `cmyk.jpg`: sharp converts CMYK through lcms with libvips' CMYK profile, and Go has no ICC support;
-- `colour-p3.jpg`: the block means of its saturated corner, for the same reason. Its metrics are within the tolerance.
+- `colour-p3.jpg`: the block means of its saturated corner, because Go ignores the embedded Display P3 profile. Its metrics are within the tolerance.
+
+The decode probes have no `normalized` entry: on 1-2 px runs of saturated colour, image/jpeg's q85 encoder and sharp's (libvips with mozjpeg) quantise differently, up to 5 luma and 8 chroma levels a pixel on `patches-33x17-444.jpg`, while Go decodes sharp's own output exactly. That encoder gap is reported in the task G5 report (fix round 1).
+
+### CMYK to sRGB table
+
+`npx tsx scripts/parity/record-cmyk-lut.ts` (after `record-images.ts`) writes `internal/imaging/cmyk_srgb.lut`, the 17^4 16-bit node table lcms evaluates for sharp's CMYK to sRGB transform, recovered by least squares from sharp's own output on 5.6 million CMYK pixels (every pixel of the cube's corners, edges and 2-D faces, plus seeded random pixels on its 3-D faces and inside). It first checks that the TIFF route it feeds sharp gives byte for byte what sharp gives each CMYK parity JPEG. It also writes `fixtures/parity/cmyk/`: `pixels.*` and `faces.*`, 20,000 seeded random CMYK pixels each (anywhere, and on the faces) with sharp's sRGB, which `internal/imaging/cmyk_test.go` checks the table against, and `versions.json`.

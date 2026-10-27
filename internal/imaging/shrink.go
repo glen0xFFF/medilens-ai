@@ -35,9 +35,25 @@ func resizeLikeSharp(raw image.Image, f Format) *image.RGBA {
 	var img *image.RGBA
 	switch f {
 	case FormatJPEG:
-		img = toRGBA(raw)
-		if s := jpegShrinkOnLoad(shrink); s > 1 {
-			img = boxShrink(img, s, s)
+		s := jpegShrinkOnLoad(shrink)
+		if s == 1 {
+			// A full-size load: libjpeg's own colour conversion.
+			img = toRGBA(pixels(raw, f))
+			break
+		}
+		// The scaled IDCT scales chroma to the scaled luma size, so no
+		// upsampling filter runs: a box average of the decode stands in.
+		cmyk, isCMYK := raw.(*image.CMYK)
+		if isCMYK {
+			img = cmykPlanes(cmyk)
+		} else {
+			img = toRGBA(raw)
+		}
+		img = boxShrink(img, s, s)
+		// libvips converts CMYK to sRGB after the scaled load, before the
+		// resize.
+		if isCMYK {
+			img = cmykToRGBA(img)
 		}
 	case FormatWebP:
 		// libvips webp2vips.c: rint(canvas * scale), with scale = 1/shrink.
@@ -126,10 +142,21 @@ func boxShrink(img *image.RGBA, sx, sy int) *image.RGBA {
 }
 
 // pixels is the decoded image in display colours: lossy WebP goes through
-// libwebp's YUV conversion (webpToNRGBA); everything else is as decoded.
+// libwebp's YUV conversion (webpToNRGBA), a YCbCr JPEG through libjpeg's
+// upsampling and conversion (jpegToRGBA), a CMYK (or YCCK) JPEG through
+// sharp's CMYK to sRGB transform (cmykToSRGB); everything else is as
+// decoded.
 func pixels(raw image.Image, f Format) image.Image {
 	if f == FormatWebP {
 		return webpToNRGBA(raw)
+	}
+	switch t := raw.(type) {
+	case *image.CMYK:
+		return cmykToRGBA(cmykPlanes(t))
+	case *image.YCbCr:
+		if f == FormatJPEG {
+			return jpegToRGBA(t)
+		}
 	}
 	return raw
 }

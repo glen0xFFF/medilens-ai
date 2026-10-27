@@ -47,6 +47,8 @@ type refImage struct {
 		Quality  refQuality `json:"quality"`
 		Grid     []float64  `json:"grid"`
 	} `json:"normalized"`
+	// RGB is sharp's raw RGB decode of the image itself, where recorded.
+	RGB []int `json:"rgb"`
 }
 
 type refQuality struct {

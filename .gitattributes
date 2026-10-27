@@ -9,3 +9,6 @@ internal/domain/testdata/*.json -text
 internal/jsregex/testdata/*.jsonl -text
 # Image parity set (task G5): binary images and the recorded reference, byte for byte
 fixtures/parity/images/** -text
+# CMYK to sRGB table recorded from sharp (task G5 review round 1), byte for byte
+internal/imaging/cmyk_srgb.lut -text
+fixtures/parity/cmyk/** -text

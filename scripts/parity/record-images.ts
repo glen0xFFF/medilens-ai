@@ -32,7 +32,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { QualityReport } from '@medilens/contracts';
-import sharp from 'sharp';
+import sharp, { type Sharp } from 'sharp';
 import { DEFAULT_THRESHOLDS, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS } from '../../apps/server/src/config';
 import { assessQuality } from '../../apps/server/src/imaging/quality';
 import { normalizeImage, validateImage } from '../../apps/server/src/imaging/validate';
@@ -53,6 +53,18 @@ interface Source {
    * 8-bit grey samples, which is not a reference worth matching.
    */
   assessOriginal: boolean;
+  /**
+   * A decode probe: record `rgb`, sharp's raw RGB decode of the image
+   * itself, which pins the JPEG decoder's chroma upsampling and colour
+   * conversion pixel by pixel, image edges included (small images only),
+   * and no `normalized` entry. The probes are 1-2 pixel runs of saturated
+   * colour, where image/jpeg's q85 encoder and sharp's (libvips with
+   * mozjpeg) quantise differently: up to 5 luma and 8 chroma levels a
+   * pixel on patches-33x17-444.jpg, while Go decodes sharp's own output
+   * exactly. That encoder gap is reported in the task G5 report (fix round
+   * 1), not measured here.
+   */
+  recordRGB?: boolean;
 }
 
 /** Grey cells of distinct values, so a flip or a rotation moves every cell. */
@@ -82,6 +94,37 @@ function colourPixels(width: number, height: number): Buffer {
   }
   return px;
 }
+
+/**
+ * Saturated and dark colours in short random runs: chroma edges everywhere,
+ * so a 4:2:0 decode shows how the chroma is upsampled, edges included.
+ */
+function patchPixels(width: number, height: number): Buffer {
+  const palette = [
+    [200, 30, 30],
+    [20, 20, 180],
+    [10, 5, 0],
+    [230, 230, 40],
+    [40, 160, 60],
+    [90, 90, 90],
+    [250, 250, 250],
+  ];
+  let state = 7;
+  const rand = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+  const px = Buffer.alloc(width * height * 3);
+  let c = palette[0] ?? [0, 0, 0];
+  for (let i = 0; i < width * height; i++) {
+    if (rand() < 0.5) c = palette[Math.floor(rand() * palette.length)] ?? c;
+    px.set(c, i * 3);
+  }
+  return px;
+}
+
+const patches = (width: number, height: number) =>
+  sharp(patchPixels(width, height), { raw: { width, height, channels: 3 } });
 
 const colour = () => sharp(colourPixels(320, 240), { raw: { width: 320, height: 240, channels: 3 } });
 
@@ -147,6 +190,13 @@ async function alphaPng(): Promise<Buffer> {
     .toBuffer();
 }
 
+/** The top-left 400x300 of the Node helper's sharpPng() (cmyk.jpg's source). */
+const cmykCrop = async () =>
+  sharp(await sharp(await h.sharpPng()).extract({ left: 0, top: 0, width: 400, height: 300 }).toBuffer());
+
+/** As sharp writes a CMYK JPEG (Adobe APP14, inverted, no ICC profile). */
+const cmykOf = (img: Sharp) => img.toColourspace('cmyk').jpeg({ quality: 90 }).toBuffer();
+
 const orientCells = (o: number) => () =>
   sharp(cellsPixels(96, 64, 4, 4), { raw: { width: 96, height: 64, channels: 1 } })
     .jpeg({ quality: 95 })
@@ -186,6 +236,59 @@ const SOURCES: Source[] = [
         .jpeg({ quality: 90 })
         .toBuffer(),
     assessOriginal: true,
+  },
+  // CMYK near the thresholds (task G5 review round 1): Go has to match
+  // sharp's lcms transform where a metric decides the verdict, not just on
+  // average. Contrast steps straddle minSharpness (12), darkness steps
+  // straddle minLuminance (40).
+  ...[0.62, 0.66, 0.68, 0.74].map(
+    (a): Source => ({
+      file: `cmyk-contrast-${a.toFixed(2).slice(2)}.jpg`,
+      recipe: `cmyk.jpg's crop linear(${a}, ${((1 - a) * 140).toFixed(1)}), as CMYK JPEG q90`,
+      make: async () => cmykOf((await cmykCrop()).linear(a, (1 - a) * 140)),
+      assessOriginal: true,
+    }),
+  ),
+  ...[0.3, 0.32, 0.34, 0.38].map(
+    (a): Source => ({
+      file: `cmyk-dark-${a.toFixed(2).slice(2)}.jpg`,
+      recipe: `cmyk.jpg's crop linear(${a}, 0), as CMYK JPEG q90`,
+      make: async () => cmykOf((await cmykCrop()).linear(a, 0)),
+      assessOriginal: true,
+    }),
+  ),
+  {
+    file: 'large-shrink3-cmyk.jpg',
+    recipe: 'blocks 6400x400 (8 px) as CMYK JPEG q90: shrink 3.125, CMYK loaded at 1/2',
+    make: () => cmykOf(blocks(6400, 400, 8)),
+    assessOriginal: false,
+  },
+  // JPEG decode edges (task G5 review round 1): odd and tiny sizes, where
+  // libjpeg's fancy upsampling handles the first and last chroma column
+  // and row specially, or falls back to replication (2 or fewer columns).
+  ...([
+    [1, 1],
+    [2, 3],
+    [3, 2],
+    [5, 4],
+    [7, 5],
+    [9, 2],
+    [33, 17],
+  ] as const).map(
+    ([w, hh]): Source => ({
+      file: `patches-${w}x${hh}.jpg`,
+      recipe: `${w}x${hh} saturated colour runs, JPEG q90 4:2:0`,
+      make: () => patches(w, hh).jpeg({ quality: 90 }).toBuffer(),
+      assessOriginal: true,
+      recordRGB: true,
+    }),
+  ),
+  {
+    file: 'patches-33x17-444.jpg',
+    recipe: '33x17 saturated colour runs, JPEG q90 4:4:4',
+    make: () => patches(33, 17).jpeg({ quality: 90, chromaSubsampling: '4:4:4' }).toBuffer(),
+    assessOriginal: true,
+    recordRGB: true,
   },
   { file: 'colour.png', recipe: '320x240 gradient, PNG', make: () => colour().png().toBuffer(), assessOriginal: true },
   {
@@ -373,7 +476,7 @@ async function main(): Promise<void> {
     writeFileSync(path.join(OUT, src.file), bytes);
     const validate = await validateImage(bytes);
     let normalized = null;
-    if (validate.ok) {
+    if (validate.ok && !src.recordRGB) {
       const norm = await normalizeImage(bytes);
       const meta = await sharp(norm).metadata();
       normalized = {
@@ -385,7 +488,8 @@ async function main(): Promise<void> {
       };
     }
     const assess = validate.ok && src.assessOriginal ? stable(await assessQuality(bytes)) : null;
-    images.push({ file: src.file, recipe: src.recipe, bytes: bytes.length, validate, assess, normalized });
+    const rgb = src.recordRGB ? { rgb: [...(await sharp(bytes).raw().toBuffer())] } : {};
+    images.push({ file: src.file, recipe: src.recipe, bytes: bytes.length, validate, assess, normalized, ...rgb });
     console.log(`${src.file.padEnd(22)} ${String(bytes.length).padStart(7)} B  ${JSON.stringify(validate)}`);
   }
   const reference = {
