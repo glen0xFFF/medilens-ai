@@ -5,9 +5,9 @@ Automated suites run with `npm test`, `npm run typecheck` and `npm run lint` at 
 
 ## Automated results
 
-Run by the build agent on 2026-10-27 after the final-review fix waves, at commit `6f170a0`
-(the last code change; this file and other docs changed after it). Node v24.21.0, Windows,
-branch `feat/mvp`. Summary lines copied from the real output:
+Run by the build agent on 2026-10-27 after the final-review fix waves, with the mobile Jest
+budget change described below in the working tree (three consecutive root runs, all identical).
+Node v24.21.0, Windows, branch `feat/mvp`. Summary lines copied from the real output:
 
 `npm test` (exit 0):
 
@@ -28,10 +28,14 @@ and `@medilens/server` with no errors.
 
 `npm run lint` (exit 0): `eslint .` printed no problems.
 
-Known flake: in one of eight root runs during the mobile fix wave, the first test in
-`apps/mobile/test/screens/scan.test.tsx` exceeded Jest's 5 s timeout. That test normally takes
-about 0.7 s (it pays the cold load of every route file). The next two mobile runs and every later
-root run passed. Re-run once before treating such a timeout as a failure.
+Mobile test budget: the mobile Jest project allows 15 s per test (`testTimeout` in
+`apps/mobile/package.json`; Jest's default is 5 s). In 2 of 9 root runs during the mobile fix
+wave, the first test of a screen file (`scan.test.tsx`, and once also `result.test.tsx`) went
+past 5 s and failed. That test pays the first expo-router render in its Jest worker and
+normally takes 0.7 to 1.4 s; the overruns happened while all 17 suites ran in parallel.
+`renderRouter` switches on fake timers, so the cold render could not be timed from inside the
+test, and a warm-up render in `beforeAll` would carry those fake timers into the first test.
+With the 15 s budget, three consecutive root runs passed.
 
 Earlier result, for reference (Task 15, before the final review): contracts 26, mobile 254,
 server 2926 tests passed.

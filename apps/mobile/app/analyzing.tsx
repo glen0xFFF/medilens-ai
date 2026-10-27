@@ -42,8 +42,9 @@ export default function Analyzing() {
   const mounted = useRef(true);
   const started = useRef(-1);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  // The upload in flight. Leaving this screen (Back, Home) aborts it, so a
-  // request nobody waits for stops spending (final review Minor 22).
+  // The upload in flight. Leaving this screen (Back, Home) aborts it (final
+  // review Minor 22): an upload still sending its photos stops there; a model
+  // call the server has already started still runs to the end on the server.
   const upload = useRef<AbortController | null>(null);
 
   useEffect(() => {

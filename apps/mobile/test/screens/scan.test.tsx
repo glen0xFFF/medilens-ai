@@ -293,6 +293,21 @@ describe('analyzing screen', () => {
   });
 
   it('still uploads under StrictMode, which mounts, unmounts and remounts each screen', async () => {
+    // react-native-screens calls findNodeHandle, which React reports under StrictMode only.
+    const consoleError = console.error;
+    const quiet = jest.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      const text = args.map(String).join(' ');
+      if (text.includes('is deprecated in StrictMode') && text.includes('findNodeHandle')) return;
+      consoleError(...args);
+    });
+    try {
+      await uploadUnderStrictMode();
+    } finally {
+      quiet.mockRestore();
+    }
+  });
+
+  async function uploadUnderStrictMode() {
     let resolve: (r: typeof RESULTS.s1) => void = () => {};
     const client = mockClient({ analyze: jest.fn(() => new Promise((r) => (resolve = r))) });
     const routes = appRoutes(client);
@@ -317,7 +332,7 @@ describe('analyzing screen', () => {
     await act(async () => resolve(RESULTS.s1));
     expect(await screen.findByText('Matches FDA registry')).toBeTruthy();
     expect(screen.queryByText('The label was not read')).toBeNull();
-  });
+  }
 
   it('says live mode sends the photos to the Meta Model API (final review Minor 21)', async () => {
     const client = mockClient({ analyze: jest.fn(() => new Promise(() => {})) });
