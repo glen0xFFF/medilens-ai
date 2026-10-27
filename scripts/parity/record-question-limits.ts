@@ -28,7 +28,9 @@
  *
  * Nothing touches the network. All label data is the synthetic DEMO DATA of
  * the demo scenarios. After the Node server is removed (task G12),
- * re-recording needs `git checkout node-fallback-v1` first (ruling R4).
+ * re-recording needs
+ * `apps/server` restored from the tag first (not a whole-tree checkout:
+ * the tag predates scripts/parity): see scripts/parity/README.md#re-recording.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';

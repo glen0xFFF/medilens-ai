@@ -26,7 +26,8 @@
  * (about 1e-13), so they are rounded to 10 significant digits; `ok` and
  * `reasons` come from the real report and are not recomputed. After the
  * Node server is removed (task G12), re-recording needs
- * `git checkout node-fallback-v1` first (ruling R4).
+ * `apps/server` restored from the tag first (not a whole-tree checkout:
+ * the tag predates scripts/parity): see scripts/parity/README.md#re-recording.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';

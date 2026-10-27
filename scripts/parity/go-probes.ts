@@ -8,7 +8,8 @@
  *
  * Deterministic (seeded mulberry32, sorted output); re-running gives the
  * same files. After the Node server is removed (task G12) re-recording needs
- * `git checkout node-fallback-v1` first (ruling R4). Writes:
+ * `apps/server` restored from the tag first (not a whole-tree checkout:
+ * the tag predates scripts/parity): see scripts/parity/README.md#re-recording. Writes:
  *
  * 1. internal/jsregex/testdata/v8_probes.jsonl: hand-written and seeded
  *    random RegExp probes run through V8 (exec result: index and captures).

@@ -162,7 +162,9 @@ The Node domain logic (default-deny safety gate, strict matcher, deterministic a
 closed-vocabulary explanation gate) took many review rounds. The Go port re-implements it and is
 held to it by golden corpora recorded from the TypeScript test suite (12,427 recorded domain calls plus
 the 8 demo scenarios, `fixtures/parity/`), deep-equal in `go test`. A Go/TS difference is a Go
-bug. Re-recording needs `git checkout node-fallback-v1` first ([fixtures/parity/README.md](fixtures/parity/README.md)).
+bug. Re-recording restores only `apps/server` from that tag onto the current branch (a whole-tree
+checkout of the tag has no recorder); see [scripts/parity/README.md](scripts/parity/README.md#re-recording)
+and [fixtures/parity/README.md](fixtures/parity/README.md).
 
 ## Safety and privacy summary
 

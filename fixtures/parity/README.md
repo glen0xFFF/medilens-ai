@@ -23,7 +23,7 @@ The setup file `scripts/parity/setup.ts` replaces each domain module (`apps/serv
 
 Recording is deterministic. Three consecutive recordings gave byte-identical files.
 
-After the Node server is removed (task G12), re-recording needs `git checkout node-fallback-v1` first (ruling R4).
+After the Node server was removed (task G12), re-recording first restores `apps/server` from the tag onto the current branch (`git -c core.autocrlf=false checkout node-fallback-v1 -- apps/server`, then `npm install`). A whole-tree checkout of the tag does not work: the tag predates `scripts/parity`. The full procedure, including how to discard the restored server, is in [scripts/parity/README.md](../../scripts/parity/README.md#re-recording).
 
 ## Files
 
@@ -120,7 +120,7 @@ These come from `scripts/parity/probes.parity.ts`. All of it is synthetic DEMO D
 
 ## Go probe data (task G3)
 
-`npx tsx scripts/parity/go-probes.ts` records more reference output from the Node build into the Go packages' `testdata`. These files target the places where JS and Go differ by construction. Like the corpora above, recording is deterministic (seeded, sorted), and after task G12 it needs `git checkout node-fallback-v1` first.
+`npx tsx scripts/parity/go-probes.ts` records more reference output from the Node build into the Go packages' `testdata`. These files target the places where JS and Go differ by construction. Like the corpora above, recording is deterministic (seeded, sorted), and after task G12 it needs `apps/server` restored from the tag first ([scripts/parity/README.md](../../scripts/parity/README.md#re-recording)).
 
 | File | What V8 recorded |
 |---|---|
@@ -133,7 +133,7 @@ These come from `scripts/parity/probes.parity.ts`. All of it is synthetic DEMO D
 
 ## Go probe data (task G4)
 
-`npx tsx scripts/parity/go-probes-answers.ts` records reference output for the Go port of `summary.ts` and `answers.ts` into `internal/domain/testdata`. It is deterministic (seeded, sorted) and, after task G12, needs `git checkout node-fallback-v1` first.
+`npx tsx scripts/parity/go-probes-answers.ts` records reference output for the Go port of `summary.ts` and `answers.ts` into `internal/domain/testdata`. It is deterministic (seeded, sorted) and, after task G12, needs `apps/server` restored from the tag first ([scripts/parity/README.md](../../scripts/parity/README.md#re-recording)).
 
 | File | What V8 recorded |
 |---|---|
@@ -143,7 +143,7 @@ These come from `scripts/parity/probes.parity.ts`. All of it is synthetic DEMO D
 
 ## Image parity (task G5)
 
-`npx tsx scripts/parity/record-images.ts` writes `fixtures/parity/images/`: synthetic images and `reference.json`, which records what the Node imaging code (`apps/server/src/imaging`, sharp 0.35.5 / libvips 8.18.7) returns for each of them. Every image is synthetic: text-like block patterns, solid colours and gradients. None is a real medicine photo. The image bytes are deterministic. Metric floats are rounded to 10 significant digits, because sharp varies by about 1e-13 between runs. After task G12, re-recording needs `git checkout node-fallback-v1` first.
+`npx tsx scripts/parity/record-images.ts` writes `fixtures/parity/images/`: synthetic images and `reference.json`, which records what the Node imaging code (`apps/server/src/imaging`, sharp 0.35.5 / libvips 8.18.7) returns for each of them. Every image is synthetic: text-like block patterns, solid colours and gradients. None is a real medicine photo. The image bytes are deterministic. Metric floats are rounded to 10 significant digits, because sharp varies by about 1e-13 between runs. After task G12, re-recording needs `apps/server` restored from the tag first ([scripts/parity/README.md](../../scripts/parity/README.md#re-recording)).
 
 Per image, `reference.json` holds:
 
@@ -176,7 +176,7 @@ The decode probes have no `normalized` entry: on 1-2 px runs of saturated colour
 
 ## Provider parity (task G6)
 
-`npx tsx scripts/parity/record-providers.ts` writes `fixtures/parity/providers/`. Nothing in it touches the network. After task G12, re-recording needs `git checkout node-fallback-v1` first.
+`npx tsx scripts/parity/record-providers.ts` writes `fixtures/parity/providers/`. Nothing in it touches the network. After task G12, re-recording needs `apps/server` restored from the tag first ([scripts/parity/README.md](../../scripts/parity/README.md#re-recording)).
 
 | File | What the Node build recorded |
 |---|---|
@@ -198,7 +198,7 @@ So the Go port (`internal/contracts/idna.go`, `ada_tables.go`) ports ada's `to_a
 
 ## Question limits (task G7 review round 1)
 
-`npx tsx scripts/parity/record-question-limits.ts` writes `fixtures/parity/explain/question-limits.jsonl`. Nothing in it touches the network, and its label data is the synthetic DEMO DATA of the demo scenarios. Recording is deterministic. After task G12, re-recording needs `git checkout node-fallback-v1` first.
+`npx tsx scripts/parity/record-question-limits.ts` writes `fixtures/parity/explain/question-limits.jsonl`. Nothing in it touches the network, and its label data is the synthetic DEMO DATA of the demo scenarios. Recording is deterministic. After task G12, re-recording needs `apps/server` restored from the tag first ([scripts/parity/README.md](../../scripts/parity/README.md#re-recording)).
 
 The file has corpus-format lines, sorted by `fn` and then by the `args` JSON text:
 

@@ -8,7 +8,8 @@
  *
  * Deterministic (seeded mulberry32, sorted output); re-running gives the
  * same files. After the Node server is removed (task G12) re-recording needs
- * `git checkout node-fallback-v1` first (ruling R4). Writes:
+ * `apps/server` restored from the tag first (not a whole-tree checkout:
+ * the tag predates scripts/parity): see scripts/parity/README.md#re-recording. Writes:
  *
  * 1. internal/domain/testdata/answers_casefold.json: the `iu` RegExp
  *    semantics `locate` (answers.ts) relies on, per code point:

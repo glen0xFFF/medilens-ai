@@ -81,7 +81,7 @@ fixtures/parity        golden corpora recorded from the Node build
 packages/contracts     Zod schemas (the app and the contract test use them)
 apps/mobile            Expo SDK 58 app with expo-router screens (jest-expo)
 scripts/contract       Zod contract test against the running Go API (root npm test)
-scripts/parity         the Node recorder (needs git checkout node-fallback-v1)
+scripts/parity         the Node recorder (restores apps/server from node-fallback-v1; see its README)
 scripts/dev            cross-platform launchers for the root npm scripts
 eval/                  label accuracy eval instructions (packs are git-ignored)
 docs/                  spec, plans, research and project documents
@@ -89,7 +89,9 @@ docs/                  spec, plans, research and project documents
 
 The Node/Express server (`apps/server`) was the reference implementation. It was removed from
 the tree after the Go build passed the parity corpora, the contract test and the mobile tests;
-the tag `node-fallback-v1` keeps it runnable.
+the tag `node-fallback-v1` keeps it runnable. To re-record a corpus, restore only `apps/server` from
+the tag onto the current branch, as [scripts/parity/README.md](../scripts/parity/README.md#re-recording)
+describes: the tag predates `scripts/parity`, so a whole-tree checkout has no recorder.
 
 ## Analysis pipeline (asynchronous)
 

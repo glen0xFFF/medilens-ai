@@ -40,7 +40,8 @@
  *   the fit's residual.
  *
  * After the Node server is removed (task G12), re-recording needs
- * `git checkout node-fallback-v1` first (ruling R4).
+ * `apps/server` restored from the tag first (not a whole-tree checkout:
+ * the tag predates scripts/parity): see scripts/parity/README.md#re-recording.
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
