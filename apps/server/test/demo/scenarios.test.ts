@@ -313,7 +313,7 @@ describe('fixture providers', () => {
     expect(a.status).toBe('answered');
     // Task 7b review round 2: the whole printed field is quoted, not the sentence
     expect(a.text).toBe(
-      `The warnings on the label says "Do not use with other products containing paracetamol. Keep out of reach of children". ${NO_EXPLANATION}`,
+      `The warnings on the label say "Do not use with other products containing paracetamol. Keep out of reach of children". ${NO_EXPLANATION}`,
     );
     expect(a.citedFields).toEqual(['warnings']);
     expect(a.spokenChunks.at(-1)).toBe('Confirm with your pharmacist or doctor.');
@@ -335,7 +335,8 @@ describe('fixture providers', () => {
     expect(a.citedFields).toEqual([]);
   });
 
-  test('FixtureAnswerer explain_text naming no phrase reads the printed directions and warnings', async () => {
+  // final review I3: the field the question names, here the printed warnings only
+  test('FixtureAnswerer explain_text naming no phrase reads the printed field it names', async () => {
     const s = scenario('s1-clear');
     const a = await new FixtureAnswerer().answer(
       {
@@ -347,7 +348,7 @@ describe('fixture providers', () => {
       { scenarioId: s.id },
     );
     expect(a.status).toBe('answered');
-    expect(a.citedFields).toEqual(['directions', 'warnings']);
+    expect(a.citedFields).toEqual(['warnings']);
     expect(a.text).toContain('Warnings as printed: Do not use with other products');
   });
 
@@ -370,7 +371,9 @@ describe('fixture providers', () => {
     const s = scenario('s1-clear');
     const match = {
       ...assessMatch(s.label, s.reference),
-      advisories: [{ title: 'DEMO DATA advisory', url: 'https://www.fda.gov.ph/demo-advisory' }],
+      advisories: [
+        { title: 'DEMO DATA counterfeit advisory', url: 'https://www.fda.gov.ph/demo-advisory' },
+      ],
     };
     const a = await new FixtureAnswerer().answer(
       { label: s.label, match, question: 'What did the FDA registry say?', intent: 'registry' },

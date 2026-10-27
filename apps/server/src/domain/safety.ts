@@ -20,6 +20,8 @@
  * ALLOWED_QUESTION_EXAMPLES as buttons. An under-refusal could be dosing advice.
  */
 
+import type { FieldKey } from '@medilens/contracts';
+
 export type RefusalReason =
   | 'personal_dose'
   | 'start_stop'
@@ -1452,4 +1454,49 @@ export function extractExplainPhrase(question: string): string | null {
   }
   const q = ANY_QUOTED.exec(text);
   return q?.[1] === undefined ? null : q[1].trim();
+}
+
+/*
+ * Final review I3: the printed field an allowed question asks about, so the
+ * answer reads back that field and nothing else ("How should it be stored?"
+ * reads the storage field, never the directions). Additive: the classifier
+ * above does not use it. The first matching row wins, so the more specific
+ * wording comes first ("storage instructions" before "instructions", "brand
+ * name" before "name", "manufacturing date" before "manufacturer").
+ */
+const ASKED_FIELDS: readonly [RegExp, readonly FieldKey[]][] = [
+  // printed things the reader does not transcribe into any field
+  [/\b(?:manufactur(?:ing|ed) date|date of manufacture|mfg date|inactive ingredients?)\b/, []],
+  [/\b(?:stor(?:e|es|ed|ing|age)|kept)\b/, ['storage']],
+  [/\b(?:expir\w*|exp date|best before|use by)\b/, ['expiryDate']],
+  [/\b(?:lot|batch)\b/, ['batchNumber']],
+  [/\b(?:registration|reg no)\b/, ['registrationNumber']],
+  [/\b(?:prescription|rx|otc|over the counter)\b/, ['rxOrOtc']],
+  [
+    /\b(?:manufactur\w*|maker|makes|made|produc(?:es|ed)|distribut\w*|import\w*|market(?:s|ed))\b/,
+    ['manufacturer'],
+  ],
+  [/\b(?:dosage )?form\b/, ['dosageForm']],
+  [/\bbrand\b/, ['brandName']],
+  [/\bgeneric\b/, ['genericNames']],
+  [/\b(?:active )?ingredients?\b/, ['genericNames', 'strength']],
+  [/\bstrength\b/, ['strength']],
+  [/\b(?:warnings?|cautions?|precautions?)\b/, ['warnings']],
+  [
+    /\b(?:directions?|instructions?|dose|doses|dosage|dosing|how (?:often )?to (?:take|use))\b/,
+    ['directions'],
+  ],
+  [/\bname\b/, ['brandName', 'genericNames']],
+];
+
+/**
+ * The label fields an allowed question names, in reading order, or null when
+ * it names none (read the whole label, or "what does this mean?"). An empty
+ * list means it names something the reader never transcribes, such as a
+ * manufacturing date: that is answered as not read, never from another field.
+ */
+export function askedFields(question: string): readonly FieldKey[] | null {
+  const text = typeof question === 'string' ? normalise(question) : '';
+  for (const [pattern, keys] of ASKED_FIELDS) if (pattern.test(text)) return keys;
+  return null;
 }

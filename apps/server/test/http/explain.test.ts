@@ -111,6 +111,61 @@ describe('POST /api/v1/labels/:id/explain: answers', () => {
     expect(a.status).not.toBe('refused');
   });
 
+  // final review I3: every preset button is answered from the field it asks about
+  const S1_ALL_FIELDS = [
+    'brandName',
+    'genericNames',
+    'strength',
+    'dosageForm',
+    'manufacturer',
+    'registrationNumber',
+    'directions',
+    'warnings',
+    'storage',
+    'expiryDate',
+    'batchNumber',
+    'rxOrOtc',
+  ];
+  const PRESET_TABLE: [question: string, cited: string[], firstChunk: string][] = [
+    ['Can you read this label?', S1_ALL_FIELDS, 'Brand name as printed: Paracelin 500.'],
+    [
+      'What does this warning mean?',
+      ['warnings'],
+      'Warnings as printed: Do not use with other products containing paracetamol. Keep out of reach of children.',
+    ],
+    ['What strength is printed here?', ['strength'], 'Strength as printed: 500 mg.'],
+    [
+      'Explain the directions in simpler words.',
+      ['directions'],
+      'Directions as printed: Adults: 1 to 2 tablets every 4 to 6 hours as needed. Do not take more than 8 tablets in 24 hours.',
+    ],
+    ['Which parts were unclear?', S1_ALL_FIELDS, 'Every part I read on this label was clear.'],
+    ['What did the FDA registry say?', ['registrationNumber'], STATUS_SENTENCE.verified],
+    ['Who makes this medicine?', ['manufacturer'], 'Manufacturer as printed: Demo Pharma Labs.'],
+    ['What is the expiry date on the pack?', ['expiryDate'], 'Expiry date as printed: 05/2028.'],
+    [
+      'How should it be stored?',
+      ['storage'],
+      'Storage as printed: Store below 30 degrees Celsius in a dry place.',
+    ],
+  ];
+
+  test('the preset table covers every preset but repeat', () => {
+    expect(PRESET_TABLE.map(([q]) => q)).toEqual(
+      ALLOWED_QUESTION_EXAMPLES.filter((q) => q !== 'Can you repeat that?'),
+    );
+  });
+
+  test.each(PRESET_TABLE)('s1 preset "%s" cites %j', async (q, cited, firstChunk) => {
+    const { app } = makeApp();
+    const r = await scenarioResult(app, 's1-clear');
+    const a = expectAnswer((await ask(app, r.id, q)).body);
+    expect(a.status).toBe('answered');
+    expect(a.citedFields).toEqual(cited);
+    expect(a.spokenChunks[0]).toBe(firstChunk);
+    expect(a.spokenChunks.at(-1)).toBe(FINAL_LINE);
+  });
+
   test('"Can you repeat that?" replays the stored summary without any answerer', async () => {
     const { app, calls } = liveApp();
     const r = await liveResult(app);
@@ -160,7 +215,10 @@ describe('POST /api/v1/labels/:id/explain: answers', () => {
             kind: 'ok',
             records: s1?.reference.kind === 'ok' ? structuredClone(s1.reference.records) : [],
             advisories: [
-              { title: 'DEMO DATA advisory', url: 'https://www.fda.gov.ph/demo-advisory' },
+              {
+                title: 'DEMO DATA counterfeit advisory',
+                url: 'https://www.fda.gov.ph/demo-advisory',
+              },
             ],
           }),
       },

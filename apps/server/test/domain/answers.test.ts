@@ -21,7 +21,15 @@ import {
   findPhraseInFields,
   quoteExplainable,
 } from '../../src/domain/answers';
-import { ADVISORY_SENTENCE, FINAL_LINE, STATUS_SENTENCE } from '../../src/domain/summary';
+import { ADVISORIES_UNCHECKED_NOTE, REG_NOT_FOUND_NOTE } from '../../src/domain/matcher';
+import {
+  ADVISORY_SENTENCE,
+  FINAL_LINE,
+  NEUTRAL_ADVISORY_SENTENCE,
+  PARTLY_UNCLEAR,
+  STATUS_SENTENCE,
+  advisorySentence,
+} from '../../src/domain/summary';
 import type { AnswerInput } from '../../src/providers/types';
 import { ROUND2_PROBE_CASES } from '../fixtures/explanationProbes';
 
@@ -81,7 +89,8 @@ describe('answer texts', () => {
 
   test('FIELD_NAMES names every field key', () => {
     expect(FIELD_NAMES.storage).toBe('Storage');
-    expect(FIELD_NAMES.expiryDate).toBe('Expiry date printed on the pack');
+    // final review Minor 2: read back as "Expiry date as printed: ..."
+    expect(FIELD_NAMES.expiryDate).toBe('Expiry date');
     expect(Object.keys(FIELD_NAMES)).toHaveLength(12);
   });
 
@@ -844,7 +853,7 @@ describe('composeExplainAnswer', () => {
       'You can use it together with other paracetamol products.',
     );
     const quote =
-      'The warnings on the label says "Do not use with other products containing paracetamol".';
+      'The warnings on the label say "Do not use with other products containing paracetamol".';
     expect(AnswerSchema.safeParse(a).success).toBe(true);
     expect(a).toEqual({
       status: 'answered',
@@ -875,7 +884,7 @@ describe('composeExplainAnswer', () => {
       'Use it with paracetamol products.',
     );
     const quote =
-      'The warnings on the label says "Do not use with other products containing paracetamol".';
+      'The warnings on the label say "Do not use with other products containing paracetamol".';
     expect(a).toEqual({
       status: 'answered',
       text: `${quote} ${NO_EXPLANATION}`,
@@ -912,7 +921,7 @@ describe('composeExplainAnswer', () => {
       'other products containing paracetamol',
       'Use it with medicines containing paracetamol.',
     );
-    const quote = `The warnings on the label says "${printed}".`;
+    const quote = `The warnings on the label say "${printed}".`;
     expect(a.text).toBe(`${quote} ${NO_EXPLANATION}`);
     expect(a.spokenChunks).toEqual([quote, NO_EXPLANATION, FINAL_LINE]);
   });
@@ -994,8 +1003,12 @@ describe('answerFromLabel', () => {
     );
   });
 
-  test('registry intent with an advisory speaks ADVISORY_SENTENCE exactly', () => {
-    const match: MatchAssessment = { ...MATCH, advisories: [ADVISORY] };
+  test('registry intent with a counterfeit advisory speaks ADVISORY_SENTENCE exactly', () => {
+    // final review Minor 8: the counterfeit sentence needs "counterfeit" in the title
+    const match: MatchAssessment = {
+      ...MATCH,
+      advisories: [{ ...ADVISORY, title: 'DEMO DATA counterfeit advisory' }],
+    };
     const a = answerFromLabel(input({ intent: 'registry', match }));
     expect(a.text).toBe(`${STATUS_SENTENCE.verified} ${ADVISORY_SENTENCE}`);
     expect(a.text).not.toContain('advisory listed');
@@ -1068,5 +1081,237 @@ describe('answerFromLabel', () => {
     // @ts-expect-error 'strenght' is not an AllowedIntent
     const bad: AnswerInput = { label: LABEL, match: MATCH, question: 'Q?', intent: 'strenght' };
     expect(bad.intent).toBe('strenght');
+  });
+});
+
+/* ------------------------------------------------------ final review fixes */
+
+const FULL_LABEL = labelOf([
+  lf('brandName', 'Paracelin 500'),
+  lf('genericNames', 'Paracetamol'),
+  lf('strength', '500 mg'),
+  lf('dosageForm', 'Tablet'),
+  lf('manufacturer', 'Demo Pharma Labs'),
+  lf('registrationNumber', 'DR-XY900001'),
+  lf('directions', 'Adults: 1 tablet every 4 to 6 hours as needed.'),
+  lf('warnings', 'Do not use with other products containing paracetamol.'),
+  lf('storage', 'Store in a cool dry place.'),
+  lf('expiryDate', '05/2028'),
+  lf('batchNumber', 'DB0001'),
+  lf('rxOrOtc', 'OTC'),
+]);
+
+describe('final review I1: a read-back marks each unclear value inline', () => {
+  test('the marker is the summary wording, exported once from summary.ts', () => {
+    expect(PARTLY_UNCLEAR).toBe('partly unclear');
+  });
+
+  test('a multi-field read-back puts the marker on the partial fields only', () => {
+    const label = labelOf([
+      lf('brandName', 'Paracelin 500'),
+      lf('strength', '500 mg', 'partial'),
+      lf('directions', 'Adults: 1 to 2 tablets every 4 to 6 hours as needed.', 'partial'),
+      lf('expiryDate', '05/2028'),
+    ]);
+    const a = answerFromLabel(input({ label, question: 'Can you read this label?' }));
+    expect(a.status).toBe('answered');
+    expect(a.spokenChunks).toEqual([
+      'Brand name as printed: Paracelin 500.',
+      'Strength as printed, partly unclear: 500 mg.',
+      'Directions as printed, partly unclear: Adults: 1 to 2 tablets every 4 to 6 hours as needed.',
+      'Expiry date as printed: 05/2028.',
+      UNCERTAIN,
+      FINAL_LINE,
+    ]);
+  });
+
+  test('an unreadable value that was still transcribed is marked too', () => {
+    const label = labelOf([lf('brandName', 'Paracel', 'unreadable')]);
+    const a = answerFromLabel(input({ label, question: 'What is the brand name?' }));
+    expect(a.spokenChunks[0]).toBe('Brand name as printed, partly unclear: Paracel.');
+  });
+
+  test('the strength intent marks a partial strength inline', () => {
+    const label = labelOf([lf('strength', '500 mg', 'partial')]);
+    const a = answerFromLabel(input({ label, intent: 'strength' }));
+    expect(a.text).toBe(`Strength as printed, partly unclear: 500 mg. ${UNCERTAIN}`);
+  });
+});
+
+describe('final review I3: a question is answered from the field it asks about', () => {
+  const ALL_KEYS: FieldKey[] = [
+    'brandName',
+    'genericNames',
+    'strength',
+    'dosageForm',
+    'manufacturer',
+    'registrationNumber',
+    'directions',
+    'warnings',
+    'storage',
+    'expiryDate',
+    'batchNumber',
+    'rxOrOtc',
+  ];
+
+  const CASES: [question: string, intent: AnswerInput['intent'], cited: FieldKey[]][] = [
+    ['Can you read this label?', 'read_label', ALL_KEYS],
+    ['What does this warning mean?', 'explain_text', ['warnings']],
+    ['Explain the directions in simpler words.', 'explain_text', ['directions']],
+    ['How should it be stored?', 'explain_text', ['storage']],
+    ['How is it stored?', 'explain_text', ['storage']],
+    ['What do the storage instructions say?', 'explain_text', ['storage']],
+    ['Read me the storage instructions.', 'explain_text', ['storage']],
+    ['What does this mean?', 'explain_text', ['directions', 'warnings']],
+    ['Who makes this medicine?', 'read_label', ['manufacturer']],
+    ['What is the expiry date on the pack?', 'read_label', ['expiryDate']],
+    ['When does it expire?', 'read_label', ['expiryDate']],
+    ['What is the registration number?', 'read_label', ['registrationNumber']],
+    ['What is the lot number on the pack?', 'read_label', ['batchNumber']],
+    ['What is the batch number?', 'read_label', ['batchNumber']],
+    ['What is the brand name?', 'read_label', ['brandName']],
+    ['What is the generic name?', 'read_label', ['genericNames']],
+    ['What is the name?', 'read_label', ['brandName', 'genericNames']],
+    ['What is the dosage form?', 'read_label', ['dosageForm']],
+    ['What are the active ingredients?', 'read_label', ['genericNames', 'strength']],
+    ['What does the label say about the dose?', 'read_label', ['directions']],
+    ['What does the label say about how to store it?', 'read_label', ['storage']],
+    ['What are the warnings?', 'explain_text', ['warnings']],
+    ['Read me the second line.', 'read_label', ALL_KEYS],
+    ['What strength is printed here?', 'strength', ['strength']],
+  ];
+
+  test.each(CASES)('"%s" (%s) cites %j', (question, intent, cited) => {
+    const a = answerFromLabel(input({ label: FULL_LABEL, question, intent }));
+    expect(a.status).toBe('answered');
+    expect(a.citedFields).toEqual(cited);
+  });
+
+  test('the storage preset reads the storage field, never the directions', () => {
+    const a = answerFromLabel(
+      input({ label: FULL_LABEL, question: 'How should it be stored?', intent: 'explain_text' }),
+    );
+    expect(a.spokenChunks).toEqual(['Storage as printed: Store in a cool dry place.', FINAL_LINE]);
+  });
+
+  test('the expiry and manufacturer presets speak only the asked value', () => {
+    const expiry = answerFromLabel(
+      input({ label: FULL_LABEL, question: 'What is the expiry date on the pack?' }),
+    );
+    expect(expiry.spokenChunks).toEqual(['Expiry date as printed: 05/2028.', FINAL_LINE]);
+    const maker = answerFromLabel(
+      input({ label: FULL_LABEL, question: 'Who makes this medicine?' }),
+    );
+    expect(maker.spokenChunks).toEqual(['Manufacturer as printed: Demo Pharma Labs.', FINAL_LINE]);
+  });
+
+  test('registration, batch and prescription status are part of the whole-label read', () => {
+    const a = answerFromLabel(input({ label: FULL_LABEL, question: 'Can you read this label?' }));
+    expect(a.spokenChunks).toContain('Registration number as printed: DR-XY900001.');
+    expect(a.spokenChunks).toContain('Batch number as printed: DB0001.');
+    expect(a.spokenChunks).toContain('Prescription status as printed: OTC.');
+  });
+
+  test('a field the reader does not transcribe is not read back as some other field', () => {
+    const a = answerFromLabel(
+      input({ label: FULL_LABEL, question: 'What is the manufacturing date?' }),
+    );
+    expect(a.status).toBe('unclear');
+    expect(a.citedFields).toEqual([]);
+  });
+
+  test('an asked field that is not printed gives the nothing-read answer', () => {
+    const label = labelOf([lf('brandName', 'Paracelin 500'), lf('storage', null)]);
+    const a = answerFromLabel(input({ label, question: 'How should it be stored?' }));
+    expect(a.status).toBe('unclear');
+    expect(a.text).toBe('I could not read that on this label.');
+  });
+});
+
+describe('final review Minor 2: spoken grammar', () => {
+  test('expiry is "Expiry date as printed", not "printed on the pack as printed"', () => {
+    const a = answerFromLabel(input({ label: FULL_LABEL, question: 'When does it expire?' }));
+    expect(a.text).toBe('Expiry date as printed: 05/2028.');
+    expect(a.text).not.toContain('printed on the pack as printed');
+  });
+
+  test('plural fields take "say", singular fields "says"', () => {
+    const w = composeExplainAnswer(input({ label: FULL_LABEL }), 'other products', null);
+    expect(w.spokenChunks[0]).toBe(
+      'The warnings on the label say "Do not use with other products containing paracetamol".',
+    );
+    const d = composeExplainAnswer(input({ label: FULL_LABEL }), 'as needed', null);
+    expect(d.spokenChunks[0]).toBe(
+      'The directions on the label say "Adults: 1 tablet every 4 to 6 hours as needed".',
+    );
+    const s = composeExplainAnswer(input({ label: FULL_LABEL }), 'cool dry place', null);
+    expect(s.spokenChunks[0]).toBe('The storage on the label says "Store in a cool dry place".');
+  });
+});
+
+describe('final review Minor 6: registry answer notes and duplicate conflicts', () => {
+  test('the registry answer says the pack registration number was not found, like the summary', () => {
+    const match: MatchAssessment = {
+      ...MATCH,
+      status: 'no_match',
+      limitations: [REG_NOT_FOUND_NOTE],
+    };
+    const a = answerFromLabel(input({ intent: 'registry', match }));
+    expect(a.text).toBe(`${STATUS_SENTENCE.no_match} ${REG_NOT_FOUND_NOTE}`);
+  });
+
+  test('the registry answer says advisories could not be checked, like the summary', () => {
+    const match: MatchAssessment = { ...MATCH, limitations: [ADVISORIES_UNCHECKED_NOTE] };
+    const a = answerFromLabel(input({ intent: 'registry', match }));
+    expect(a.text).toBe(`${STATUS_SENTENCE.verified} ${ADVISORIES_UNCHECKED_NOTE}`);
+  });
+
+  test('two conflicts on one field give one warning', () => {
+    const match: MatchAssessment = {
+      ...MATCH,
+      status: 'conflicting',
+      conflicting: [
+        { key: 'strength', labelValue: '500 mg', referenceValue: '250 mg Tablet' },
+        { key: 'strength', labelValue: '500 mg', referenceValue: '125 mg Tablet' },
+      ],
+    };
+    const a = answerFromLabel(input({ intent: 'strength', match }));
+    expect(a.spokenChunks).toEqual([
+      'Strength as printed: 500 mg.',
+      conflictWarning('strength', '250 mg Tablet'),
+      FINAL_LINE,
+    ]);
+  });
+});
+
+describe('final review Minor 8: the counterfeit sentence only for a counterfeit advisory', () => {
+  test('an advisory whose title does not say counterfeit gets the neutral sentence', () => {
+    expect(NEUTRAL_ADVISORY_SENTENCE).toBe(
+      'The FDA has issued an advisory that mentions this product. Check with your pharmacist.',
+    );
+    const match: MatchAssessment = {
+      ...MATCH,
+      advisories: [{ title: 'Recall of Paracelin 500 lot DB0001', url: ADVISORY.url }],
+    };
+    const a = answerFromLabel(input({ intent: 'registry', match }));
+    expect(a.text).toBe(`${STATUS_SENTENCE.verified} ${NEUTRAL_ADVISORY_SENTENCE}`);
+    expect(a.text).not.toMatch(/counterfeit|fake/i);
+  });
+
+  test('a title that says counterfeit, in any case, gets the fixed counterfeit sentence', () => {
+    const match: MatchAssessment = {
+      ...MATCH,
+      advisories: [{ title: 'Public warning: COUNTERFEIT Paracelin 500', url: ADVISORY.url }],
+    };
+    const a = answerFromLabel(input({ intent: 'registry', match }));
+    expect(a.text).toBe(`${STATUS_SENTENCE.verified} ${ADVISORY_SENTENCE}`);
+  });
+
+  test('advisorySentence: null for none, counterfeit if any title says it, else neutral', () => {
+    expect(advisorySentence([])).toBeNull();
+    expect(advisorySentence([{ title: 'Recall notice' }])).toBe(NEUTRAL_ADVISORY_SENTENCE);
+    expect(advisorySentence([{ title: 'Recall notice' }, { title: 'Counterfeit alert' }])).toBe(
+      ADVISORY_SENTENCE,
+    );
   });
 });

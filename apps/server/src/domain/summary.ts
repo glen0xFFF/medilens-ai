@@ -17,8 +17,19 @@ import type {
 import { ADVISORIES_UNCHECKED_NOTE, REG_NOT_FOUND_NOTE } from './matcher';
 
 export const FINAL_LINE = 'Confirm with your pharmacist or doctor.';
+/** Spoken only when an advisory title says "counterfeit" (final review Minor 8). */
 export const ADVISORY_SENTENCE =
   'The FDA has issued an advisory about counterfeit versions of this product. Check with your pharmacist.';
+/** Spoken for any other advisory: a recall or unregistered-product notice is not a counterfeit warning. */
+export const NEUTRAL_ADVISORY_SENTENCE =
+  'The FDA has issued an advisory that mentions this product. Check with your pharmacist.';
+/**
+ * The marker on a printed value that is not clear, in the summary and in Q&A
+ * read-backs alike (final review I1): "Directions as printed, partly unclear: ...".
+ */
+export const PARTLY_UNCLEAR = 'partly unclear';
+/** A label was read but the registry was not searched (final review Minor 1). */
+export const REGISTRY_NOT_CHECKED = 'The FDA registry was not checked.';
 export const LOOSE_PILL_SENTENCE =
   "This looks like a loose tablet. I can't identify a medicine from how it looks. Please ask a pharmacist.";
 export const NOT_A_LABEL_SENTENCE = "I couldn't find a medicine label in this photo.";
@@ -177,9 +188,10 @@ function labelSegments(
   }
 
   // registry advisory (any status)
-  if (match.advisories.length > 0) {
-    segments.push(ADVISORY_SENTENCE);
-    safetyNotices.push(ADVISORY_SENTENCE);
+  const advisory = advisorySentence(match.advisories);
+  if (advisory !== null) {
+    segments.push(advisory);
+    safetyNotices.push(advisory);
   }
 
   // Printed text: a non-clear value is introduced by the marker, and the marker
@@ -194,8 +206,8 @@ function labelSegments(
       segments.push(`${title}: ${sentence(value)}`);
     } else {
       segments.push({
-        lead: `${title}, partly unclear:`,
-        continued: `${short} continued, partly unclear:`,
+        lead: `${title}, ${PARTLY_UNCLEAR}:`,
+        continued: `${short} continued, ${PARTLY_UNCLEAR}:`,
         body: sentence(value),
       });
     }
@@ -211,7 +223,19 @@ function labelSegments(
   if (unclear.length > 0) segments.push(`Some parts were unclear: ${unclear.join(', ')}.`);
 }
 
-/** What the registry check found, naming each conflicting field; empty when not attempted. */
+/**
+ * The spoken advisory sentence, or null with no advisory. The counterfeit
+ * sentence only when an advisory title says "counterfeit" (any case); any
+ * other advisory gets the neutral sentence (final review Minor 8).
+ */
+export function advisorySentence(advisories: readonly { title: string }[]): string | null {
+  if (advisories.length === 0) return null;
+  return advisories.some((a) => /counterfeit/i.test(a.title))
+    ? ADVISORY_SENTENCE
+    : NEUTRAL_ADVISORY_SENTENCE;
+}
+
+/** What the registry check found, naming each conflicting field, or that it was not checked. */
 export function verificationSentences(match: MatchAssessment): string[] {
   switch (match.status) {
     case 'conflicting': {
@@ -220,7 +244,7 @@ export function verificationSentences(match: MatchAssessment): string[] {
       return keys.map((k) => `The ${FIELD_NAME[k]} on the label does not match the registry.`);
     }
     case 'not_attempted':
-      return [];
+      return [REGISTRY_NOT_CHECKED];
     default:
       return [STATUS_SENTENCE[match.status]];
   }

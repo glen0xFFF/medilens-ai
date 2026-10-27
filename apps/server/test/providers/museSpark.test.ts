@@ -420,26 +420,27 @@ describe('createMuseSparkAnswerer: explain_text', () => {
   });
 
   // Task 7b review round 1: these are preset buttons (ALLOWED_QUESTION_EXAMPLES);
-  // with no phrase the live answerer reads the printed directions and warnings
-  // back, as FixtureAnswerer does, instead of a non-answer.
-  test.each(['What does this warning mean?', 'Explain the directions in simpler words.'])(
-    '%s names no printed phrase: reads the directions and warnings back, no model call',
-    async (q) => {
-      const usage: ModelUsage[] = [];
-      const { client, calls } = fakeClient(fixture('answer-explain-ok'));
-      const a = await createMuseSparkAnswerer(client, { onUsage: (u) => usage.push(u) }).answer(
-        input(q),
-        CTX,
-      );
-      expect(calls).toHaveLength(0);
-      expect(usage).toEqual([]);
-      expect(AnswerSchema.safeParse(a).success).toBe(true);
-      expect(a).toEqual(answerFromLabel(input(q)));
-      expect(a.status).toBe('answered');
-      expect(a.text).not.toBe(ANSWER_FALLBACK_TEXT);
-      expect(a.citedFields).toEqual(['directions', 'warnings']);
-    },
-  );
+  // with no phrase the live answerer reads the printed field back, as
+  // FixtureAnswerer does, instead of a non-answer. Final review I3: only the
+  // field the question names.
+  test.each([
+    ['What does this warning mean?', ['warnings']],
+    ['Explain the directions in simpler words.', ['directions']],
+  ])('%s names no printed phrase: reads %j back, no model call', async (q, cited) => {
+    const usage: ModelUsage[] = [];
+    const { client, calls } = fakeClient(fixture('answer-explain-ok'));
+    const a = await createMuseSparkAnswerer(client, { onUsage: (u) => usage.push(u) }).answer(
+      input(q),
+      CTX,
+    );
+    expect(calls).toHaveLength(0);
+    expect(usage).toEqual([]);
+    expect(AnswerSchema.safeParse(a).success).toBe(true);
+    expect(a).toEqual(answerFromLabel(input(q)));
+    expect(a.status).toBe('answered');
+    expect(a.text).not.toBe(ANSWER_FALLBACK_TEXT);
+    expect(a.citedFields).toEqual(cited);
+  });
 
   test('every preset question gets the same answer live as in demo mode, with no model call', async () => {
     for (const q of ALLOWED_QUESTION_EXAMPLES) {
@@ -479,7 +480,7 @@ describe('createMuseSparkAnswerer: explain_text', () => {
     expect(calls).toHaveLength(0);
     expect(usage).toEqual([]);
     const quote =
-      'The warnings on the label says "Do not use with other products containing paracetamol".';
+      'The warnings on the label say "Do not use with other products containing paracetamol".';
     expect(a).toEqual({
       status: 'answered',
       text: `${quote} ${NO_EXPLANATION}`,
@@ -520,7 +521,7 @@ describe('createMuseSparkAnswerer: explain_text', () => {
       CTX,
     );
     expect(calls).toHaveLength(0);
-    const quote = `The warnings on the label says "${printed}".`;
+    const quote = `The warnings on the label say "${printed}".`;
     expect(a).toEqual({
       status: 'answered',
       text: `${quote} ${NO_EXPLANATION}`,

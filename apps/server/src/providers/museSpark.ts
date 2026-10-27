@@ -270,7 +270,7 @@ export function createMuseSparkAnswerer(
       if (input.intent !== 'explain_text') return answerFromLabel(input);
       const phrase = extractExplainPhrase(input.question);
       // Task 7b review round 1: a preset that names no phrase reads the printed
-      // directions and warnings back, as in demo mode; no model call
+      // field it names back (answers.ts), as in demo mode; no model call
       if (phrase === null) return answerFromLabel(input);
       // the whole printed field, never a fragment without its "Do not"
       const quote = explainQuote(phrase, input.label);

@@ -10,7 +10,7 @@ import {
   type ReferenceRecord,
 } from '@medilens/contracts';
 import { describe, expect, test } from 'vitest';
-import { buildSummary } from '../../src/domain/summary';
+import { REGISTRY_NOT_CHECKED, buildSummary } from '../../src/domain/summary';
 
 const FINAL = 'Confirm with your pharmacist or doctor.';
 const ADVISORY =
@@ -183,7 +183,7 @@ describe('buildSummary — template content', () => {
       summary({
         isDemo: true,
         match: match('verified', {
-          advisories: [{ title: 'Alert', url: 'https://www.fda.gov.ph/a' }],
+          advisories: [{ title: 'Counterfeit alert', url: 'https://www.fda.gov.ph/a' }],
         }),
         label: label({
           brandName: 'Fevrinol',
@@ -283,15 +283,19 @@ describe('buildSummary — template content', () => {
     );
   });
 
-  test('not_attempted says nothing about the registry', () => {
+  // final review Minor 1: a speech-only user hears that the registry was not checked
+  test('not_attempted says only that the registry was not checked', () => {
     const text = spoken(summary({ match: match('not_attempted') }));
-    expect(text).not.toMatch(/registry/i);
+    expect(text).toContain(REGISTRY_NOT_CHECKED);
+    expect(text.replace(REGISTRY_NOT_CHECKED, '')).not.toMatch(/registry/i);
   });
 
   test('advisory sentence plays for any status, including verified', () => {
     for (const status of ALL_STATUSES) {
       const e = summary({
-        match: match(status, { advisories: [{ title: 'x', url: 'https://www.fda.gov.ph/x' }] }),
+        match: match(status, {
+          advisories: [{ title: 'Counterfeit x', url: 'https://www.fda.gov.ph/x' }],
+        }),
       });
       expect(spoken(e)).toContain(ADVISORY);
       expect(e.safetyNotices).toContain(ADVISORY);
@@ -453,5 +457,49 @@ describe('buildSummary — non-label states', () => {
     });
     expect(spoken(e)).toContain('Please take another photo.');
     expect(e.spokenChunks.at(-1)).toBe(FINAL);
+  });
+});
+
+describe('buildSummary — final review fixes', () => {
+  const NOT_CHECKED = 'The FDA registry was not checked.';
+  const NEUTRAL =
+    'The FDA has issued an advisory that mentions this product. Check with your pharmacist.';
+
+  test('Minor 1: a label read with no registry search says the registry was not checked', () => {
+    const e = summary({
+      match: match('not_attempted', {
+        limitations: ['Not enough clear text to search the registry.'],
+      }),
+    });
+    expect(e.spokenChunks).toContain(NOT_CHECKED);
+    expect(REGISTRY_NOT_CHECKED).toBe(NOT_CHECKED);
+  });
+
+  test('Minor 1: the not-checked sentence comes where the status sentence would', () => {
+    const e = summary({ match: match('not_attempted') });
+    const at = e.spokenChunks.indexOf(NOT_CHECKED);
+    expect(at).toBe(1);
+    expect(e.spokenChunks[0]?.startsWith('This label reads:')).toBe(true);
+  });
+
+  test('Minor 8: an advisory title without "counterfeit" gets the neutral sentence', () => {
+    const e = summary({
+      match: match('verified', {
+        advisories: [{ title: 'Recall of Fevrinol 500 mg', url: 'https://www.fda.gov.ph/x' }],
+      }),
+    });
+    expect(spoken(e)).toContain(NEUTRAL);
+    expect(e.safetyNotices).toContain(NEUTRAL);
+    expect(spoken(e)).not.toMatch(/counterfeit|fake/i);
+  });
+
+  test('Minor 8: a title saying "counterfeit" in any case gets the fixed counterfeit sentence', () => {
+    const e = summary({
+      match: match('verified', {
+        advisories: [{ title: 'COUNTERFEIT Fevrinol warning', url: 'https://www.fda.gov.ph/x' }],
+      }),
+    });
+    expect(spoken(e)).toContain(ADVISORY);
+    expect(spoken(e)).not.toContain(NEUTRAL);
   });
 });

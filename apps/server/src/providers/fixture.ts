@@ -46,7 +46,7 @@ export class FixtureReferenceProvider implements ReferenceProvider {
  * s7 preset question still returns its canned refusal if it reaches this
  * answerer. There is no model here, so an explain_text question about a
  * printed phrase gets the quote-only answer; one that names no phrase ("what
- * does this warning mean?") reads the printed directions and warnings back.
+ * does this warning mean?") reads back the printed field it names (answers.ts).
  */
 export class FixtureAnswerer implements QuestionAnswerer {
   answer(input: AnswerInput, ctx: ProviderContext): Promise<Answer> {

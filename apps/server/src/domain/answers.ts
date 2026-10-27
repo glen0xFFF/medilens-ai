@@ -17,8 +17,9 @@ import type {
   MatchAssessment,
 } from '@medilens/contracts';
 import type { AnswerInput } from '../providers/types';
-import type { AllowedIntent } from './safety';
-import { ADVISORY_SENTENCE, FINAL_LINE, verificationSentences } from './summary';
+import { ADVISORIES_UNCHECKED_NOTE, REG_NOT_FOUND_NOTE } from './matcher';
+import { askedFields, type AllowedIntent } from './safety';
+import { FINAL_LINE, PARTLY_UNCLEAR, advisorySentence, verificationSentences } from './summary';
 
 export const ANSWER_FALLBACK_TEXT = 'I can only answer from what is printed on the label.';
 export const PHRASE_NOT_FOUND_TEXT = "I can't find that phrase on this label.";
@@ -26,8 +27,8 @@ const NO_EXPLANATION = "I can't explain this phrase further.";
 const UNCERTAIN = 'Some of this was not clear on the pack, so it may be wrong.';
 const NOTHING_READ = 'I could not read that on this label.';
 const ALL_CLEAR = 'Every part I read on this label was clear.';
-const REGISTRY_NOT_CHECKED = 'The FDA registry was not checked.';
 
+/** How each field is named when its printed value is read back ("Expiry date as printed: ..."). */
 export const FIELD_NAMES: Record<FieldKey, string> = {
   brandName: 'Brand name',
   genericNames: 'Generic name',
@@ -38,33 +39,46 @@ export const FIELD_NAMES: Record<FieldKey, string> = {
   directions: 'Directions',
   warnings: 'Warnings',
   storage: 'Storage',
-  expiryDate: 'Expiry date printed on the pack',
+  expiryDate: 'Expiry date',
   batchNumber: 'Batch number',
   rxOrOtc: 'Prescription status',
 };
 
+/** Field names that take a plural verb ("The warnings on the label say ..."). */
+const PLURAL_FIELDS: ReadonlySet<FieldKey> = new Set(['directions', 'warnings']);
+
+/** A whole-label read: every field, in reading order (final review I3). */
 const READ_KEYS: readonly FieldKey[] = [
   'brandName',
   'genericNames',
   'strength',
   'dosageForm',
   'manufacturer',
+  'registrationNumber',
   'directions',
   'warnings',
   'storage',
   'expiryDate',
+  'batchNumber',
+  'rxOrOtc',
 ];
 
-/** Fields read back per intent; registry and unclear_parts have their own branches. */
-const KEYS_BY_INTENT: Record<
-  Exclude<AllowedIntent, 'registry' | 'unclear_parts'>,
-  readonly FieldKey[]
-> = {
-  strength: ['strength'],
-  explain_text: ['directions', 'warnings'],
-  read_label: READ_KEYS,
-  other_label: READ_KEYS,
-};
+/** What an explain_text question that names no field or phrase reads back ("What does this mean?"). */
+const EXPLAIN_KEYS: readonly FieldKey[] = ['directions', 'warnings'];
+
+type ReadBackIntent = Exclude<AllowedIntent, 'registry' | 'unclear_parts'>;
+
+/**
+ * Fields read back for a question (final review I3): the field the question
+ * names ("How should it be stored?" reads storage, "Who makes this
+ * medicine?" the manufacturer), else the intent's default.
+ */
+function keysFor(intent: ReadBackIntent, question: string): readonly FieldKey[] {
+  if (intent === 'strength') return ['strength'];
+  const asked = askedFields(question);
+  if (asked !== null) return asked;
+  return intent === 'explain_text' ? EXPLAIN_KEYS : READ_KEYS;
+}
 
 /** The registry answer cites the first of these the scan printed. */
 const REGISTRY_KEYS: readonly FieldKey[] = [
@@ -119,8 +133,10 @@ function build(
   match: MatchAssessment,
 ): Answer {
   if (sentences.length === 0) return unclearAnswer(NOTHING_READ);
+  // one warning per conflicting field, the first registry value (final review Minor 6)
+  const warned = new Set<FieldKey>();
   const warnings = match.conflicting
-    .filter((c) => cited.includes(c.key))
+    .filter((c) => cited.includes(c.key) && !warned.has(c.key) && warned.add(c.key))
     .map((c) => conflictWarning(c.key, c.referenceValue));
   const notices = uncertain ? [...warnings, UNCERTAIN] : warnings;
   const all = [...sentences, ...notices];
@@ -139,14 +155,14 @@ function build(
  * Deterministic answer from the label fields of the scan, for every allowed
  * intent. Printed values are read back verbatim; nothing is inferred.
  */
-export function answerFromLabel({ label, match, intent }: AnswerInput): Answer {
+export function answerFromLabel({ label, match, intent, question }: AnswerInput): Answer {
   switch (intent) {
     case 'unclear_parts':
       return unclearParts(label.fields, match);
     case 'registry':
       return registryAnswer(label.fields, match);
     default:
-      return readBack(label.fields, KEYS_BY_INTENT[intent], match);
+      return readBack(label.fields, keysFor(intent, question), match);
   }
 }
 
@@ -168,12 +184,21 @@ function registryAnswer(fields: LabelField[], match: MatchAssessment): Answer {
   const key = REGISTRY_KEYS.find((k) => fieldOf(fields, k) !== undefined);
   const f = key === undefined ? undefined : fieldOf(fields, key);
   if (key === undefined || f === undefined) return unclearAnswer(NOTHING_READ);
-  const sentences =
-    match.status === 'not_attempted' ? [REGISTRY_NOT_CHECKED] : verificationSentences(match);
-  if (match.advisories.length > 0) sentences.push(ADVISORY_SENTENCE);
+  // the summary's own registry sentences and notes, in its order (final review Minor 6)
+  const sentences = verificationSentences(match);
+  for (const note of [REG_NOT_FOUND_NOTE, ADVISORIES_UNCHECKED_NOTE]) {
+    if (match.limitations.includes(note)) sentences.push(note);
+  }
+  const advisory = advisorySentence(match.advisories);
+  if (advisory !== null) sentences.push(advisory);
   return build(sentences, [key], f.legibility !== 'clear', match);
 }
 
+/**
+ * Each printed value as its own sentence. A value that is not clear carries
+ * the summary's marker before it (final review I1: "Strength as printed,
+ * partly unclear: 500 mg."), so the listener knows which value may be wrong.
+ */
 function readBack(fields: LabelField[], keys: readonly FieldKey[], match: MatchAssessment): Answer {
   const sentences: string[] = [];
   const cited: FieldKey[] = [];
@@ -183,8 +208,10 @@ function readBack(fields: LabelField[], keys: readonly FieldKey[], match: MatchA
     if (f === undefined) continue;
     cited.push(key);
     const value = (f.value ?? '').trim().replace(/\.+$/, '');
-    sentences.push(`${FIELD_NAMES[key]} as printed: ${value}.`);
-    if (f.legibility !== 'clear') uncertain = true;
+    const clear = f.legibility === 'clear';
+    const name = `${FIELD_NAMES[key]} as printed${clear ? '' : `, ${PARTLY_UNCLEAR}`}`;
+    sentences.push(`${name}: ${value}.`);
+    if (!clear) uncertain = true;
   }
   return build(sentences, cited, uncertain, match);
 }
@@ -503,7 +530,8 @@ export function composeExplainAnswer(
   const first = hits[0];
   if (first === undefined) return unclearAnswer(PHRASE_NOT_FOUND_TEXT);
   const printed = fieldQuote(first);
-  const quote = `The ${FIELD_NAMES[first.key].toLowerCase()} on the label says "${printed}".`;
+  const says = PLURAL_FIELDS.has(first.key) ? 'say' : 'says';
+  const quote = `The ${FIELD_NAMES[first.key].toLowerCase()} on the label ${says} "${printed}".`;
   const plain =
     explanation !== null && explanationFits(explanation, printed)
       ? normalizeExplanation(explanation)
