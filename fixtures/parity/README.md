@@ -195,3 +195,20 @@ The Go `contracts.ParseHTTPURL` reproduces every result in the three `httpurl` f
 - a percent-decoded host over 16,384 bytes fails.
 
 So the Go port (`internal/contracts/idna.go`, `ada_tables.go`) ports ada's `to_ascii` and reads ada's own tables. `npx tsx scripts/parity/extract-ada-idna.ts <ada_idna.cpp>` copies them byte for byte to `internal/contracts/ada_idna_tables.deflate`. It takes ada v4.0.0's single-file `src/ada_idna.cpp` (https://raw.githubusercontent.com/ada-url/ada/v4.0.0/src/ada_idna.cpp, checked by sha256) and checks the blob's size and CRC32, the layout constants and the ContextJ lists against the Go source. The license is in `ada_idna_tables.LICENSE`.
+
+## Question limits (task G7 review round 1)
+
+`npx tsx scripts/parity/record-question-limits.ts` writes `fixtures/parity/explain/question-limits.jsonl`. Nothing in it touches the network, and its label data is the synthetic DEMO DATA of the demo scenarios. Recording is deterministic. After task G12, re-recording needs `git checkout node-fallback-v1` first.
+
+The file has corpus-format lines, sorted by `fn` and then by the `args` JSON text:
+
+| `fn` | What the Node build recorded |
+|---|---|
+| `ExplainRequestSchema` | `ExplainRequestSchema.safeParse({question})` (`packages/contracts`, `z.string().trim().min(1).max(300)`, zod 4.6.7) over 57 boundary questions. `args` is `[{question}]`. `result` is `{success: true, question}` with the trimmed question the schema outputs, or `{success: false}`. |
+| `explainQuestion` | Node's `explainQuestion`, run as the explain route runs it, for every question the schema accepts, on each of the 8 demo scenario results: the trimmed question, `analyzeScenario`'s result, the fixture answerer and no live answerer. `args` is `[{scenarioId}, question]`, where the scenario id stands for `analyzeScenario`'s result. `result` is the answer. |
+
+zod measures a string in Unicode code points, not UTF-16 units (`$ZodCheckMaxLength`, `util.codePointLength`). A surrogate pair counts once, and a lone surrogate counts as one. The probes sit on both sides of 300 in both units. They cover ASCII, BMP CJK, emoji, CJK Ext-B, combining marks, lone and reversed surrogates, and JS-trim whitespace. 14 accepted questions are over 300 UTF-16 units, and Node's safety gate refuses them, because its own limit is 300 UTF-16 units.
+
+The recorder writes lone surrogates as JSON `\u` escapes. Go's `encoding/json` reads them as U+FFFD, as it reads a request body with the same escape, and U+FFFD counts as one code point, as the lone surrogate does in zod.
+
+`internal/pipeline/question_limits_test.go` holds `pipeline.ValidateQuestion` and `pipeline.Explain` to every line.

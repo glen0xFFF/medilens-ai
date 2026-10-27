@@ -483,17 +483,59 @@ func TestExplainADemoResultIsAnsweredWithTheBudgetExhausted(t *testing.T) {
 
 func TestExplainValidatesTheQuestion(t *testing.T) {
 	r := scenarioResult(t, "s1-clear")
-	for _, q := range []string{"", "   ", " \t", strings.Repeat("x", 301), " " + strings.Repeat("😀", 151) + " "} {
+	emoji := func(n int) string { return strings.Repeat("😀", n) }
+	for _, q := range []string{"", "   ", " \t", strings.Repeat("x", 301), emoji(301), " " + emoji(301) + " ",
+		strings.Repeat("x", 300) + "😀", strings.Repeat("\U00020000", 301),
+	} {
 		_, err := Explain(context.Background(), r, q, noLive())
 		pe := wantCode(t, err, contracts.ErrValidationFailed)
 		if pe.Message != `Send {"question": "..."} with 1 to 300 characters.` {
 			t.Errorf("message %q", pe.Message)
 		}
 	}
-	// 300 UTF-16 code units after the trim are accepted
-	for _, q := range []string{"  " + strings.Repeat("x", 300) + "  ", strings.Repeat("😀", 150)} {
-		if _, err := Explain(context.Background(), r, q, noLive()); err != nil {
-			t.Errorf("%d chars: %v", len(q), err)
+	// zod 4.6.7 counts the trimmed question in code points, not UTF-16
+	// units (task G7 review round 1): 300 are accepted, an astral character
+	// counting once. Node's safety gate then refuses a question over 300
+	// UTF-16 units, so these reach the gate and get its refusal, not a 400.
+	for _, q := range []string{
+		"  " + strings.Repeat("x", 300) + "  ", emoji(150), " " + emoji(151) + " ", emoji(300),
+		strings.Repeat("x", 299) + "😀", strings.Repeat("\U00020000", 300),
+	} {
+		a, err := Explain(context.Background(), r, q, noLive())
+		if err != nil {
+			t.Errorf("%d bytes: %v", len(q), err)
+			continue
+		}
+		if a.Status != contracts.AnswerRefused {
+			t.Errorf("%d bytes: answer %s", len(q), jsonOf(t, a))
+		}
+	}
+}
+
+func TestValidateQuestionCountsCodePointsAfterTheTrim(t *testing.T) {
+	for _, tc := range []struct {
+		in, want string
+		ok       bool
+	}{
+		{"  What strength?  ", "What strength?", true},
+		{"\u3000\ufeff", "", false},
+		{"\u200b", "\u200b", true},
+		{strings.Repeat("😀", 151), strings.Repeat("😀", 151), true},
+		{" " + strings.Repeat("😀", 300) + " ", strings.Repeat("😀", 300), true},
+		{strings.Repeat("😀", 301), "", false},
+		{strings.Repeat("e\u0301", 150), strings.Repeat("e\u0301", 150), true},
+		{strings.Repeat("e\u0301", 151), "", false},
+		// a lone surrogate reaches Go as U+FFFD (encoding/json), one code
+		// point, as the lone surrogate is in zod
+		{strings.Repeat("\uFFFD", 300), strings.Repeat("\uFFFD", 300), true},
+		{strings.Repeat("\uFFFD", 301), "", false},
+	} {
+		got, err := ValidateQuestion(tc.in)
+		if (err == nil) != tc.ok || got != tc.want {
+			t.Errorf("%+q: got (%+q, %v), want (%+q, ok %v)", tc.in, got, err, tc.want, tc.ok)
+		}
+		if err != nil {
+			wantCode(t, err, contracts.ErrValidationFailed)
 		}
 	}
 }

@@ -3,7 +3,7 @@ package pipeline
 import (
 	"context"
 	"strings"
-	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/medilens-ai/medilens/internal/ai"
 	"github.com/medilens-ai/medilens/internal/contracts"
@@ -30,8 +30,12 @@ import (
 //     fixed fallback (global constraint; the app never calls the pack
 //     fake).
 
-// MaxQuestionChars is the longest question, in UTF-16 code units after
-// the trim (ExplainRequestSchema).
+// MaxQuestionChars is the longest question, in Unicode code points after
+// the trim (ExplainRequestSchema). zod 4.6.7 measures a string's length in
+// code points ($ZodCheckMaxLength, util.codePointLength), not UTF-16 units:
+// an emoji counts once. The safety gate's own 300 limit is in UTF-16 units
+// (domain.ClassifyQuestion), so a question of up to 300 code points but over
+// 300 units passes here and is refused there, as in Node.
 const MaxQuestionChars = 300
 
 const questionMessage = `Send {"question": "..."} with 1 to 300 characters.`
@@ -62,15 +66,15 @@ type ExplainDeps struct {
 }
 
 // ValidateQuestion is ExplainRequestSchema: the question JS-trimmed, then
-// 1 to 300 UTF-16 code units. It returns the trimmed question or a
-// VALIDATION_FAILED error.
+// 1 to 300 code points (task G7 review round 1). It returns the trimmed
+// question or a VALIDATION_FAILED error.
+//
+// A lone surrogate counts as one code point in zod. A Go string never holds
+// one: encoding/json decodes a lone \u escape to U+FFFD, which counts as one
+// here too (fixtures/parity/explain/question-limits.jsonl).
 func ValidateQuestion(question string) (string, error) {
 	q := domain.JSTrim(question)
-	n := 0
-	for _, r := range q {
-		n += utf16.RuneLen(r)
-	}
-	if n < 1 || n > MaxQuestionChars {
+	if n := utf8.RuneCountInString(q); n < 1 || n > MaxQuestionChars {
 		return "", &Error{Code: contracts.ErrValidationFailed, Message: questionMessage}
 	}
 	return q, nil

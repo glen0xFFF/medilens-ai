@@ -14,5 +14,7 @@ internal/imaging/cmyk_srgb.lut -text
 fixtures/parity/cmyk/** -text
 # Provider parity set (task G6): recorded Node requests, zod httpUrl results and copies of the Node provider fixtures, byte for byte
 fixtures/parity/providers/** -text
+# Explain question limits (task G7 review round 1): zod ExplainRequestSchema and Node explainQuestion results, byte for byte
+fixtures/parity/explain/** -text
 # ada v4.0.0's IDNA table blob (task G6 review round 1), byte for byte
 internal/contracts/ada_idna_tables.deflate -text
