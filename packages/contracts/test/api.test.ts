@@ -110,6 +110,13 @@ describe('capabilities', () => {
     expect(CapabilitiesSchema.safeParse({ ...capabilities, maxImages: 2.5 }).success).toBe(false);
     expect(CapabilitiesSchema.safeParse({ ...capabilities, streaming: {} }).success).toBe(false);
   });
+
+  // Final review M16: Go port spec §4 fixes maxImages to 3 and ttlSeconds to 900.
+  test('maxImages is 3 and ttlSeconds is 900, as the spec fixes them', () => {
+    expect(CapabilitiesSchema.safeParse({ ...capabilities, maxImages: 4 }).success).toBe(false);
+    expect(CapabilitiesSchema.safeParse({ ...capabilities, ttlSeconds: 600 }).success).toBe(false);
+    expect(CapabilitiesSchema.safeParse(capabilities).success).toBe(true);
+  });
 });
 
 describe('analyses', () => {

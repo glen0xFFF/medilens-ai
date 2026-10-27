@@ -42,9 +42,11 @@ export const CapabilitiesSchema = z.object({
   /** The live model id; null for the mock. */
   modelId: z.string().min(1).nullable(),
   referenceProvider: ReferenceProviderSchema,
-  maxImages: z.number().int().positive(),
+  /** Fixed by Go port spec §4 (final review M16). */
+  maxImages: z.literal(3),
   maxImageBytes: z.number().int().positive(),
-  ttlSeconds: z.number().int().positive(),
+  /** Fixed by Go port spec §4 (final review M16). */
+  ttlSeconds: z.literal(900),
   presets: z.array(z.string().min(1)),
   demoScenarios: z.array(DemoScenarioSummarySchema),
   streaming: z.object({ analysisEvents: z.boolean() }),
