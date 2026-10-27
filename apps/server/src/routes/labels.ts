@@ -12,7 +12,7 @@ import {
   ExplainRequestSchema,
   type AnalysisResult,
 } from '@medilens/contracts';
-import express, { Router, type Request } from 'express';
+import express, { Router, type Request, type RequestHandler } from 'express';
 import multer from 'multer';
 import type { RouteContext } from '../app';
 import { JSON_BODY_LIMIT, MAX_IMAGE_BYTES } from '../config';
@@ -27,6 +27,21 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_IMAGE_BYTES, files: MAX_IMAGES, fields: 10, fieldSize: 1024 },
 });
+
+const SEND_PHOTOS = 'Send 1 to 3 photos in the "images" field.';
+
+/**
+ * The upload parser. Multer's own limit errors go to the error handler as
+ * they are; any other error it raises comes from parsing a malformed
+ * multipart body (cut off, no boundary), so it is the client's: 400
+ * VALIDATION_FAILED, never a 500 (final review Minor 13).
+ */
+const uploadImages: RequestHandler = (req, res, next) => {
+  upload.array('images', MAX_IMAGES)(req, res, (err?: unknown) => {
+    if (err === undefined || err === null) next();
+    else next(err instanceof multer.MulterError ? err : validationFailed(SEND_PHOTOS));
+  });
+};
 
 /** The stored result for `:id`, or NOT_FOUND (unknown, or expired after 15 minutes). */
 export function storedResult(ctx: RouteContext, req: Request): AnalysisResult {
@@ -54,9 +69,9 @@ export function labelsRouter(ctx: RouteContext): Router {
     isDemo: true,
   };
 
-  router.post('/labels/analyze', upload.array('images', MAX_IMAGES), async (req, res) => {
+  router.post('/labels/analyze', uploadImages, async (req, res) => {
     const files = Array.isArray(req.files) ? req.files : [];
-    if (files.length === 0) throw validationFailed('Send 1 to 3 photos in the "images" field.');
+    if (files.length === 0) throw validationFailed(SEND_PHOTOS);
     const images = files.map((f) => f.buffer);
 
     let pipeline = demoUpload;

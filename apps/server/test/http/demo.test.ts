@@ -1,6 +1,7 @@
 import {
   AnalysisResultSchema,
   DemoScenarioSummarySchema,
+  ReferenceRecordSchema,
   type MatchStatus,
   type PipelineState,
 } from '@medilens/contracts';
@@ -9,6 +10,7 @@ import { describe, expect, test } from 'vitest';
 import { ALLOWED_QUESTION_EXAMPLES } from '../../src/domain/safety';
 import { mentionsFake } from '../../src/pipeline/explain';
 import { createSpendMeter } from '../../src/pipeline/budget';
+import { sharpJpeg } from '../helpers/images';
 import { SCENARIO_IDS, T0, expectError, makeApp, stubLive } from './helpers';
 
 const EXPECTED: Record<
@@ -147,11 +149,28 @@ describe('fake / counterfeit wording', () => {
 });
 
 describe('GET /api/v1/references/:id', () => {
-  test('s1: candidates, advisories, limitations and checkedAt from the stored result', async () => {
-    const { app } = makeApp();
+  /** A live scan (stub providers, s1 fixture data) whose registry returns `records`. */
+  async function liveScan(records: 'fixture' | 'none') {
+    const stub = stubLive(
+      records === 'none'
+        ? {
+            references: {
+              search: () => Promise.resolve({ kind: 'ok', records: [], advisories: [] }),
+            },
+          }
+        : {},
+    );
+    const { app } = makeApp({ providerMode: 'live', live: stub.providers });
     const created = await request(app)
-      .post('/api/v1/demo/scenario')
-      .send({ scenarioId: 's1-clear' });
+      .post('/api/v1/labels/analyze')
+      .attach('images', await sharpJpeg(), { filename: 'a.jpg', contentType: 'image/jpeg' });
+    expect(created.status).toBe(200);
+    expect(created.body.isDemo).toBe(false);
+    return { app, created };
+  }
+
+  test('live: candidates, advisories, limitations and checkedAt from the stored result', async () => {
+    const { app, created } = await liveScan('fixture');
     const res = await request(app).get(`/api/v1/references/${created.body.id}`);
     expect(res.status).toBe(200);
     expect(Object.keys(res.body).sort()).toEqual(
@@ -163,15 +182,36 @@ describe('GET /api/v1/references/:id', () => {
     expect(res.body.checkedAt).toBe(created.body.match.candidates[0].checkedAt);
   });
 
-  test('s5: no candidates, checkedAt is when the analysis ran', async () => {
-    const { app } = makeApp();
-    const created = await request(app)
-      .post('/api/v1/demo/scenario')
-      .send({ scenarioId: 's5-nomatch' });
+  test('live: no candidates, checkedAt is when the analysis ran', async () => {
+    const { app, created } = await liveScan('none');
     const res = await request(app).get(`/api/v1/references/${created.body.id}`);
     expect(res.status).toBe(200);
     expect(res.body.candidates).toEqual([]);
     expect(res.body.checkedAt).toBe(created.body.createdAt);
+  });
+
+  // final review Minor 18: no registry was checked for made-up demo data
+  test.each(SCENARIO_IDS)('%s demo result: checkedAt is null', async (id) => {
+    const { app } = makeApp();
+    const created = await request(app).post('/api/v1/demo/scenario').send({ scenarioId: id });
+    const res = await request(app).get(`/api/v1/references/${created.body.id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.checkedAt).toBeNull();
+    expect(res.body.candidates).toEqual(created.body.match.candidates);
+    for (const c of res.body.candidates as { sourceUrl: string }[]) {
+      expect(c.sourceUrl.startsWith('https://example.org/medilens-demo/')).toBe(true);
+      expect(ReferenceRecordSchema.safeParse(c).success).toBe(true);
+    }
+  });
+
+  test('a demo upload (demo mode reads it as s1): checkedAt is null', async () => {
+    const { app } = makeApp();
+    const created = await request(app)
+      .post('/api/v1/labels/analyze')
+      .attach('images', await sharpJpeg(), { filename: 'a.jpg', contentType: 'image/jpeg' });
+    expect(created.body.isDemo).toBe(true);
+    const res = await request(app).get(`/api/v1/references/${created.body.id}`);
+    expect(res.body.checkedAt).toBeNull();
   });
 
   test.each(['s2-blurry', 's8-registry-down'])(

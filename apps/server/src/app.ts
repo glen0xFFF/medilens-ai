@@ -39,6 +39,8 @@ export interface AppDeps {
   newId: () => string;
   logger: Logger;
   corsOrigin: string | undefined;
+  /** Express `trust proxy` hop count, or false (final review I4; config TRUST_PROXY). */
+  trustProxy: number | false;
 }
 
 /** What the routers share: the app deps plus the always-available fixture providers. */
@@ -62,6 +64,10 @@ export function createApp(deps: AppDeps): Express {
 
   const app = express();
   app.disable('x-powered-by');
+  // Behind a host's proxy every request arrives from the proxy's address; with
+  // the hop count trusted, req.ip is the client's, so the rate limit below is
+  // per client and not one bucket shared by everyone (final review I4).
+  app.set('trust proxy', deps.trustProxy);
   app.use(requestContext(deps.logger));
   if (deps.corsOrigin !== undefined) app.use(corsFor(deps.corsOrigin));
 

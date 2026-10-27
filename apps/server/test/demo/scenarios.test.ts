@@ -51,7 +51,8 @@ describe('DEMO_SCENARIOS', () => {
     if (s.reference.kind === 'ok') {
       for (const r of s.reference.records) {
         expect(ReferenceRecordSchema.safeParse(r).success).toBe(true);
-        expect(r.sourceUrl).toMatch(/^https:\/\/verification\.fda\.gov\.ph\/\?q=/);
+        // final review Minor 18: a demo record never links to the real FDA site
+        expect(r.sourceUrl).toBe(`https://example.org/medilens-demo/${r.registrationNumber}`);
         expect(r.registrationNumber).toMatch(/^DR-XY9\d{5}$/);
         expect(r.brandName ?? '').toMatch(FICTIONAL);
       }

@@ -104,6 +104,7 @@ export interface TestAppOptions {
   meter?: SpendMeter;
   corsOrigin?: string;
   now?: () => number;
+  trustProxy?: number | false;
 }
 
 export function makeApp(opts: TestAppOptions = {}) {
@@ -120,6 +121,7 @@ export function makeApp(opts: TestAppOptions = {}) {
     newId: () => `result-${++n}`,
     logger,
     corsOrigin: opts.corsOrigin,
+    trustProxy: opts.trustProxy ?? false,
   };
   return { app: createApp(deps), deps, lines };
 }

@@ -58,7 +58,14 @@ export interface AppConfig {
   modelApiKey: string | undefined;
   dailySpendCapUsd: number;
   publicRepoUrl: string | undefined;
+  /** An origin only (scheme, host, port): no trailing slash or path (final review Minor 16). */
   corsOrigin: string | undefined;
+  /**
+   * Express `trust proxy`: how many proxy hops in front of the server are
+   * trusted for the client address the rate limit keys on, or false for none
+   * (final review I4). TRUST_PROXY, default 1 when NODE_ENV=production.
+   */
+  trustProxy: number | false;
 }
 
 /** `KEY=` in a .env file means "not set": blank values fall back to the default. */
@@ -74,7 +81,22 @@ const EnvSchema = z
     MODEL_API_KEY: optional(z.string().trim().optional()),
     DAILY_SPEND_CAP_USD: optional(z.coerce.number().finite().nonnegative().default(5)),
     PUBLIC_REPO_URL: optional(z.httpUrl().optional()),
-    CORS_ORIGIN: optional(z.url({ protocol: /^https?$/ }).optional()),
+    CORS_ORIGIN: optional(
+      z
+        .url({ protocol: /^https?$/ })
+        .transform((u) => new URL(u).origin)
+        .optional(),
+    ),
+    // a hop count or "false"; never "true", which would let any client pick
+    // its own rate-limit key through X-Forwarded-For
+    TRUST_PROXY: optional(
+      z
+        .string()
+        .trim()
+        .regex(/^(?:\d+|false)$/, 'a proxy hop count (0, 1, 2, ...) or false')
+        .optional(),
+    ),
+    NODE_ENV: optional(z.string().trim().optional()),
   })
   .superRefine((env, ctx) => {
     if (env.PROVIDER_MODE === 'live' && env.MODEL_API_KEY === undefined) {
@@ -107,7 +129,15 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
     dailySpendCapUsd: e.DAILY_SPEND_CAP_USD,
     publicRepoUrl: e.PUBLIC_REPO_URL,
     corsOrigin: e.CORS_ORIGIN,
+    trustProxy: trustProxyOf(e.TRUST_PROXY, e.NODE_ENV),
   };
+}
+
+/** TRUST_PROXY as a hop count, else one hop in production (behind a host's proxy), else none. */
+function trustProxyOf(value: string | undefined, nodeEnv: string | undefined): number | false {
+  if (value === undefined) return nodeEnv === 'production' ? 1 : false;
+  const hops = value === 'false' ? 0 : Number(value);
+  return hops === 0 ? false : hops;
 }
 
 /** Honest User-Agent for PH FDA lookups (spec §3). */

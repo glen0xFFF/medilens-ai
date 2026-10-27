@@ -19,7 +19,10 @@ export const REDACT_PATHS = [
 export type { Logger };
 
 export function createLogger(destination?: DestinationStream): Logger {
-  const options = { redact: REDACT_PATHS };
+  // base: undefined drops pino's default pid and hostname from every line
+  // (final review Minor 16): neither helps a reader, and the host name can
+  // identify the machine.
+  const options = { redact: REDACT_PATHS, base: undefined };
   return destination === undefined ? pino(options) : pino(options, destination);
 }
 

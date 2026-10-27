@@ -78,6 +78,7 @@ Server (root `.env`, git-ignored; template in [.env.example](.env.example)):
 | `DAILY_SPEND_CAP_USD` | `5` | Daily (UTC) cap on live model spend; then live scans return `503 LIVE_BUDGET_EXHAUSTED`. |
 | `PUBLIC_REPO_URL` | (empty) | Repository URL used in the honest PH FDA `User-Agent`. |
 | `CORS_ORIGIN` | (empty) | Optional allowed CORS origin. |
+| `TRUST_PROXY` | `1` if `NODE_ENV=production`, else `false` | Proxy hops trusted for the client address the per-IP rate limit uses. Behind a hosting proxy keep `1`; with `false` all users share one bucket. Never `true`. |
 
 The spend meter lives in server memory: **a restart starts the day's total at zero again**, so
 the cap holds only while the process keeps running. A model call that reports no token usage

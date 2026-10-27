@@ -62,5 +62,6 @@ export function createAppDeps(config: AppConfig, opts: CreateDepsOptions): AppDe
     newId: randomUUID,
     logger: opts.logger,
     corsOrigin: config.corsOrigin,
+    trustProxy: config.trustProxy,
   };
 }

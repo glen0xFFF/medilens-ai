@@ -1,8 +1,10 @@
 import request from 'supertest';
 import { describe, expect, test } from 'vitest';
+import { loadConfig } from '../../src/config';
 import { ERROR_MESSAGES } from '../../src/http/errors';
 import { REDACT_PATHS, createLogger } from '../../src/http/logger';
-import { expectError, makeApp } from './helpers';
+import { sharpJpeg } from '../helpers/images';
+import { expectError, makeApp, stubLive } from './helpers';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -154,5 +156,103 @@ describe('CORS', () => {
       .set('Access-Control-Request-Method', 'POST');
     expect(res.status).toBe(204);
     expect(res.headers['access-control-allow-methods']).toMatch(/POST/);
+  });
+});
+
+/* ------------------------------------------------------ final review fixes */
+
+describe('final review I4: per-client rate limit behind a proxy (TRUST_PROXY)', () => {
+  async function spend(app: ReturnType<typeof makeApp>['app'], ip: string, n: number) {
+    for (let i = 0; i < n; i++) {
+      const res = await request(app).get('/api/v1/demo/scenarios').set('X-Forwarded-For', ip);
+      expect(res.status).toBe(200);
+    }
+  }
+
+  test('trusting one proxy hop: each client address has its own 30-request budget', async () => {
+    const { app } = makeApp({ trustProxy: 1 });
+    await spend(app, '203.0.113.1', 30);
+    const a = await request(app)
+      .get('/api/v1/demo/scenarios')
+      .set('X-Forwarded-For', '203.0.113.1');
+    expectError(a, 429, 'RATE_LIMITED');
+    const b = await request(app)
+      .get('/api/v1/demo/scenarios')
+      .set('X-Forwarded-For', '203.0.113.2');
+    expect(b.status).toBe(200);
+  });
+
+  test('not trusting a proxy (the default outside production): X-Forwarded-For changes nothing', async () => {
+    const { app } = makeApp();
+    await spend(app, '203.0.113.1', 30);
+    const b = await request(app)
+      .get('/api/v1/demo/scenarios')
+      .set('X-Forwarded-For', '203.0.113.2');
+    expectError(b, 429, 'RATE_LIMITED');
+  });
+});
+
+describe('final review Minor 13: a malformed request is a 400, never a 500', () => {
+  test('bad percent-encoding in :id -> 400 VALIDATION_FAILED, no "unhandled error" log', async () => {
+    const { app, lines } = makeApp();
+    expectError(await request(app).get('/api/v1/labels/%E0%A4%A'), 400, 'VALIDATION_FAILED');
+    expectError(await request(app).get('/api/v1/references/%E0%A4%A'), 400, 'VALIDATION_FAILED');
+    expectError(
+      await request(app).post('/api/v1/labels/%E0%A4%A/explain').send({ question: 'Hi?' }),
+      400,
+      'VALIDATION_FAILED',
+    );
+    expect(lines.join('\n')).not.toContain('unhandled error');
+  });
+
+  test('a truncated multipart body -> 400 VALIDATION_FAILED, no "unhandled error" log', async () => {
+    const { app, lines } = makeApp();
+    const res = await request(app)
+      .post('/api/v1/labels/analyze')
+      .set('Content-Type', 'multipart/form-data; boundary=XYZ')
+      .send(
+        '--XYZ\r\nContent-Disposition: form-data; name="images"; filename="a.jpg"\r\nContent-Type: image/jpeg\r\n\r\nabc',
+      );
+    expectError(res, 400, 'VALIDATION_FAILED');
+    expect(lines.join('\n')).not.toContain('unhandled error');
+  });
+
+  test('a multipart body with no boundary -> 400 VALIDATION_FAILED', async () => {
+    const { app } = makeApp();
+    const res = await request(app)
+      .post('/api/v1/labels/analyze')
+      .set('Content-Type', 'multipart/form-data')
+      .send('--XYZ\r\n');
+    expectError(res, 400, 'VALIDATION_FAILED');
+  });
+
+  test('an unexpected error without a 4xx status is still a 500', async () => {
+    const { app } = makeApp({
+      providerMode: 'live',
+      live: stubLive({ reader: { read: () => Promise.reject(new Error('boom')) } }).providers,
+    });
+    const res = await request(app)
+      .post('/api/v1/labels/analyze')
+      .attach('images', await sharpJpeg(), { filename: 'a.jpg', contentType: 'image/jpeg' });
+    expectError(res, 500, 'INTERNAL_ERROR');
+  });
+});
+
+describe('final review Minor 16: log lines and CORS origin', () => {
+  test('log lines carry no pid or hostname', async () => {
+    const { app, lines } = makeApp();
+    await request(app).get('/health');
+    const entry = JSON.parse(lines[0] ?? '{}') as Record<string, unknown>;
+    expect(entry.msg).toBe('request');
+    expect(entry).not.toHaveProperty('pid');
+    expect(entry).not.toHaveProperty('hostname');
+  });
+
+  test('a CORS_ORIGIN with a trailing slash still matches the browser Origin', async () => {
+    const corsOrigin = loadConfig({ CORS_ORIGIN: 'http://localhost:8081/' }).corsOrigin;
+    expect(corsOrigin).toBe('http://localhost:8081');
+    const { app } = makeApp({ corsOrigin });
+    const res = await request(app).get('/health').set('Origin', 'http://localhost:8081');
+    expect(res.headers['access-control-allow-origin']).toBe('http://localhost:8081');
   });
 });

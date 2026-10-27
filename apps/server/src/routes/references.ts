@@ -4,7 +4,7 @@
  * retrieved: the newest candidate's check time, or the analysis time when the
  * registry answered with no candidates; null when the registry was not
  * checked or could not be reached, so a failed lookup never shows a check
- * time. Registry `registrationExpiry` is the certificate's expiry and is
+ * time, and null for every demo result, whose registry rows are made up. Registry `registrationExpiry` is the certificate's expiry and is
  * passed through only as part of each candidate record.
  */
 import type { AnalysisResult, ReferenceRecord } from '@medilens/contracts';
@@ -20,6 +20,8 @@ export interface ReferencesResponse {
 }
 
 function checkedAt(result: AnalysisResult): string | null {
+  // final review Minor 18: demo data was never checked against any registry
+  if (result.isDemo) return null;
   const { status, candidates } = result.match;
   if (status === 'not_attempted' || status === 'unavailable') return null;
   const times = candidates.map((c) => c.checkedAt).sort();

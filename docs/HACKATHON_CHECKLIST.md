@@ -25,7 +25,10 @@ unless it says so.
 - [ ] **Accuracy eval on 20 real packs by Oct 31** ([eval/README.md](../eval/README.md));
   bar: zero confidently-wrong strengths or expiry dates. Commit only `docs/eval-results.md`.
 - [ ] **Choose the backend host** (stable, always-on HTTPS) and deploy the server with
-  `PROVIDER_MODE=live`, `MODEL_API_KEY`, `DAILY_SPEND_CAP_USD` and `PUBLIC_REPO_URL`.
+  `PROVIDER_MODE=live`, `MODEL_API_KEY`, `DAILY_SPEND_CAP_USD` and `PUBLIC_REPO_URL`, plus
+  `NODE_ENV=production` (or `TRUST_PROXY` set to the host's proxy hop count, usually `1`) so the
+  rate limit is per user behind the host's proxy. `npm start` needs only production
+  dependencies (`tsx` is one).
 - [ ] Replace `https://REPLACE-WITH-HOSTED-SERVER` in `apps/mobile/eas.json` with the hosted
   server URL.
 - [ ] **EAS preview APK by Nov 2**: `cd apps/mobile && eas build --profile preview --platform android`;

@@ -77,6 +77,14 @@ function isBodyParserError(err: unknown): boolean {
   );
 }
 
+/** True for an error whose `status` or `statusCode` is a 4xx client error. */
+function hasClientErrorStatus(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const { status, statusCode } = err as { status?: unknown; statusCode?: unknown };
+  const code = typeof status === 'number' ? status : statusCode;
+  return typeof code === 'number' && code >= 400 && code < 500;
+}
+
 export function errorHandler(logger: Logger): ErrorRequestHandler {
   return (err: unknown, _req, res, next) => {
     if (res.headersSent) {
@@ -107,6 +115,12 @@ export function errorHandler(logger: Logger): ErrorRequestHandler {
         sendError(res, status, err.code);
         return;
       }
+    }
+    // Final review Minor 13: any other error that carries a 4xx status is the
+    // client's (bad percent-encoding in a route parameter, for one).
+    if (hasClientErrorStatus(err)) {
+      sendError(res, 400, 'VALIDATION_FAILED');
+      return;
     }
     // Only the error's class name is logged: its message could carry label text.
     logger.error(

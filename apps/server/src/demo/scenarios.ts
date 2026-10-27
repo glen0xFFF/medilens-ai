@@ -1,8 +1,8 @@
 /**
  * The eight deterministic demo scenarios (spec §7). Everything here is
  * synthetic DEMO DATA: fictional product names, registration numbers in the
- * unused DR-XY9xxxxx range, and registry URLs that only look like the PH FDA
- * verification site. The expected match status of each scenario comes from
+ * unused DR-XY9xxxxx range, and source URLs on the reserved example.org
+ * domain, never the PH FDA site. The expected match status of each scenario comes from
  * running the real matcher over these fixtures, never from a stored value.
  */
 import type {
@@ -38,6 +38,8 @@ export interface DemoScenario {
 }
 
 const CHECKED_AT = '2026-10-27T00:00:00.000Z';
+/** Where a demo record's "source page" points: a reserved example domain, not the FDA. */
+const DEMO_SOURCE_URL = 'https://example.org/medilens-demo/';
 const NOTE = 'DEMO DATA: synthetic fixture, not a real product.';
 
 const GOOD_QUALITY: QualityReport = {
@@ -87,7 +89,8 @@ function record(
 ): ReferenceRecord {
   return {
     provider: 'demo-fixture',
-    sourceUrl: `https://verification.fda.gov.ph/?q=${encodeURIComponent(registrationNumber)}`,
+    // final review Minor 18: a made-up record never links to the real FDA site
+    sourceUrl: `${DEMO_SOURCE_URL}${encodeURIComponent(registrationNumber)}`,
     registrationNumber,
     brandName,
     genericName,

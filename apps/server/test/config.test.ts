@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { DEFAULT_REPO_URL, loadConfig, userAgent } from '../src/config';
 
 describe('loadConfig', () => {
-  test('defaults: port 8787, demo mode, $5 daily cap, no key, no repo URL, no CORS origin', () => {
+  test('defaults: port 8787, demo mode, $5 daily cap, no key, no repo URL, no CORS origin, no proxy', () => {
     expect(loadConfig({})).toEqual({
       port: 8787,
       providerMode: 'demo',
@@ -10,6 +10,7 @@ describe('loadConfig', () => {
       modelApiKey: undefined,
       publicRepoUrl: undefined,
       corsOrigin: undefined,
+      trustProxy: false,
     });
   });
 
@@ -37,6 +38,7 @@ describe('loadConfig', () => {
         DAILY_SPEND_CAP_USD: '2.5',
         PUBLIC_REPO_URL: 'https://github.com/example/medilens-ai',
         CORS_ORIGIN: 'http://localhost:8081',
+        TRUST_PROXY: '1',
       }),
     ).toEqual({
       port: 9000,
@@ -45,6 +47,7 @@ describe('loadConfig', () => {
       modelApiKey: 'test-key',
       publicRepoUrl: 'https://github.com/example/medilens-ai',
       corsOrigin: 'http://localhost:8081',
+      trustProxy: 1,
     });
   });
 
@@ -94,5 +97,39 @@ describe('userAgent', () => {
   test('uses PUBLIC_REPO_URL when set', () => {
     const cfg = loadConfig({ PUBLIC_REPO_URL: 'https://github.com/example/medilens-ai' });
     expect(userAgent(cfg)).toBe('MediLensAI/0.1 (+https://github.com/example/medilens-ai)');
+  });
+});
+
+describe('final review I4: TRUST_PROXY', () => {
+  test('defaults to false outside production', () => {
+    expect(loadConfig({}).trustProxy).toBe(false);
+    expect(loadConfig({ NODE_ENV: 'development' }).trustProxy).toBe(false);
+  });
+
+  test('defaults to one hop when NODE_ENV=production', () => {
+    expect(loadConfig({ NODE_ENV: 'production' }).trustProxy).toBe(1);
+  });
+
+  test('a hop count is used as given; 0 and "false" mean no proxy is trusted', () => {
+    expect(loadConfig({ TRUST_PROXY: '2' }).trustProxy).toBe(2);
+    expect(loadConfig({ NODE_ENV: 'production', TRUST_PROXY: '0' }).trustProxy).toBe(false);
+    expect(loadConfig({ NODE_ENV: 'production', TRUST_PROXY: 'false' }).trustProxy).toBe(false);
+    expect(loadConfig({ NODE_ENV: 'production', TRUST_PROXY: '' }).trustProxy).toBe(1);
+  });
+
+  // "true" trusts every hop, so any client could pick its own rate-limit key
+  test.each(['true', 'yes', '-1', '1.5', 'loopback'])('rejects TRUST_PROXY=%s', (v) => {
+    expect(() => loadConfig({ TRUST_PROXY: v })).toThrow(/TRUST_PROXY/);
+  });
+});
+
+describe('final review Minor 16: CORS_ORIGIN is kept as an origin', () => {
+  test('a trailing slash or a path is dropped', () => {
+    expect(loadConfig({ CORS_ORIGIN: 'https://app.example.org/' }).corsOrigin).toBe(
+      'https://app.example.org',
+    );
+    expect(loadConfig({ CORS_ORIGIN: 'http://localhost:8081/app' }).corsOrigin).toBe(
+      'http://localhost:8081',
+    );
   });
 });
