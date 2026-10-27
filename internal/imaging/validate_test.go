@@ -190,6 +190,34 @@ func TestValidateParity(t *testing.T) {
 	}
 }
 
+// Final review M14: an animated WebP passed Validate (202) and then failed
+// INVALID_IMAGE in the job, since x/image/webp decodes no animation. It is
+// now refused synchronously (415), so the two calls agree.
+func TestValidateRefusesAnAnimatedWebP(t *testing.T) {
+	chunk := func(fcc string, data []byte) []byte {
+		c := append([]byte(fcc), 0, 0, 0, 0)
+		binary.LittleEndian.PutUint32(c[4:], uint32(len(data)))
+		return append(c, data...)
+	}
+	vp8x := make([]byte, 10)
+	vp8x[0] = 0x02            // animation
+	vp8x[4], vp8x[7] = 63, 63 // canvas 64x64 (minus one, 24-bit LE)
+	body := append([]byte("WEBP"), chunk("VP8X", vp8x)...)
+	body = append(body, chunk("ANIM", make([]byte, 6))...)
+	b := append([]byte("RIFF"), 0, 0, 0, 0)
+	binary.LittleEndian.PutUint32(b[4:], uint32(len(body)))
+	b = append(b, body...)
+	if _, err := Validate(b); !errors.Is(err, ErrInvalidImage) {
+		t.Errorf("animated WebP: %v, want INVALID_IMAGE", err)
+	}
+	// the still sharp-made WebPs are unaffected
+	for _, file := range []string{"sharp.webp", "orient6.webp", "large-alpha.webp"} {
+		if f, err := Validate(fixture(t, file)); err != nil || f != FormatWebP {
+			t.Errorf("%s: %q, %v", file, f, err)
+		}
+	}
+}
+
 func FuzzValidate(f *testing.F) {
 	for _, file := range []string{"sharp.jpg", "sharp.png", "sharp.webp", "sharp-lossless.webp", "orient6.webp"} {
 		b := fixture(f, file)

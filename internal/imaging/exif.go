@@ -8,8 +8,9 @@ import (
 
 // orientation returns the EXIF Orientation (1 to 8) the way sharp's
 // .rotate() finds it: the APP1 Exif segment of a JPEG, the eXIf chunk of a
-// PNG, or the EXIF chunk of an extended (VP8X) WebP. Anything missing,
-// malformed or out of range is 1 (no change).
+// PNG, or the EXIF chunk of an extended (VP8X) WebP whose VP8X EXIF flag is
+// set (libwebp ignores the chunk otherwise; final review M14). Anything
+// missing, malformed or out of range is 1 (no change).
 func orientation(f Format, b []byte) int {
 	var o int
 	switch f {
@@ -18,7 +19,9 @@ func orientation(f Format, b []byte) int {
 	case FormatPNG:
 		o = tiffOrientation(stripExifPrefix(pngChunk(b, "eXIf")))
 	case FormatWebP:
-		o = tiffOrientation(stripExifPrefix(webpChunk(b, "EXIF")))
+		if webpVP8XFlags(b)&webpFlagEXIF != 0 {
+			o = tiffOrientation(stripExifPrefix(webpChunk(b, "EXIF")))
+		}
 	}
 	if o < 1 || o > 8 {
 		return 1
@@ -82,6 +85,21 @@ func pngChunk(b []byte, typ string) []byte {
 	return nil
 }
 
+// VP8X flag bits (libwebp's WebPFeatureFlags).
+const (
+	webpFlagAnimation = 0x02
+	webpFlagEXIF      = 0x08
+)
+
+// webpVP8XFlags returns the flags byte of an extended WebP's VP8X chunk,
+// which is always the first chunk; 0 for a simple (VP8 / VP8L) WebP.
+func webpVP8XFlags(b []byte) byte {
+	if len(b) < 21 || string(b[12:16]) != "VP8X" || binary.LittleEndian.Uint32(b[16:]) < 10 {
+		return 0
+	}
+	return b[20]
+}
+
 // webpChunk returns the data of the first RIFF chunk with FourCC fcc, or
 // nil.
 func webpChunk(b []byte, fcc string) []byte {
@@ -98,8 +116,9 @@ func webpChunk(b []byte, fcc string) []byte {
 	return nil
 }
 
-// tiffOrientation reads tag 0x0112 (Orientation, type SHORT) from IFD0, or
-// returns 0.
+// tiffOrientation reads tag 0x0112 (Orientation) from IFD0, stored as
+// SHORT or, non-standard but read by libexif and so by sharp, as LONG
+// (final review M14); anything else, or a value over 8, returns 0.
 func tiffOrientation(t []byte) int {
 	if len(t) < 8 {
 		return 0
@@ -127,10 +146,19 @@ func tiffOrientation(t []byte) int {
 			return 0
 		}
 		if bo.Uint16(t[e:]) == 0x0112 {
-			if bo.Uint16(t[e+2:]) != 3 {
+			var v uint32
+			switch bo.Uint16(t[e+2:]) {
+			case 3: // SHORT
+				v = uint32(bo.Uint16(t[e+8:]))
+			case 4: // LONG
+				v = bo.Uint32(t[e+8:])
+			default:
 				return 0
 			}
-			return int(bo.Uint16(t[e+8:]))
+			if v > 8 {
+				return 0
+			}
+			return int(v)
 		}
 	}
 	return 0

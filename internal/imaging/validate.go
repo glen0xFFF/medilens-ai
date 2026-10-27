@@ -109,6 +109,12 @@ func validate(b []byte) (Format, image.Config, error) {
 	if !ok {
 		return "", image.Config{}, ErrInvalidImage
 	}
+	// x/image/webp decodes no animation, so an animated WebP would pass
+	// here and fail in the job; it is refused now, synchronously (final
+	// review M14). Node analysed its first frame: a known divergence.
+	if f == FormatWebP && webpVP8XFlags(b)&webpFlagAnimation != 0 {
+		return "", image.Config{}, ErrInvalidImage
+	}
 	cfg, err := decodeConfig(f, b)
 	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 ||
 		int64(cfg.Width)*int64(cfg.Height) > MaxImagePixels {

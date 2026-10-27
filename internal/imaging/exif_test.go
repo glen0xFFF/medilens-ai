@@ -86,7 +86,14 @@ func pngWithEXIf(payload []byte) []byte {
 	return b.Bytes()
 }
 
-func webpWithEXIF(payload []byte) []byte {
+// webpEXIFFlag is the VP8X flag bit that says an EXIF chunk is present.
+const webpEXIFFlag = 0x08
+
+func webpWithEXIF(payload []byte) []byte { return webpWithVP8XFlags(webpEXIFFlag, payload) }
+
+// webpWithVP8XFlags builds RIFF/WEBP with a VP8X chunk carrying flags, then
+// an EXIF chunk holding payload.
+func webpWithVP8XFlags(flags byte, payload []byte) []byte {
 	chunk := func(fcc string, data []byte) []byte {
 		c := append([]byte(fcc), 0, 0, 0, 0)
 		binary.LittleEndian.PutUint32(c[4:], uint32(len(data)))
@@ -96,7 +103,9 @@ func webpWithEXIF(payload []byte) []byte {
 		}
 		return c
 	}
-	body := append([]byte("WEBP"), chunk("VP8X", make([]byte, 10))...)
+	vp8x := make([]byte, 10)
+	vp8x[0] = flags
+	body := append([]byte("WEBP"), chunk("VP8X", vp8x)...)
 	body = append(body, chunk("EXIF", payload)...)
 	out := append([]byte("RIFF"), 0, 0, 0, 0)
 	binary.LittleEndian.PutUint32(out[4:], uint32(len(body)))
@@ -123,6 +132,15 @@ func TestOrientationParsesHandBuiltContainers(t *testing.T) {
 		{"WebP with Exif prefix", FormatWebP, webpWithEXIF(exif(tiff(binary.LittleEndian, 3, 7))), 7},
 		{"WebP raw TIFF", FormatWebP, webpWithEXIF(tiff(binary.BigEndian, 3, 2)), 2},
 		{"WebP truncated", FormatWebP, webpWithEXIF(tiff(binary.BigEndian, 3, 2))[:30], 1},
+		// final review M14, from the G5 reviewer's sharp probes: libwebp
+		// reads the EXIF chunk only when the VP8X EXIF flag says it is
+		// there, and libexif reads an Orientation stored as LONG
+		{"WebP EXIF chunk without the VP8X EXIF flag", FormatWebP, webpWithVP8XFlags(0, tiff(binary.LittleEndian, 3, 6)), 1},
+		{"WebP EXIF chunk with only other VP8X flags", FormatWebP, webpWithVP8XFlags(0x20|0x10, tiff(binary.LittleEndian, 3, 6)), 1},
+		{"JPEG Orientation as LONG, little-endian", FormatJPEG, jpegWithAPP1(exif(tiff(binary.LittleEndian, 4, 6))), 6},
+		{"JPEG Orientation as LONG, big-endian", FormatJPEG, jpegWithAPP1(exif(tiff(binary.BigEndian, 4, 8))), 8},
+		{"JPEG Orientation as LONG out of range", FormatJPEG, jpegWithAPP1(exif(tiff(binary.BigEndian, 4, 1<<16|6))), 1},
+		{"JPEG Orientation as BYTE is ignored", FormatJPEG, jpegWithAPP1(exif(tiff(binary.LittleEndian, 1, 6))), 1},
 	} {
 		if got := orientation(c.f, c.b); got != c.want {
 			t.Errorf("%s: orientation %d, want %d", c.name, got, c.want)

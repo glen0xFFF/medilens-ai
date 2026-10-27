@@ -168,6 +168,13 @@ The Go test (`internal/imaging/parity_test.go`) requires sharpness within 0.5, l
 
 - `colour-p3.jpg`: the block means of its saturated corner, because Go ignores the embedded Display P3 profile. Its metrics are within the tolerance.
 
+Divergences outside the parity set (final review M14), each failing closed or changing layout only:
+
+- An animated WebP is refused by `Validate` (`415 INVALID_IMAGE`, synchronously); Node analysed its first frame. x/image/webp decodes no animation, so the job would fail anyway.
+- Arithmetic-coded, 12-bit and lossless JPEG are refused (`INVALID_IMAGE`); libjpeg-turbo decodes them.
+- A CMYK JPEG with its own embedded ICC profile (Go always uses libvips' built-in CMYK profile), YCCK, and real Display P3 phone photos are unmeasured.
+- Fixed to follow sharp, as the task G5 reviewer measured it: a WebP EXIF chunk is read only when the VP8X EXIF flag is set, and an Orientation stored as LONG is read (`internal/imaging/exif_test.go`, hand-built cases).
+
 The decode probes have no `normalized` entry: on 1-2 px runs of saturated colour, image/jpeg's q85 encoder and sharp's (libvips with mozjpeg) quantise differently, up to 5 luma and 8 chroma levels a pixel on `patches-33x17-444.jpg`, while Go decodes sharp's own output exactly. That encoder gap is reported in the task G5 report (fix round 1).
 
 ### CMYK to sRGB table
