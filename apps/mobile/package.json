@@ -1,0 +1,48 @@
+{
+  "name": "@medilens/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@medilens/contracts": "*",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "~58.0.19",
+    "expo-camera": "~58.0.12",
+    "expo-constants": "~58.0.13",
+    "expo-image-manipulator": "~58.0.15",
+    "expo-image-picker": "~58.0.10",
+    "expo-linking": "~58.0.14",
+    "expo-router": "~58.0.26",
+    "expo-speech": "~58.0.3",
+    "expo-status-bar": "~58.0.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "30.0.0",
+    "@types/react": "~19.3.0",
+    "jest": "~30.5.2",
+    "jest-expo": "~58.0.12",
+    "typescript": "~6.0.3"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "setupFiles": [
+      "<rootDir>/jest.setup.ts"
+    ],
+    "testMatch": [
+      "<rootDir>/test/**/*.test.ts?(x)"
+    ]
+  }
+}
