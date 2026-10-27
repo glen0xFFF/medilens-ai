@@ -57,6 +57,26 @@ describe('FieldRow', () => {
     expect(screen.queryByText(/Printed text/)).toBeNull();
   });
 
+  // Final review Minor 19: the reader marks a field it found no text for as null and clear.
+  it('says "Not printed on the pack" with no legibility chip for a clear field with no value', async () => {
+    await renderWithProviders(
+      <FieldRow field={field({ key: 'storage', value: null, evidenceText: null })} />,
+    );
+    expect(screen.getByText('Storage')).toBeTruthy();
+    expect(screen.getByText('Not printed on the pack')).toBeTruthy();
+    expect(screen.queryByText('Not read')).toBeNull();
+    expect(screen.queryByText('Clear')).toBeNull();
+    expect(screen.getByLabelText('Storage: Not printed on the pack.')).toBeTruthy();
+  });
+
+  it('keeps "Not read" for a partial field with no value', async () => {
+    await renderWithProviders(
+      <FieldRow field={field({ legibility: 'partial', value: null, evidenceText: null })} />,
+    );
+    expect(screen.getByText('Not read')).toBeTruthy();
+    expect(screen.getByText('Unclear')).toBeTruthy();
+  });
+
   it('reads as one sentence to a screen reader', async () => {
     await renderWithProviders(
       <FieldRow

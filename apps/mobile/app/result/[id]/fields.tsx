@@ -4,6 +4,7 @@ import { DemoBanner } from '../../../src/components/DemoBanner';
 import { FieldRow } from '../../../src/components/FieldRow';
 import { Body, Notice, Screen } from '../../../src/components/Screen';
 import { useResult } from '../../../src/state/results';
+import { noFieldsMessage } from '../../../src/ui/text';
 
 /** Every field read from the label, with its legibility chip and printed evidence. */
 export default function FieldsScreen() {
@@ -31,14 +32,15 @@ export default function FieldsScreen() {
     );
   }
 
-  const fields = result.label?.fields ?? [];
+  // A loose pill, a non-label photo or an unreadable label lists no fields (final review I2).
+  const none = noFieldsMessage(result);
   return (
     <Screen title="Label fields">
       {result.isDemo ? <DemoBanner /> : null}
-      {fields.length === 0 ? (
-        <Body>No label fields were read from this photo.</Body>
+      {none !== null ? (
+        <Body>{none}</Body>
       ) : (
-        fields.map((field) => <FieldRow key={field.key} field={field} />)
+        (result.label?.fields ?? []).map((field) => <FieldRow key={field.key} field={field} />)
       )}
       {back}
     </Screen>

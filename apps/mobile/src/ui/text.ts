@@ -29,6 +29,43 @@ export const LEGIBILITY_LABELS: Record<Legibility, string> = {
   unreadable: 'Unreadable',
 };
 
+/** A field with no value that the reader could not make out. */
+export const NOT_READ = 'Not read';
+/** A field with no value that the reader marked clear: nothing was printed for it. */
+export const NOT_PRINTED = 'Not printed on the pack';
+
+/**
+ * Final review I2: a loose pill, a photo that is not a medicine label, or a
+ * label with no readable text shows no field values at all, whatever the
+ * result carries. The pipeline states that mean "no label was read", with the
+ * app's own fixed wording. A loose tablet is never called a pack.
+ */
+export const NO_FIELDS_MESSAGES = {
+  loose_pill: 'This looks like a loose tablet, not a label, so no label fields are shown.',
+  not_a_label: 'This photo does not look like a medicine label, so no label fields are shown.',
+  label_unreadable: 'No label fields were read from this photo.',
+} as const satisfies Partial<Record<AnalysisResult['pipelineState'], string>>;
+
+/** Why a result shows no label fields, or null when its fields can be listed. */
+export function noFieldsMessage(result: AnalysisResult): string | null {
+  const { pipelineState, label } = result;
+  if (pipelineState === 'loose_pill' || label?.imageKind === 'loose_pill') {
+    return NO_FIELDS_MESSAGES.loose_pill;
+  }
+  if (pipelineState === 'not_a_label' || label?.imageKind === 'not_medicine') {
+    return NO_FIELDS_MESSAGES.not_a_label;
+  }
+  if (
+    pipelineState === 'label_unreadable' ||
+    label === null ||
+    label.imageKind === 'unreadable' ||
+    label.fields.length === 0
+  ) {
+    return NO_FIELDS_MESSAGES.label_unreadable;
+  }
+  return null;
+}
+
 /** "500 mg on label, 250 mg in registry": both values verbatim from the server. */
 export function conflictText(conflict: FieldConflict): string {
   return `${conflict.labelValue} on label, ${conflict.referenceValue} in registry`;

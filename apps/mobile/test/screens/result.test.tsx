@@ -143,6 +143,59 @@ describe('label fields screen', () => {
     await openResult(clientFor(RESULTS.s2), RESULTS.s2.id, '/fields');
     expect(await screen.findByText('No label fields were read from this photo.')).toBeTruthy();
   });
+
+  // Final review I2 (mobile): a loose pill, a non-label photo or an unreadable
+  // label never shows field values, even if a result carries some (a model
+  // that copied a tablet imprint, or an older server that kept them).
+  const withValues = (
+    pipelineState: 'loose_pill' | 'not_a_label' | 'label_unreadable',
+    imageKind: 'loose_pill' | 'not_medicine' | 'unreadable',
+  ) => ({
+    ...RESULTS.s1,
+    id: `live-${imageKind}`,
+    isDemo: false,
+    pipelineState,
+    label: { ...RESULTS.s1.label!, imageKind },
+  });
+
+  it.each([
+    [
+      'loose_pill',
+      withValues('loose_pill', 'loose_pill'),
+      'This looks like a loose tablet, not a label, so no label fields are shown.',
+    ],
+    [
+      'not_medicine',
+      withValues('not_a_label', 'not_medicine'),
+      'This photo does not look like a medicine label, so no label fields are shown.',
+    ],
+    [
+      'unreadable',
+      withValues('label_unreadable', 'unreadable'),
+      'No label fields were read from this photo.',
+    ],
+  ] as const)('shows no field values for a %s result', async (_kind, result, message) => {
+    await openResult(clientFor(result), result.id, '/fields');
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(screen.queryByText('Paracelin 500')).toBeNull();
+    expect(screen.queryByText('Brand name')).toBeNull();
+    expect(screen.queryByText('Clear')).toBeNull();
+    expect(screen.queryByText(/Printed text/)).toBeNull();
+  });
+
+  it('s6 loose pill lists no parts as unclear and never calls the tablet a pack', async () => {
+    const view = await openResult(clientFor(RESULTS.s6), RESULTS.s6.id, '/fields');
+    expect(
+      await screen.findByText(
+        'This looks like a loose tablet, not a label, so no label fields are shown.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText('Unreadable')).toBeNull();
+    expect(screen.queryByText('Not read')).toBeNull();
+    expect(screen.queryByText(/pack/i)).toBeNull();
+    expect(screen.getAllByText('DEMO DATA').length).toBeGreaterThan(0);
+    expectPressablesLabelled(view);
+  });
 });
 
 describe('verification and sources screen', () => {

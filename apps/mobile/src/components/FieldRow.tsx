@@ -1,15 +1,20 @@
 import type { LabelField } from '@medilens/contracts';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/theme';
-import { FIELD_LABELS, LEGIBILITY_LABELS } from '../ui/text';
+import { FIELD_LABELS, LEGIBILITY_LABELS, NOT_PRINTED, NOT_READ } from '../ui/text';
 
-/** One label field: name, value as read, a legibility chip and the printed evidence. */
+/**
+ * One label field: name, value as read, a legibility chip and the printed evidence.
+ * A clear field with no value is one the reader found nothing printed for: it says
+ * so and has no chip, since there is no value whose clarity a chip could describe.
+ */
 export function FieldRow({ field }: { field: LabelField }) {
   const theme = useTheme();
   const c = theme.colors;
   const name = FIELD_LABELS[field.key];
-  const value = field.value ?? 'Not read';
-  const chip = LEGIBILITY_LABELS[field.legibility];
+  const notPrinted = field.value === null && field.legibility === 'clear';
+  const value = field.value ?? (notPrinted ? NOT_PRINTED : NOT_READ);
+  const chip = notPrinted ? null : LEGIBILITY_LABELS[field.legibility];
   const evidence = field.evidenceText === null ? null : `Printed text: ${field.evidenceText}`;
   const chipStyle =
     field.legibility === 'clear'
@@ -19,24 +24,26 @@ export function FieldRow({ field }: { field: LabelField }) {
   return (
     <View
       accessible
-      accessibilityLabel={`${name}: ${value}. ${chip}.${evidence === null ? '' : ` ${evidence}`}`}
+      accessibilityLabel={`${name}: ${value}.${chip === null ? '' : ` ${chip}.`}${evidence === null ? '' : ` ${evidence}`}`}
       style={[styles.row, { borderColor: c.border, backgroundColor: c.surface }]}
     >
       <View style={styles.header}>
         <Text style={[styles.name, { color: c.text, fontSize: theme.font(16) }]}>{name}</Text>
-        <Text
-          style={[
-            styles.chip,
-            {
-              color: chipStyle.fg,
-              backgroundColor: chipStyle.bg,
-              borderColor: chipStyle.fg,
-              fontSize: theme.font(14),
-            },
-          ]}
-        >
-          {chip}
-        </Text>
+        {chip === null ? null : (
+          <Text
+            style={[
+              styles.chip,
+              {
+                color: chipStyle.fg,
+                backgroundColor: chipStyle.bg,
+                borderColor: chipStyle.fg,
+                fontSize: theme.font(14),
+              },
+            ]}
+          >
+            {chip}
+          </Text>
+        )}
       </View>
       <Text style={{ color: c.text, fontSize: theme.font(18) }}>{value}</Text>
       {evidence === null ? null : (
