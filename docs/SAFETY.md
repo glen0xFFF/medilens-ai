@@ -80,7 +80,10 @@ questions as buttons because free-typed questions are often refused.
 ## Demo mode is simulated
 
 Demo scenarios and the mock/fixture providers use **fixture (simulated) data**: fictional
-products, fictional registry records, no calls to Meta or the FDA. Every such response has
+products and fictional registry records. Demo scenarios never call Meta or the FDA, and neither
+does the default configuration (mock + fixture). A mixed configuration does call its live side:
+mock + `ph_fda` looks the fictional s1 label up in the real PH FDA registry, and `muse_spark` +
+fixture sends the photos to Meta; both results are still marked demo. Every such response has
 `isDemo: true` and every demo screen shows **DEMO DATA**. A demo result is never a real
 verification.
 
@@ -100,7 +103,8 @@ verification.
   running, 8 queued) answers `503 RATE_LIMITED` with `Retry-After` when full.
 - A daily (UTC) spend cap on live model calls (`DAILY_SPEND_CAP_USD`, default 5); when reached,
   live analyses and explanations return `503 LIVE_BUDGET_EXHAUSTED` and the app suggests Demo
-  Mode. The API and the MCP server each have their own meter, and a restart resets it.
+  Mode. The API and the MCP server each have their own meter, and a restart resets it: with both
+  on `muse_spark`, the day's total can reach twice the cap.
 - The MCP server needs bearer tokens off loopback, caps each tool output at 64 KiB, and has no
   free-text query, URL, browsing or shell tool.
 

@@ -24,31 +24,33 @@ Environment of the build-agent runs: Windows 11 Pro, Git Bash, Go 1.27.0 windows
 
 `go vet ./...` — no output, exit 0.
 
-`go test -count=1 ./...` — exit 0. 21 packages `ok`; 568 top-level tests and 399 subtests
-passed, none failed or skipped (counted from `go test -count=1 -json ./...`, also exit 0):
+`go test -count=1 ./...` — exit 0. 21 packages `ok`; 581 top-level tests and 399 subtests
+passed, none failed or skipped (counted from `go test -count=1 -json ./...`, also exit 0; final
+review fix wave, 2026-10-28, at `cfc540d`; it was 568 when this file was first written and 572
+at `7233e29`):
 
 ```
-ok  	github.com/medilens-ai/medilens/internal/ai	1.398s
-ok  	github.com/medilens-ai/medilens/internal/application	2.220s
-ok  	github.com/medilens-ai/medilens/internal/config	0.217s
-ok  	github.com/medilens-ai/medilens/internal/contracts	10.174s
-ok  	github.com/medilens-ai/medilens/internal/demo	0.139s
-ok  	github.com/medilens-ai/medilens/internal/domain	13.367s
-ok  	github.com/medilens-ai/medilens/internal/eval	0.267s
-ok  	github.com/medilens-ai/medilens/internal/httpapi	2.568s
-ok  	github.com/medilens-ai/medilens/internal/imaging	17.200s
-ok  	github.com/medilens-ai/medilens/internal/jsregex	0.177s
-ok  	github.com/medilens-ai/medilens/internal/mcptools	4.932s
-ok  	github.com/medilens-ai/medilens/internal/metaapi	0.510s
-ok  	github.com/medilens-ai/medilens/internal/middleware	0.221s
-ok  	github.com/medilens-ai/medilens/internal/observability	0.182s
-ok  	github.com/medilens-ai/medilens/internal/parity	0.381s
-ok  	github.com/medilens-ai/medilens/internal/pipeline	4.666s
-ok  	github.com/medilens-ai/medilens/internal/references	0.925s
-ok  	github.com/medilens-ai/medilens/services/api	0.350s
-ok  	github.com/medilens-ai/medilens/services/eval	0.833s
-ok  	github.com/medilens-ai/medilens/services/mcp	0.306s
-ok  	github.com/medilens-ai/medilens/services/smoke	0.207s
+ok  	github.com/medilens-ai/medilens/internal/ai	1.386s
+ok  	github.com/medilens-ai/medilens/internal/application	2.253s
+ok  	github.com/medilens-ai/medilens/internal/config	0.342s
+ok  	github.com/medilens-ai/medilens/internal/contracts	10.201s
+ok  	github.com/medilens-ai/medilens/internal/demo	0.141s
+ok  	github.com/medilens-ai/medilens/internal/domain	13.433s
+ok  	github.com/medilens-ai/medilens/internal/eval	0.189s
+ok  	github.com/medilens-ai/medilens/internal/httpapi	2.717s
+ok  	github.com/medilens-ai/medilens/internal/imaging	17.123s
+ok  	github.com/medilens-ai/medilens/internal/jsregex	0.199s
+ok  	github.com/medilens-ai/medilens/internal/mcptools	4.641s
+ok  	github.com/medilens-ai/medilens/internal/metaapi	0.489s
+ok  	github.com/medilens-ai/medilens/internal/middleware	0.237s
+ok  	github.com/medilens-ai/medilens/internal/observability	0.216s
+ok  	github.com/medilens-ai/medilens/internal/parity	0.492s
+ok  	github.com/medilens-ai/medilens/internal/pipeline	4.477s
+ok  	github.com/medilens-ai/medilens/internal/references	0.962s
+ok  	github.com/medilens-ai/medilens/services/api	0.269s
+ok  	github.com/medilens-ai/medilens/services/eval	0.322s
+ok  	github.com/medilens-ai/medilens/services/mcp	0.374s
+ok  	github.com/medilens-ai/medilens/services/smoke	0.219s
 ```
 
 ### staticcheck
@@ -168,6 +170,47 @@ corpora, the Zod contract test, the mobile tests). The Node build stays availabl
   packages `ok` (the Go build never read `apps/server`).
 - Secret scan (below), with the removal staged: no output, exit 1.
 
+### Final review fix wave (2026-10-28)
+
+Each fix commit was gated (`gofmt -l .`, `go vet ./...`, `go test -count=1 ./...`, `npm test`,
+`npm run typecheck`, `npm run lint`: all exit 0, `gofmt` with no output). Latest `npm test`,
+exit 0:
+
+```
+> @medilens/contracts@0.1.0 test
+ Test Files  2 passed (2)
+      Tests  48 passed (48)
+> @medilens/mobile@0.1.0 test
+Test Suites: 17 passed, 17 total
+Tests:       315 passed, 315 total
+> test:contract
+ Test Files  1 passed (1)
+      Tests  28 passed (28)
+```
+
+What changed in the tests (each new test was seen failing first):
+
+- Mobile polling (final review I1, `apps/mobile/test/api/client.test.ts`): a failing poll is
+  retried after 1.5 s, 3 s and 6 s (or a longer `Retry-After`), up to 3 failures in a row, then
+  the client gives up with a best-effort `DELETE`; recovery after one NETWORK, TIMEOUT, proxy
+  502/503 page or 429; a run of failures resets on success; a failing `/result` still runs out;
+  NOT_FOUND ends without a delete; an abort during a backoff deletes.
+- Smoke tool (I2 ruling R17, M13): an empty model id aborts with exit 3 and no PH FDA call; a
+  usage count of `1e400` prints `Infinity` instead of panicking.
+- API (M1, M3, M8): speak text that says fake or counterfeit (also fullwidth, or split by a soft
+  hyphen or zero-width space) is `VALIDATION_FAILED`; a Node-era `PROVIDER_MODE` is a startup
+  error; an uploaded photo keeps no spare capacity (an 8 MiB part had a 16 MiB capacity).
+- MCP (M9): a 401 carries `WWW-Authenticate: Bearer`; `explain_verified_label` has
+  `openWorldHint: true`.
+- Analyzing screen (M12): a real server stage stays on screen; the reminder comes 15 s after the
+  last stage and names it.
+- Server (M15): `CORS_ORIGIN` is trimmed and an IPv6 zone refused; an encode failure's 500 body
+  carries the request id; values under a sensitive slog group are redacted.
+- Imaging (M14): the VP8X EXIF flag and a LONG Orientation follow sharp; an animated WebP is
+  refused by `Validate`. The known imaging gaps are listed in
+  [fixtures/parity/README.md](../fixtures/parity/README.md).
+- Contracts (M16): `maxImages` is `z.literal(3)` and `ttlSeconds` `z.literal(900)`.
+
 ## Android build check
 
 `npx expo export --platform android --output-dir <scratch dir>` in `apps/mobile` — exit 0:
@@ -219,7 +262,7 @@ apps/mobile/.env` printed nothing.
 
 That docs commit then quoted the two old values in this file, so the scan matched this file
 there. Corrected in the Node-removal commit (this text). Run after that correction, with the
-removal staged: see "After the Node server was removed" below.
+removal staged: see "After the Node server was removed" above.
 
 Negative control (same pattern, `grep -nE` over a scratch file outside the repo, values described
 rather than copied): it matched an env line assigning 12 letters and digits to `MODEL_API_KEY` and

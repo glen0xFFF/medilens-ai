@@ -26,9 +26,11 @@ most 3 minutes, for the Meta Global AI Developer Hackathon (Indie track). Submis
 - Accessibility: TalkBack labels and roles, large targets, text scale, high-contrast theme,
   screen-reader announcements, spoken progress stages while a scan runs.
 - Server in Go (owner-directed port, Oct 27-28): a REST + SSE API and a separate MCP server
-  with six read-only, safety-gated tools over the same services. The Go build reproduces the
-  Node build exactly (parity corpora, Zod contract test); the Node server is kept at tag
-  `node-fallback-v1` and removed from the tree.
+  with six safety-gated tools over the same services (only `extract_medication_label` creates
+  anything: a transient analysis). The Go build reproduces the Node build's recorded behaviour
+  (parity corpora at 100%, Zod contract test; image metrics within tolerance, HTTP-layer
+  differences documented); the Node server is kept at tag `node-fallback-v1` and removed from
+  the tree.
 
 ## Not in scope
 

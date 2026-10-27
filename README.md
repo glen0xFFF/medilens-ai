@@ -18,9 +18,12 @@ Every field carries a legibility flag (clear, partial, unreadable) and every sca
 verification status. When MediLens cannot read something clearly, it says so instead of guessing.
 
 The server side is written in **Go**: a REST + SSE API (`services/api`) and a separate
-**MCP server** (`services/mcp`) that exposes the same pipeline as read-only, safety-gated tools.
-The original Node/Express server was ported to Go test for test and retired once the Go build
-reproduced it exactly (see [Parity](#parity-with-the-node-build)); it is kept at the git tag
+**MCP server** (`services/mcp`) that exposes the same pipeline as six safety-gated tools (one of
+them, `extract_medication_label`, creates a transient analysis and, with Muse Spark, makes a
+charged Meta call; the others only read). The original Node/Express server was ported to Go test
+for test and retired once the Go build reproduced its recorded behaviour: the parity corpora pass
+in full, image metrics are within the stated tolerance, and the HTTP layer's differences are
+documented (see [Parity](#parity-with-the-node-build)). It is kept at the git tag
 `node-fallback-v1`.
 
 Built for the Meta Global AI Developer Hackathon (Indie track). Eligibility confirmation from the
@@ -42,7 +45,7 @@ organisers is **pending** (owner); see [docs/HACKATHON_SUBMISSION.md](docs/HACKA
 |---|---|---|---|
 | Label reading | Muse Spark `muse-spark-1.3` via the Meta Model API (`MODEL_PROVIDER=muse_spark`) | Mock reader: the fictional s1 label for any upload (`MODEL_PROVIDER=mock`, the default) | Mock: automated tests. Live: **no live call has been made** (no key yet); Go client tested against local fakes with recorded synthetic responses |
 | Phrase explanation | Muse Spark, behind the closed-vocabulary gate | None: the printed text is quoted alone | Same as above |
-| Registry check | PH FDA verification search (`REFERENCE_PROVIDER=ph_fda`), undocumented endpoint | Fixture registry rows (`REFERENCE_PROVIDER=fixture`, the default) | Node build: field names confirmed against one real response on 2026-10-27. Go client: tested against local fakes only |
+| Registry check | PH FDA verification search (`REFERENCE_PROVIDER=ph_fda`), undocumented endpoint | Fixture registry rows (`REFERENCE_PROVIDER=fixture`, the default) | Node build: registry record field names confirmed against one real response on 2026-10-27; the advisory (`fdawebsite`) field names are **not** confirmed (see [API.md](docs/API.md#external-services-server-only)). Go client: tested against local fakes only |
 | Photo quality check | Real in every mode (Go imaging, parity with the Node sharp pipeline) | Same | Automated tests on the parity image set |
 | Matching, summary, answers, safety gate | Deterministic Go code in every mode | Same | Parity corpora recorded from the Node suite: 100% pass |
 | Demo scenarios s1 to s8 | Always fixture data (fictional products), whatever the providers | Same | Automated tests; HTTP output equals the recorded Node output |
@@ -134,7 +137,8 @@ Server (root `.env`, git-ignored; every variable is described in [.env.example](
 | `ENV_FILE` | `.env` | all | Another env file to read. |
 
 The spend meter lives in process memory: **a restart starts the day's total at zero again**, and
-the API and the MCP server each have their own meter. A model call that reports no token usage
+the API and the MCP server each have their own meter, so with both on `muse_spark` the day's total
+spend can reach **twice** `DAILY_SPEND_CAP_USD` (set each process's cap to half if that matters). A model call that reports no token usage
 (or fails after it may have run) is charged a conservative 4,000 input + 4,000 output tokens.
 
 App (`apps/mobile/.env`, git-ignored; template in `apps/mobile/.env.example`):

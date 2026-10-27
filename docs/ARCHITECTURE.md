@@ -89,9 +89,24 @@ docs/                  spec, plans, research and project documents
 
 The Node/Express server (`apps/server`) was the reference implementation. It was removed from
 the tree after the Go build passed the parity corpora, the contract test and the mobile tests;
-the tag `node-fallback-v1` keeps it runnable. To re-record a corpus, restore only `apps/server` from
+the tag `node-fallback-v1` keeps it. To re-record a corpus, restore only `apps/server` from
 the tag onto the current branch, as [scripts/parity/README.md](../scripts/parity/README.md#re-recording)
 describes: the tag predates `scripts/parity`, so a whole-tree checkout has no recorder.
+
+### Falling back to Node
+
+**NOT RUN** as a whole (written from the tag's own README). The current app speaks only the Go
+contract (`/api/v1/analyses`, `/config/capabilities`), so a fallback needs the **whole tag tree**:
+the Node server, the Node-contract app, and an APK built from it.
+
+1. `git worktree add ../medilens-node node-fallback-v1` (a separate folder). The tag is local
+   only: push it with the repository first (`git push <remote> node-fallback-v1`, owner).
+2. In that folder: `npm install`, then `cp .env.example .env`. The Node build reads
+   `PROVIDER_MODE` (`demo` by default; `live` with `MODEL_API_KEY`). Keep this `.env` apart from
+   the Go one, which refuses `PROVIDER_MODE`.
+3. `npm run dev -w @medilens/server` serves the Node API on `http://localhost:8787`.
+4. Build the app from the same folder: `eas build --profile preview` in `apps/mobile`, with
+   `apps/mobile/eas.json` pointing at the Node server's HTTPS address.
 
 ## Analysis pipeline (asynchronous)
 
@@ -152,7 +167,9 @@ return `503 LIVE_BUDGET_EXHAUSTED`.
 
 - **Limits:** per-IP token buckets, 30/min for writes (POST, DELETE) and 240/min for reads, so
   polling is not throttled. `TRUSTED_PROXIES` (CIDR list, empty by default) names the only hops
-  whose `X-Forwarded-For` is honoured.
+  whose `X-Forwarded-For` is honoured. Deploy note: an `X-Forwarded-For` entry must be a bare
+  IP address; a proxy that writes `1.2.3.4:5678` or a bracketed IPv6 address makes every client
+  fall back to the proxy's own address, so all clients share one bucket (fails closed).
 - **Uploads:** read only through `MultipartReader` with a 3 × 8 MiB + 64 KiB body cap and an
   8 MiB part cap; `ParseMultipartForm`/`FormValue`/`FormFile` are not used, so nothing spills to
   disk (a guard test points the temp dir at an empty directory and checks it stays empty).

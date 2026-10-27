@@ -40,8 +40,10 @@ The Node routes (`/health`, `POST /labels/analyze`, `/labels/:id/explain`, `/ref
 ### POST /analyses
 
 The upload is validated synchronously: missing or too many photos is `400 VALIDATION_FAILED`, a
-photo over 8 MiB `413 IMAGE_TOO_LARGE`, a file that is not a decodable JPEG/PNG/WebP (or over
-40 MP) `415 INVALID_IMAGE`. With `MODEL_PROVIDER=muse_spark`, an exhausted daily budget is
+photo over 8 MiB `413 IMAGE_TOO_LARGE`, a file whose magic bytes and header are not those of a
+JPEG, PNG or still WebP (or that is over 40 MP) `415 INVALID_IMAGE`. The full decode runs in the
+job: a file that passes the header check but cannot be decoded is accepted (`202`) and then fails
+with a stored `INVALID_IMAGE`. With `MODEL_PROVIDER=muse_spark`, an exhausted daily budget is
 `503 LIVE_BUDGET_EXHAUSTED` before the job is accepted. The analysis then runs in a bounded worker
 pool (2 running, 8 queued); over that, `503 RATE_LIMITED` with `Retry-After`.
 
@@ -51,9 +53,11 @@ pool (2 running, 8 queued); over that, `503 RATE_LIMITED` with `Retry-After`.
   read as **demo scenario s1 (simulated data)** and the result has `isDemo: true`,
   `provenance.model = "mock"`.
 
-Unreadable labels, loose pills, no match, conflicts and an unavailable registry are **states
-inside a completed `AnalysisResult`** (`stage: "needs_attention"` for the first three kinds), not
-HTTP errors, so the user still hears whatever was read. `failed` means an error.
+Unreadable labels, loose pills, photos that are not a medicine label, no match, conflicts and an
+unavailable registry are **states inside a completed `AnalysisResult`**, not HTTP errors, so the
+user still hears whatever was read. The first three end with `stage: "needs_attention"`
+(`pipelineState` `label_unreadable`, `loose_pill`, `not_a_label`); no match, conflicts and an
+unavailable registry end `completed`. `failed` means an error.
 
 ### Progress events
 

@@ -77,7 +77,7 @@ Edit before submitting; every claim here must still be true on the day.
 > FDA has published one.
 >
 > The backend is Go: a REST + SSE API with real progress events and a separate MCP server whose
-> six read-only tools run the same pipeline and the same safety gate. The app is Expo
+> six safety-gated tools run the same pipeline and the same safety gate. The app is Expo
 > (React Native) with TalkBack support, large text, high contrast and adjustable speech.
 >
 > Honest scope: demo mode uses simulated data and is labelled DEMO DATA; the PH FDA endpoint is

@@ -71,7 +71,12 @@ the requests:
 - **Invalid output:** JSON that fails validation gets one more request; then `OCR_FAILED`
   (`invalid_output`).
 - **Usage** feeds the daily spend meter. A response without `usage`, or a failed attempt that may
-  have run, is charged the conservative estimate of 4,000 prompt + 4,000 completion tokens.
+  have run, is charged the conservative estimate of 4,000 prompt + 4,000 completion tokens. Two
+  consequences, both on the safe side (the meter over-counts, never under-counts):
+  - an attempt cancelled before any request was written (for example a job cut off at shutdown)
+    is still charged the estimate;
+  - one read or one explanation can make up to 4 HTTP attempts (the 429/500/503 retry runs
+    inside each of the 2 invalid-output completions), and each failed attempt is charged.
 - **Logging:** the error kind and HTTP status only; never a body, a prompt, label text or the key.
   The key is a `config.Secret` that prints `[redacted]` in every format.
 - No silent fallback: `MODEL_PROVIDER=muse_spark` without `MODEL_API_KEY` is a startup error.
