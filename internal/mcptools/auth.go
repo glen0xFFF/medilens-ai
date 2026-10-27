@@ -240,6 +240,30 @@ func NewHTTPHandler(s *mcp.Server, cfg Config) (http.Handler, error) {
 	})
 	if cfg.AuthRequired() {
 		h = auth.RequireBearerToken(cfg.verifier(), &auth.RequireBearerTokenOptions{AllowMissingExpiration: true})(h)
+		h = withBearerChallenge(h)
 	}
 	return http.NewCrossOriginProtection().Handler(h), nil
 }
+
+// withBearerChallenge adds the "WWW-Authenticate: Bearer" challenge that
+// RFC 6750 §3 requires on a 401 (final review M9): the SDK adds one only
+// with resource metadata or scopes, which this server does not use, and
+// without it some MCP clients go looking for OAuth metadata.
+func withBearerChallenge(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(challengeWriter{w}, r)
+	})
+}
+
+// challengeWriter sets the challenge when a 401 is written. Unwrap keeps
+// http.ResponseController (the SDK's flushes) working through it.
+type challengeWriter struct{ http.ResponseWriter }
+
+func (w challengeWriter) WriteHeader(code int) {
+	if code == http.StatusUnauthorized && w.Header().Get("WWW-Authenticate") == "" {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w challengeWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }

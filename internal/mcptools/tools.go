@@ -137,7 +137,10 @@ func NewServer(svc Service, opts Options) *mcp.Server {
 			"the status. " + UntrustedNotice,
 	}, t.compare)
 	add(s, t, toolDef{
-		name: "explain_verified_label", title: "Ask about a label", schema: explainSchema, readOnly: true,
+		// openWorld: on a live result an explain_text question may call the
+		// configured Muse Spark explainer, charged to the budget (final
+		// review M9)
+		name: "explain_verified_label", title: "Ask about a label", schema: explainSchema, readOnly: true, openWorld: true,
 		description: "Answer a question about what is printed on an analysed label, through the same safety gate as the MediLens app: " +
 			"questions about how much to take, starting or stopping, symptoms, children or pregnancy, interactions, personal safety " +
 			"or identifying pills are refused with a pharmacist redirect (status refused is a normal result, not an error). " +

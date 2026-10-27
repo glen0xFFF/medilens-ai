@@ -107,9 +107,11 @@ func TestToolDefinitionsAreClosedAndSayLabelTextIsUntrusted(t *testing.T) {
 		if a.DestructiveHint == nil || *a.DestructiveHint {
 			t.Errorf("%s: destructiveHint must be false", tool.Name)
 		}
-		// only extract may reach the configured model and registry; no tool
-		// browses or takes a URL
-		if a.OpenWorldHint == nil || *a.OpenWorldHint != (tool.Name == "extract_medication_label") {
+		// only extract (the model and the registry) and explain (the Muse
+		// Spark phrase explainer on a live result, final review M9) may
+		// reach the configured providers; no tool browses or takes a URL
+		openWorld := tool.Name == "extract_medication_label" || tool.Name == "explain_verified_label"
+		if a.OpenWorldHint == nil || *a.OpenWorldHint != openWorld {
 			t.Errorf("%s: openWorldHint %v", tool.Name, a.OpenWorldHint)
 		}
 	}

@@ -146,6 +146,10 @@ func TestStreamableHTTPWithBearerTokens(t *testing.T) {
 		if res.StatusCode != http.StatusUnauthorized {
 			t.Errorf("%q: status %d", authz, res.StatusCode)
 		}
+		// RFC 6750 §3: a 401 names the scheme (final review M9)
+		if got := res.Header.Values("WWW-Authenticate"); len(got) != 1 || got[0] != "Bearer" {
+			t.Errorf("%q: WWW-Authenticate %q", authz, got)
+		}
 		if bytes.Contains(body, []byte("SECRET")) || bytes.Contains(body, []byte("aaaa")) {
 			t.Errorf("%q: the 401 body shows a token: %s", authz, body)
 		}
