@@ -3,7 +3,13 @@
  * by `ctx.scenarioId` and returns a copy of its fixture, so callers can never
  * mutate the shared scenarios. No network, no model, no keys.
  */
-import type { Answer, FieldKey, LabelField, MatchStatus } from '@medilens/contracts';
+import type {
+  Answer,
+  FieldKey,
+  LabelField,
+  MatchAssessment,
+  MatchStatus,
+} from '@medilens/contracts';
 import { getScenario } from '../demo/scenarios';
 import type {
   AnswerInput,
@@ -92,7 +98,21 @@ function fieldOf(fields: LabelField[], key: FieldKey): LabelField | undefined {
   return fields.find((f) => f.key === key && f.value !== null && f.value.trim() !== '');
 }
 
-function build(sentences: string[], cited: FieldKey[], uncertain: boolean): Answer {
+/**
+ * Fixed warning for a cited field the FDA registry record contradicts
+ * (spec §5.3 rule 6): the printed value is never read back as certain.
+ */
+function conflictWarning(key: FieldKey, referenceValue: string): string {
+  const ref = referenceValue.trim().replace(/\.+$/, '');
+  return `The FDA registry record lists ${ref} for the ${FIELD_NAMES[key].toLowerCase()}, which does not match the pack. Confirm with your pharmacist.`;
+}
+
+function build(
+  sentences: string[],
+  cited: FieldKey[],
+  uncertain: boolean,
+  match?: MatchAssessment,
+): Answer {
   if (cited.length === 0) {
     return {
       status: 'unclear',
@@ -102,13 +122,17 @@ function build(sentences: string[], cited: FieldKey[], uncertain: boolean): Answ
       safetyNotice: null,
     };
   }
-  const all = uncertain ? [...sentences, UNCERTAIN] : sentences;
+  const warnings = (match?.conflicting ?? [])
+    .filter((c) => cited.includes(c.key))
+    .map((c) => conflictWarning(c.key, c.referenceValue));
+  const notices = uncertain ? [...warnings, UNCERTAIN] : warnings;
+  const all = [...sentences, ...notices];
   return {
     status: 'answered',
     text: all.join(' '),
     spokenChunks: [...all, CONFIRM],
     citedFields: cited,
-    safetyNotice: uncertain ? UNCERTAIN : null,
+    safetyNotice: notices.length > 0 ? notices.join(' ') : null,
   };
 }
 
@@ -141,6 +165,7 @@ function answerFromLabel({ label, match, intent }: AnswerInput): Answer {
       [`These parts were not clear on the pack: ${names}.`],
       unclear.map((f) => f.key),
       true,
+      match,
     );
   }
 
@@ -154,7 +179,7 @@ function answerFromLabel({ label, match, intent }: AnswerInput): Answer {
     if (match.advisories.length > 0) {
       sentences.push('The FDA has an advisory listed for this product.');
     }
-    return build(sentences, [key], f !== undefined && f.legibility !== 'clear');
+    return build(sentences, [key], f !== undefined && f.legibility !== 'clear', match);
   }
 
   const keys = KEYS_BY_INTENT[intent] ?? READ_KEYS;
@@ -169,5 +194,5 @@ function answerFromLabel({ label, match, intent }: AnswerInput): Answer {
     sentences.push(`${FIELD_NAMES[key]} as printed: ${value}.`);
     if (f.legibility !== 'clear') uncertain = true;
   }
-  return build(sentences, cited, uncertain);
+  return build(sentences, cited, uncertain, match);
 }

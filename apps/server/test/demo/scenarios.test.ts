@@ -261,4 +261,34 @@ describe('fixture providers', () => {
     expect(a.status).toBe('unclear');
     expect(a.citedFields).toEqual([]);
   });
+  test.each(['strength', 'read_label'])(
+    'FixtureAnswerer warns about the registry conflict on s4 (%s)',
+    async (intent) => {
+      const s = scenario('s4-conflict');
+      const match = assessMatch(s.label, s.reference);
+      expect(match.conflicting.map((c) => c.key)).toContain('strength');
+      const ref = match.conflicting.find((c) => c.key === 'strength')?.referenceValue ?? '';
+      const a = await new FixtureAnswerer().answer(
+        { label: s.label, match, question: 'What strength is this?', intent },
+        { scenarioId: s.id },
+      );
+      expect(AnswerSchema.safeParse(a).success).toBe(true);
+      expect(a.citedFields).toContain('strength');
+      const warning = `The FDA registry record lists ${ref} for the strength, which does not match the pack. Confirm with your pharmacist.`;
+      expect(a.text).toContain(warning);
+      expect(a.spokenChunks).toContain(warning);
+      expect(a.safetyNotice).toBe(warning);
+      expect(a.spokenChunks.at(-1)).toBe('Confirm with your pharmacist or doctor.');
+    },
+  );
+
+  test('FixtureAnswerer adds no conflict warning when the registry agrees (s1 strength)', async () => {
+    const s = scenario('s1-clear');
+    const a = await new FixtureAnswerer().answer(
+      { label: s.label, match: assessMatch(s.label, s.reference), question: 'Strength?', intent: 'strength' },
+      { scenarioId: s.id },
+    );
+    expect(a.text).not.toContain('does not match the pack');
+    expect(a.safetyNotice).toBeNull();
+  });
 });
