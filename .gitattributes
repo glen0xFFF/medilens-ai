@@ -18,3 +18,5 @@ fixtures/parity/providers/** -text
 fixtures/parity/explain/** -text
 # ada v4.0.0's IDNA table blob (task G6 review round 1), byte for byte
 internal/contracts/ada_idna_tables.deflate -text
+# Node .env parser corpus (task G8): file contents with CR, tabs and quotes, byte for byte
+fixtures/parity/dotenv/** -text

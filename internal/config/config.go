@@ -1,11 +1,17 @@
 // Package config loads and validates the server environment (ruling R7):
 // which model and reference providers run, the Muse Spark key, the daily
-// spend cap and the repository URL in the PH FDA User-Agent. Task G8 adds
-// the HTTP settings and the .env loader.
+// spend cap and the repository URL in the PH FDA User-Agent, and (task G8)
+// the API's HTTP settings: PORT, CORS_ORIGIN and TRUSTED_PROXIES. The .env
+// loader is in dotenv.go.
 //
 // Blank values mean "not set" (KEY= in a .env file), as in the Node
 // loader. An invalid setting is a startup error naming each bad variable;
 // the error never contains a value, so a key can never reach a startup log.
+//
+// Node variables the Go API does not read: PROVIDER_MODE (replaced by
+// MODEL_PROVIDER and REFERENCE_PROVIDER), TRUST_PROXY and NODE_ENV (a proxy
+// hop count, one hop by default in production; replaced by the
+// TRUSTED_PROXIES CIDR list, empty by default).
 package config
 
 import (
@@ -13,6 +19,8 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net/netip"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -76,7 +84,21 @@ type Config struct {
 	DailySpendCapUSD float64
 	// PublicRepoURL is "" when unset.
 	PublicRepoURL string
+	// Port is PORT, the API's TCP port (1 to 65535).
+	Port int
+	// CORSOrigin is CORS_ORIGIN reduced to an origin (scheme://host[:port],
+	// lower-case, no default port, no path), the one browser origin the API
+	// answers CORS for; "" when unset (no CORS headers at all).
+	CORSOrigin string
+	// TrustedProxies is TRUSTED_PROXIES, the CIDR ranges of the proxies in
+	// front of the API whose X-Forwarded-For is honoured for the client
+	// address the rate limits key on; nil when unset (the socket peer is
+	// the client).
+	TrustedProxies []netip.Prefix
 }
+
+// DefaultPort is PORT when unset (Node config.ts).
+const DefaultPort = 8787
 
 // UserAgent is the honest User-Agent for PH FDA lookups.
 func (c Config) UserAgent() string {
@@ -90,7 +112,7 @@ func (c Config) UserAgent() string {
 // Load reads and validates the environment through getenv (os.Getenv, or a
 // map in tests).
 func Load(getenv func(string) string) (Config, error) {
-	cfg := Config{ModelProvider: ModelMock, ReferenceProvider: ReferenceFixture, DailySpendCapUSD: DefaultDailySpendCapUSD}
+	cfg := Config{ModelProvider: ModelMock, ReferenceProvider: ReferenceFixture, DailySpendCapUSD: DefaultDailySpendCapUSD, Port: DefaultPort}
 	var problems []string
 	bad := func(name, rule string) { problems = append(problems, name+": "+rule) }
 	value := func(name string) (string, bool) {
@@ -135,6 +157,29 @@ func Load(getenv func(string) string) (Config, error) {
 			bad("PUBLIC_REPO_URL", "must be an http(s) URL with a public host name")
 		}
 	}
+	if v, ok := value("PORT"); ok {
+		// z.coerce.number().int().min(1).max(65535)
+		n, isNumber := jsNumber(v)
+		if !isNumber || n != math.Trunc(n) || n < 1 || n > 65535 {
+			bad("PORT", "must be a whole number from 1 to 65535")
+		} else {
+			cfg.Port = int(n)
+		}
+	}
+	if v, ok := value("CORS_ORIGIN"); ok {
+		if o, ok := httpOrigin(v); ok {
+			cfg.CORSOrigin = o
+		} else {
+			bad("CORS_ORIGIN", "must be the http(s) origin of the browser client, such as http://localhost:8081")
+		}
+	}
+	if v, ok := value("TRUSTED_PROXIES"); ok {
+		if ps, ok := cidrList(v); ok {
+			cfg.TrustedProxies = ps
+		} else {
+			bad("TRUSTED_PROXIES", "must be a comma-separated list of CIDR ranges, such as 10.0.0.0/8")
+		}
+	}
 
 	if len(problems) > 0 {
 		return Config{}, errors.New("invalid server configuration: " + strings.Join(problems, "; "))
@@ -175,4 +220,74 @@ func jsNumber(s string) (float64, bool) {
 		return n, true
 	}
 	return 0, false
+}
+
+// httpOrigin is CORS_ORIGIN as Node read it, z.url({protocol: /^https?$/})
+// then new URL(u).origin: an http(s) URL with a host, reduced to
+// scheme://host[:port] with the scheme and host lower-cased, the default
+// port (80, 443) dropped and the port's leading zeros removed. A path,
+// query, fragment or user info is dropped, as in Node.
+//
+// Differences from the WHATWG parser, all failing closed or loud: a
+// non-ASCII host is rejected (Node converts it to its A-label), and an IP
+// address is kept as written (WHATWG rewrites forms such as 127.000.0.1),
+// so such a value never matches a browser's Origin and no CORS header is
+// sent.
+func httpOrigin(s string) (string, bool) {
+	u, err := url.Parse(s)
+	if err != nil || u.Opaque != "" {
+		return "", false
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", false
+	}
+	host := u.Hostname()
+	if host == "" {
+		return "", false
+	}
+	for i := 0; i < len(host); i++ {
+		if host[i] >= 0x80 {
+			return "", false
+		}
+	}
+	host = strings.ToLower(host)
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	origin := scheme + "://" + host
+	if p := u.Port(); p != "" {
+		n, err := strconv.Atoi(p)
+		if err != nil || n > 65535 {
+			return "", false
+		}
+		if !(scheme == "http" && n == 80) && !(scheme == "https" && n == 443) {
+			origin += ":" + strconv.Itoa(n)
+		}
+	}
+	return origin, true
+}
+
+// cidrList is TRUSTED_PROXIES: comma-separated CIDR ranges (spaces around
+// an entry and empty entries are ignored; at least one range is needed).
+// Each range is masked (10.1.2.3/8 is 10.0.0.0/8), and an IPv4-mapped IPv6
+// range is stored as the IPv4 range, because client addresses are unmapped
+// before they are compared.
+func cidrList(s string) ([]netip.Prefix, bool) {
+	var out []netip.Prefix
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		p, err := netip.ParsePrefix(part)
+		if err != nil {
+			return nil, false
+		}
+		if a := p.Addr(); a.Is4In6() && p.Bits() >= 96 {
+			p = netip.PrefixFrom(a.Unmap(), p.Bits()-96)
+		}
+		out = append(out, p.Masked())
+	}
+	return out, len(out) > 0
 }

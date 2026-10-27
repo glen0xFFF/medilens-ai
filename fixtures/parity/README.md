@@ -212,3 +212,11 @@ zod measures a string in Unicode code points, not UTF-16 units (`$ZodCheckMaxLen
 The recorder writes lone surrogates as JSON `\u` escapes. Go's `encoding/json` reads them as U+FFFD, as it reads a request body with the same escape, and U+FFFD counts as one code point, as the lone surrogate does in zod.
 
 `internal/pipeline/question_limits_test.go` holds `pipeline.ValidateQuestion` and `pipeline.Explain` to every line.
+
+## .env parser (task G8)
+
+`npx tsx scripts/parity/record-dotenv.ts` writes `fixtures/parity/dotenv/node-parse-env.jsonl`. It needs Node only (`node:util`), not the Node server, so it still runs after task G12. Nothing in it touches the network. Recording is deterministic for one Node version: three consecutive recordings with Node v24.21.0 gave the same sha256, `e5c8dd14a404b4df15f25ceea398bdd929f3f56ad686a91e41a3877683f0c449`.
+
+Each line is `{"fn":"util.parseEnv","args":[content],"result":{KEY: value, ...}}`: what Node's `.env` parser (the one `process.loadEnvFile` runs, which the Node server called on the repository-root `.env`) makes of one file content. There are 2,937 distinct contents: 75 hand-picked cases (comments, inline `#`, the three quote kinds, `\n` in double quotes, multi-line and unterminated quotes, `export`, CRLF, empty keys, blank values) and the rest random files from a fixed-seed generator over a small alphabet of keys, `=`, quotes, `#`, backslash, `n`, spaces, tabs, newlines, CRLF and `export `. A `""` key is left out of `result`: no environment variable can have an empty name.
+
+`internal/config/dotenv_parity_test.go` holds the Go parser to every line: with Node's blank-value behaviour switched on, it gives exactly Node's variables for every file; `config.ParseDotenv` differs only on files with a line of `=` followed by only spaces or tabs, where Node reads the next line as the value (the documented difference in `internal/config/dotenv.go`).

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/netip"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -20,13 +22,21 @@ func mustLoad(t *testing.T, m map[string]string) Config {
 	return cfg
 }
 
+// defaults is the configuration of an empty environment.
+func defaults() Config {
+	return Config{ModelProvider: ModelMock, ReferenceProvider: ReferenceFixture, DailySpendCapUSD: 5, Port: 8787}
+}
+
 func TestDefaults(t *testing.T) {
-	want := Config{ModelProvider: ModelMock, ReferenceProvider: ReferenceFixture, DailySpendCapUSD: 5}
-	if got := mustLoad(t, nil); got != want {
-		t.Errorf("got %+v, want %+v", got, want)
+	if got := mustLoad(t, nil); !reflect.DeepEqual(got, defaults()) {
+		t.Errorf("got %+v, want %+v", got, defaults())
 	}
 	if DefaultDailySpendCapUSD != 5 {
 		t.Errorf("DefaultDailySpendCapUSD = %v", DefaultDailySpendCapUSD)
+	}
+	// Node config.ts: PORT defaults to 8787
+	if DefaultPort != 8787 {
+		t.Errorf("DefaultPort = %v", DefaultPort)
 	}
 }
 
@@ -36,8 +46,9 @@ func TestBlankValuesMeanTheDefault(t *testing.T) {
 		got := mustLoad(t, map[string]string{
 			"MODEL_PROVIDER": blank, "REFERENCE_PROVIDER": blank, "MODEL_API_KEY": blank,
 			"DAILY_SPEND_CAP_USD": blank, "PUBLIC_REPO_URL": blank,
+			"PORT": blank, "CORS_ORIGIN": blank, "TRUSTED_PROXIES": blank,
 		})
-		if got != (Config{ModelProvider: ModelMock, ReferenceProvider: ReferenceFixture, DailySpendCapUSD: 5}) {
+		if !reflect.DeepEqual(got, defaults()) {
 			t.Errorf("%q: %+v", blank, got)
 		}
 	}
@@ -50,6 +61,9 @@ func TestReadsEveryVariable(t *testing.T) {
 		"MODEL_API_KEY":       "  test-key  ",
 		"DAILY_SPEND_CAP_USD": "2.5",
 		"PUBLIC_REPO_URL":     "https://github.com/example/medilens-ai",
+		"PORT":                "9090",
+		"CORS_ORIGIN":         "http://localhost:8081",
+		"TRUSTED_PROXIES":     "10.0.0.0/8",
 	})
 	want := Config{
 		ModelProvider:     ModelMuseSpark,
@@ -57,8 +71,11 @@ func TestReadsEveryVariable(t *testing.T) {
 		ModelAPIKey:       "test-key",
 		DailySpendCapUSD:  2.5,
 		PublicRepoURL:     "https://github.com/example/medilens-ai",
+		Port:              9090,
+		CORSOrigin:        "http://localhost:8081",
+		TrustedProxies:    []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %+v", got)
 	}
 	if got.ModelAPIKey.Reveal() != "test-key" {
@@ -151,17 +168,20 @@ func TestErrorsNameEveryProblemAndNeverAValue(t *testing.T) {
 		"DAILY_SPEND_CAP_USD": "secret-cap-value",
 		"PUBLIC_REPO_URL":     "secret-url-value",
 		"REFERENCE_PROVIDER":  "secret-ref-value",
+		"PORT":                "secret-port-value",
+		"CORS_ORIGIN":         "secret-origin-value",
+		"TRUSTED_PROXIES":     "secret-proxy-value",
 	}))
 	if err == nil {
 		t.Fatal("no error")
 	}
 	msg := err.Error()
-	for _, name := range []string{"MODEL_PROVIDER", "REFERENCE_PROVIDER", "DAILY_SPEND_CAP_USD", "PUBLIC_REPO_URL"} {
+	for _, name := range []string{"MODEL_PROVIDER", "REFERENCE_PROVIDER", "DAILY_SPEND_CAP_USD", "PUBLIC_REPO_URL", "PORT", "CORS_ORIGIN", "TRUSTED_PROXIES"} {
 		if !strings.Contains(msg, name) {
 			t.Errorf("message lacks %s: %s", name, msg)
 		}
 	}
-	for _, value := range []string{"sk-secret-value-123", "secret-cap-value", "secret-url-value", "secret-ref-value", "prod"} {
+	for _, value := range []string{"sk-secret-value-123", "secret-cap-value", "secret-url-value", "secret-ref-value", "prod", "secret-port-value", "secret-origin-value", "secret-proxy-value"} {
 		if strings.Contains(msg, value) {
 			t.Errorf("message echoes %q: %s", value, msg)
 		}
