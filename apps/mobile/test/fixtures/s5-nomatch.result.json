@@ -1,0 +1,83 @@
+{
+  "id": "754b4012-6419-4064-9593-1baa5092b08b",
+  "isDemo": true,
+  "createdAt": "2026-10-27T06:57:37.895Z",
+  "expiresAt": "2026-10-27T07:12:37.895Z",
+  "pipelineState": "explanation_ready",
+  "quality": {
+    "ok": true,
+    "sharpness": 48.2,
+    "luminance": 132,
+    "glareFraction": 0.01,
+    "reasons": []
+  },
+  "label": {
+    "imageKind": "label",
+    "fields": [
+      {
+        "key": "brandName",
+        "value": "Amoxivan 500",
+        "legibility": "clear",
+        "evidenceText": "Amoxivan 500",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "genericNames",
+        "value": "Amoxicillin",
+        "legibility": "clear",
+        "evidenceText": "Amoxicillin",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "strength",
+        "value": "500 mg",
+        "legibility": "clear",
+        "evidenceText": "500 mg",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "dosageForm",
+        "value": "Capsule",
+        "legibility": "clear",
+        "evidenceText": "Capsule",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "registrationNumber",
+        "value": "DR-XY900099",
+        "legibility": "clear",
+        "evidenceText": "DR-XY900099",
+        "imageIndex": 0,
+        "notes": null
+      }
+    ],
+    "rawText": "DEMO DATA\nAmoxivan 500\nAmoxicillin\n500 mg\nCapsule\nDR-XY900099",
+    "warnings": []
+  },
+  "match": {
+    "status": "no_match",
+    "matched": [],
+    "conflicting": [],
+    "missing": [],
+    "candidates": [],
+    "advisories": [],
+    "limitations": ["The registration number on the pack was not found in the registry."]
+  },
+  "explanation": {
+    "displayText": "Demo data. This is a made-up example, not a real medicine.\nThis label reads: Amoxivan 500 (Amoxicillin); strength 500 mg; form Capsule.\nNo matching registration found. This does not mean the product is fake. Ask your pharmacist.\nThe registration number on the pack was not found in the registry.\nConfirm with your pharmacist or doctor.",
+    "spokenChunks": [
+      "Demo data. This is a made-up example, not a real medicine.",
+      "This label reads: Amoxivan 500 (Amoxicillin); strength 500 mg; form Capsule.",
+      "No matching registration found. This does not mean the product is fake. Ask your pharmacist.",
+      "The registration number on the pack was not found in the registry.",
+      "Confirm with your pharmacist or doctor."
+    ],
+    "safetyNotices": ["Confirm with your pharmacist or doctor."],
+    "supportingFields": ["brandName", "genericNames", "strength", "dosageForm"]
+  },
+  "imageRetention": "none"
+}

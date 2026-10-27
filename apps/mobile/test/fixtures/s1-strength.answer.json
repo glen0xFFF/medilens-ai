@@ -1,0 +1,7 @@
+{
+  "status": "answered",
+  "text": "Strength as printed: 500 mg.",
+  "spokenChunks": ["Strength as printed: 500 mg.", "Confirm with your pharmacist or doctor."],
+  "citedFields": ["strength"],
+  "safetyNotice": null
+}

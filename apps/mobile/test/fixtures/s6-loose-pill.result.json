@@ -1,0 +1,68 @@
+{
+  "id": "59de2779-1486-4d44-8cfe-86408588d030",
+  "isDemo": true,
+  "createdAt": "2026-10-27T06:57:37.968Z",
+  "expiresAt": "2026-10-27T07:12:37.968Z",
+  "pipelineState": "loose_pill",
+  "quality": {
+    "ok": true,
+    "sharpness": 48.2,
+    "luminance": 132,
+    "glareFraction": 0.01,
+    "reasons": []
+  },
+  "label": {
+    "imageKind": "loose_pill",
+    "fields": [
+      {
+        "key": "brandName",
+        "value": null,
+        "legibility": "unreadable",
+        "evidenceText": null,
+        "imageIndex": null,
+        "notes": null
+      },
+      {
+        "key": "genericNames",
+        "value": null,
+        "legibility": "unreadable",
+        "evidenceText": null,
+        "imageIndex": null,
+        "notes": null
+      },
+      {
+        "key": "strength",
+        "value": null,
+        "legibility": "unreadable",
+        "evidenceText": null,
+        "imageIndex": null,
+        "notes": null
+      }
+    ],
+    "rawText": "",
+    "warnings": ["DEMO DATA: synthetic fixture, not a real product."]
+  },
+  "match": {
+    "status": "not_attempted",
+    "matched": [],
+    "conflicting": [],
+    "missing": [],
+    "candidates": [],
+    "advisories": [],
+    "limitations": ["Registry lookup was not attempted."]
+  },
+  "explanation": {
+    "displayText": "Demo data. This is a made-up example, not a real medicine.\nThis looks like a loose tablet. I can't identify a medicine from how it looks. Please ask a pharmacist.\nConfirm with your pharmacist or doctor.",
+    "spokenChunks": [
+      "Demo data. This is a made-up example, not a real medicine.",
+      "This looks like a loose tablet. I can't identify a medicine from how it looks. Please ask a pharmacist.",
+      "Confirm with your pharmacist or doctor."
+    ],
+    "safetyNotices": [
+      "This looks like a loose tablet. I can't identify a medicine from how it looks. Please ask a pharmacist.",
+      "Confirm with your pharmacist or doctor."
+    ],
+    "supportingFields": []
+  },
+  "imageRetention": "none"
+}

@@ -24,7 +24,7 @@ export const STATUS_KEYS: readonly StatusKey[] = [
 export interface StatusStyle {
   bg: string;
   fg: string;
-  /** Ionicons glyph name. */
+  /** A text glyph drawn beside the label (no icon font is bundled); decorative only. */
   icon: string;
   /** Short status label shown and announced with the badge. */
   label: string;
@@ -57,17 +57,22 @@ export interface Theme {
 }
 
 const STATUS_TEXT: Record<StatusKey, { icon: string; label: string }> = {
-  verified: { icon: 'checkmark-circle', label: 'Matches registry' },
-  partial: { icon: 'remove-circle', label: 'Partial match' },
-  conflicting: { icon: 'warning', label: 'Details conflict' },
-  ambiguous: { icon: 'help-circle', label: 'Several possible matches' },
-  no_match: { icon: 'search', label: 'No match found' },
-  unavailable: { icon: 'cloud-offline', label: 'Registry unavailable' },
-  not_attempted: { icon: 'ellipse-outline', label: 'Not checked' },
-  unreadable: { icon: 'eye-off', label: 'Label unreadable' },
+  verified: { icon: '✓', label: 'Matches FDA registry' },
+  partial: { icon: '◑', label: 'Partly matches' },
+  conflicting: { icon: '✕', label: 'Does not match registry' },
+  ambiguous: { icon: '⁇', label: 'Several possible matches' },
+  no_match: { icon: '○', label: 'No registry match' },
+  unavailable: { icon: '⊘', label: 'Registry check unavailable' },
+  not_attempted: { icon: '–', label: 'Not checked' },
+  unreadable: { icon: '◌', label: 'Label unreadable' },
 };
 
-const ADVISORY_TEXT = { icon: 'alert-circle', label: 'FDA advisory' };
+/** Short status labels, shown on the badge and announced as "Verification: <label>". */
+export const STATUS_LABELS: Record<StatusKey, string> = Object.fromEntries(
+  STATUS_KEYS.map((k) => [k, STATUS_TEXT[k].label]),
+) as Record<StatusKey, string>;
+
+const ADVISORY_TEXT = { icon: '⚠', label: 'FDA advisory' };
 
 type StatusColours = Record<StatusKey, { bg: string; fg: string }>;
 

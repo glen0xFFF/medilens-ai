@@ -1,0 +1,149 @@
+{
+  "id": "09dc5c4d-3e9c-4bf0-9d64-e2a2bd8f79ed",
+  "isDemo": true,
+  "createdAt": "2026-10-27T06:57:38.129Z",
+  "expiresAt": "2026-10-27T07:12:38.129Z",
+  "pipelineState": "explanation_ready",
+  "quality": {
+    "ok": true,
+    "sharpness": 48.2,
+    "luminance": 132,
+    "glareFraction": 0.01,
+    "reasons": []
+  },
+  "label": {
+    "imageKind": "label",
+    "fields": [
+      {
+        "key": "brandName",
+        "value": "Paracelin 500",
+        "legibility": "clear",
+        "evidenceText": "Paracelin 500",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "genericNames",
+        "value": "Paracetamol",
+        "legibility": "clear",
+        "evidenceText": "Paracetamol",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "strength",
+        "value": "500 mg",
+        "legibility": "clear",
+        "evidenceText": "500 mg",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "dosageForm",
+        "value": "Tablet",
+        "legibility": "clear",
+        "evidenceText": "Tablet",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "manufacturer",
+        "value": "Demo Pharma Labs",
+        "legibility": "clear",
+        "evidenceText": "Demo Pharma Labs",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "registrationNumber",
+        "value": "DR-XY900001",
+        "legibility": "clear",
+        "evidenceText": "DR-XY900001",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "directions",
+        "value": "Adults: 1 to 2 tablets every 4 to 6 hours as needed. Do not take more than 8 tablets in 24 hours.",
+        "legibility": "clear",
+        "evidenceText": "Adults: 1 to 2 tablets every 4 to 6 hours as needed. Do not take more than 8 tablets in 24 hours.",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "warnings",
+        "value": "Do not use with other products containing paracetamol. Keep out of reach of children.",
+        "legibility": "clear",
+        "evidenceText": "Do not use with other products containing paracetamol. Keep out of reach of children.",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "storage",
+        "value": "Store below 30 degrees Celsius in a dry place.",
+        "legibility": "clear",
+        "evidenceText": "Store below 30 degrees Celsius in a dry place.",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "expiryDate",
+        "value": "05/2028",
+        "legibility": "clear",
+        "evidenceText": "05/2028",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "batchNumber",
+        "value": "DB0001",
+        "legibility": "clear",
+        "evidenceText": "DB0001",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "rxOrOtc",
+        "value": "OTC",
+        "legibility": "clear",
+        "evidenceText": "OTC",
+        "imageIndex": 0,
+        "notes": null
+      }
+    ],
+    "rawText": "DEMO DATA\nParacelin 500\nParacetamol\n500 mg\nTablet\nDemo Pharma Labs\nDR-XY900001\nAdults: 1 to 2 tablets every 4 to 6 hours as needed. Do not take more than 8 tablets in 24 hours.\nDo not use with other products containing paracetamol. Keep out of reach of children.\nStore below 30 degrees Celsius in a dry place.\n05/2028\nDB0001\nOTC",
+    "warnings": []
+  },
+  "match": {
+    "status": "unavailable",
+    "matched": [],
+    "conflicting": [],
+    "missing": [],
+    "candidates": [],
+    "advisories": [],
+    "limitations": ["Registry lookup unavailable; nothing was verified."]
+  },
+  "explanation": {
+    "displayText": "Demo data. This is a made-up example, not a real medicine.\nThis label reads: Paracelin 500 (Paracetamol); strength 500 mg; form Tablet.\nI couldn't check the FDA registry right now.\nDirections as printed: Adults: 1 to 2 tablets every 4 to 6 hours as needed. Do not take more than 8 tablets in 24 hours.\nWarnings as printed: Do not use with other products containing paracetamol. Keep out of reach of children.\nExpiry date printed on the pack: 05/2028.\nConfirm with your pharmacist or doctor.",
+    "spokenChunks": [
+      "Demo data. This is a made-up example, not a real medicine.",
+      "This label reads: Paracelin 500 (Paracetamol); strength 500 mg; form Tablet.",
+      "I couldn't check the FDA registry right now.",
+      "Directions as printed: Adults: 1 to 2 tablets every 4 to 6 hours as needed. Do not take more than 8 tablets in 24 hours.",
+      "Warnings as printed: Do not use with other products containing paracetamol. Keep out of reach of children.",
+      "Expiry date printed on the pack: 05/2028.",
+      "Confirm with your pharmacist or doctor."
+    ],
+    "safetyNotices": ["Confirm with your pharmacist or doctor."],
+    "supportingFields": [
+      "brandName",
+      "genericNames",
+      "strength",
+      "dosageForm",
+      "directions",
+      "warnings",
+      "expiryDate"
+    ]
+  },
+  "imageRetention": "none"
+}

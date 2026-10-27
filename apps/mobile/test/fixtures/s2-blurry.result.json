@@ -1,0 +1,35 @@
+{
+  "id": "840d2c6e-727b-45d7-9dee-1a4cbb89a9a3",
+  "isDemo": true,
+  "createdAt": "2026-10-27T06:57:37.683Z",
+  "expiresAt": "2026-10-27T07:12:37.683Z",
+  "pipelineState": "label_unreadable",
+  "quality": {
+    "ok": false,
+    "sharpness": 4.1,
+    "luminance": 168,
+    "glareFraction": 0.21,
+    "reasons": ["BLURRY", "GLARE"]
+  },
+  "label": null,
+  "match": {
+    "status": "not_attempted",
+    "matched": [],
+    "conflicting": [],
+    "missing": [],
+    "candidates": [],
+    "advisories": [],
+    "limitations": ["Registry lookup was not attempted."]
+  },
+  "explanation": {
+    "displayText": "Demo data. This is a made-up example, not a real medicine.\nI couldn't read this label. The photo is blurry. There is glare on the label. Please take another photo.\nConfirm with your pharmacist or doctor.",
+    "spokenChunks": [
+      "Demo data. This is a made-up example, not a real medicine.",
+      "I couldn't read this label. The photo is blurry. There is glare on the label. Please take another photo.",
+      "Confirm with your pharmacist or doctor."
+    ],
+    "safetyNotices": ["Confirm with your pharmacist or doctor."],
+    "supportingFields": []
+  },
+  "imageRetention": "none"
+}

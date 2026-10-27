@@ -1,0 +1,10 @@
+[
+  { "id": "s1-clear", "title": "DEMO DATA: Clear package, registration number matches" },
+  { "id": "s2-blurry", "title": "DEMO DATA: Blurry photo with glare" },
+  { "id": "s3-similar", "title": "DEMO DATA: Two similar products" },
+  { "id": "s4-conflict", "title": "DEMO DATA: Label strength differs from the registry" },
+  { "id": "s5-nomatch", "title": "DEMO DATA: Unknown product" },
+  { "id": "s6-loose-pill", "title": "DEMO DATA: Loose pill" },
+  { "id": "s7-unsupported-question", "title": "DEMO DATA: Unsupported dosing question" },
+  { "id": "s8-registry-down", "title": "DEMO DATA: Registry unavailable" }
+]
