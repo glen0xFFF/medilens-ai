@@ -6,9 +6,11 @@
 // SIGINT or SIGTERM, then shuts down gracefully (readyz 503, event streams
 // closed, 10 s to drain, analyses in flight cancelled).
 //
-// Memory: up to 10 accepted analyses hold their photos (3 x 8 MiB each)
-// while they wait or run, and one photo is decoded at a time, which can
-// take a few hundred MB within the 40 MP cap. Set GOMEMLIMIT to the
+// Memory: up to 10 accepted analyses hold their photos (3 x 8 MiB each,
+// kept at their exact size) while they wait or run; an upload being read
+// briefly holds up to twice its size, and uploads being read at the same
+// time are bounded only by the write rate limit; one photo is decoded at a
+// time, which can take a few hundred MB within the 40 MP cap. Set GOMEMLIMIT to the
 // container's memory limit (less some headroom) so the garbage collector
 // works before the limit is reached; the runtime reads it from the
 // environment.

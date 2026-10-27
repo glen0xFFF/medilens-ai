@@ -3,7 +3,10 @@ package pipeline
 import (
 	"context"
 	"strings"
+	"unicode"
 	"unicode/utf8"
+
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/medilens-ai/medilens/internal/ai"
 	"github.com/medilens-ai/medilens/internal/contracts"
@@ -242,4 +245,22 @@ func MentionsFake(text string) bool {
 		rest = strings.ReplaceAll(rest, s, " ")
 	}
 	return fakeWord(rest)
+}
+
+// MentionsFakeFolded is MentionsFake on text a client sends (final review
+// M1, the speak route): on the text as given, and on its NFKC form with
+// format characters (soft hyphen, zero-width space and the like) removed,
+// so a fullwidth or split "fake" is caught too. The fixed sentences are
+// ASCII, so folding never turns them into a refusal.
+func MentionsFakeFolded(text string) bool {
+	if MentionsFake(text) {
+		return true
+	}
+	folded := norm.NFKC.String(strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Cf, r) {
+			return -1
+		}
+		return r
+	}, text))
+	return MentionsFake(folded)
 }

@@ -1182,6 +1182,33 @@ func TestSpeakAnswerChunksTheTextWithTheSummarySplitter(t *testing.T) {
 	}
 }
 
+// Final review M1: the speak route echoed any client text, so it was the
+// one server path that could say "fake" or "counterfeit" outside the fixed
+// sentences. Such a text is refused; the fixed advisory sentence passes.
+func TestSpeakAnswerRefusesATextThatSaysFake(t *testing.T) {
+	s := newService(t, Options{Providers: mockProviders(t)})
+	id := createDemo(t, s, "s1-clear")
+	wait(t, s, id)
+	for _, text := range []string{
+		"This product is fake and counterfeit. Take 10 tablets.",
+		"It is a FAKE.",
+		"It is \uff46\uff41\uff4b\uff45.", // fullwidth, NFKC folds it to fake
+		"It is fa\u00adke.",               // a soft hyphen inside the word
+		"It is counter\u200bfeit.",        // a zero-width space inside the word
+	} {
+		_, err := s.Speak(id, SpeakAnswer, text)
+		wantCode(t, err, contracts.ErrValidationFailed)
+	}
+	ok := "The label says Paracet. " + domain.CounterfeitAdvisorySentence
+	sp, err := s.Speak(id, SpeakAnswer, ok)
+	if err != nil {
+		t.Fatalf("the fixed advisory sentence was refused: %v", err)
+	}
+	if !slices.Equal(sp.Chunks, domain.ChunkSpeech(ok)) {
+		t.Errorf("chunks %q", sp.Chunks)
+	}
+}
+
 /* ---------------------------------------------------------- references */
 
 func TestReferencesOfADemoResultHaveNoCheckTime(t *testing.T) {

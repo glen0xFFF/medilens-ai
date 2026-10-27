@@ -52,7 +52,9 @@ organisers is **pending** (owner); see [docs/HACKATHON_SUBMISSION.md](docs/HACKA
 
 Any result made with a mock or fixture provider has `isDemo: true` and the app shows a
 **DEMO DATA** banner. There is no silent fallback: if `MODEL_PROVIDER=muse_spark` is set without
-`MODEL_API_KEY`, the server refuses to start rather than switching to the mock.
+`MODEL_API_KEY`, the server refuses to start rather than switching to the mock. The Node build's
+`PROVIDER_MODE` is refused too: if it is set, the API and the MCP server refuse to start and name
+`MODEL_PROVIDER` and `REFERENCE_PROVIDER`, instead of quietly starting on the mock.
 
 ## Quick start
 

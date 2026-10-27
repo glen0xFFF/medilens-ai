@@ -30,7 +30,7 @@ The Node routes (`/health`, `POST /labels/analyze`, `/labels/:id/explain`, `/ref
 | GET | `/api/v1/analyses/{id}/events` | optional `Last-Event-ID` | Server-Sent Events, see below |
 | GET | `/api/v1/analyses/{id}/result` | — | `AnalysisResult`; `409 ANALYSIS_NOT_READY` while processing; the stored error on failure |
 | POST | `/api/v1/analyses/{id}/explanation` | `{question: string}` (1–300 characters) | `Answer` |
-| POST | `/api/v1/analyses/{id}/speak` | `{target: "summary"}` or `{target: "answer", text}` | `{language: "en-US", chunks: string[]}`; speech itself runs on the device |
+| POST | `/api/v1/analyses/{id}/speak` | `{target: "summary"}` or `{target: "answer", text}` | `{language: "en-US", chunks: string[]}`; speech itself runs on the device. An answer `text` is the client's own and is only cut into chunks; one that says "fake" or "counterfeit" outside the fixed advisory and no-match sentences (also fullwidth, or split by a soft hyphen or zero-width space) is `400 VALIDATION_FAILED` |
 | GET | `/api/v1/analyses/{id}/references` | — | `{candidates, advisories, limitations, checkedAt}`; `checkedAt` is null for demo data and when the registry was not reached |
 | DELETE | `/api/v1/analyses/{id}` | — | `204`; the result and events are dropped |
 | GET | `/api/v1/demo/scenarios` | — | `[{id, title, presetQuestion?}]`; only s7 has `presetQuestion`, which the app shows as a button on that result's ask screen |

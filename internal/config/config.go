@@ -9,9 +9,10 @@
 // the error never contains a value, so a key can never reach a startup log.
 //
 // Node variables the Go API does not read: PROVIDER_MODE (replaced by
-// MODEL_PROVIDER and REFERENCE_PROVIDER), TRUST_PROXY and NODE_ENV (a proxy
-// hop count, one hop by default in production; replaced by the
-// TRUSTED_PROXIES CIDR list, empty by default).
+// MODEL_PROVIDER and REFERENCE_PROVIDER; a non-blank PROVIDER_MODE is a
+// startup error, final review M3), TRUST_PROXY and NODE_ENV (a proxy hop
+// count, one hop by default in production; replaced by the TRUSTED_PROXIES
+// CIDR list, empty by default).
 package config
 
 import (
@@ -120,6 +121,11 @@ func Load(getenv func(string) string) (Config, error) {
 		return v, domain.JSTrim(v) != ""
 	}
 
+	// Final review M3: the Node variable is refused, not ignored, so a host
+	// set up from the Node docs never starts on mock without a word.
+	if _, ok := value("PROVIDER_MODE"); ok {
+		bad("PROVIDER_MODE", "is no longer read; remove it and set MODEL_PROVIDER (mock or muse_spark) and REFERENCE_PROVIDER (fixture or ph_fda) instead")
+	}
 	if v, ok := value("MODEL_PROVIDER"); ok {
 		switch p := ModelProvider(v); p {
 		case ModelMock, ModelMuseSpark:

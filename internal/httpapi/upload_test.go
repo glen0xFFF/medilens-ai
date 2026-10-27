@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"mime/multipart"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -382,5 +383,35 @@ func TestNoHandlerCanParseAMultipartForm(t *testing.T) {
 	bad := "package x\nfunc f(r *http.Request) { r.ParseMultipartForm(1); _, _, _ = r.FormFile(\"images\"); _ = r.MultipartForm }\n"
 	if found := formAccesses(t, "bad.go", bad); len(found) != 3 {
 		t.Errorf("the check missed calls: %v", found)
+	}
+}
+
+// Final review M8: a photo read through a growing bytes.Buffer kept up to
+// twice its size in capacity (an 8 MiB part held 16 MiB) for as long as
+// its job waited. The kept slice is now no larger than the photo plus
+// allocator rounding.
+func TestAnUploadedPhotoKeepsNoSpareCapacity(t *testing.T) {
+	for _, size := range []int{1_500_000, 5 << 20, 8 << 20} {
+		var body bytes.Buffer
+		mw := multipart.NewWriter(&body)
+		part, err := mw.CreateFormFile("images", "a.jpg")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := part.Write(bytes.Repeat([]byte{0xAB}, size)); err != nil {
+			t.Fatal(err)
+		}
+		if err := mw.Close(); err != nil {
+			t.Fatal(err)
+		}
+		r := httptest.NewRequest("POST", "/api/v1/analyses", &body)
+		r.Header.Set("Content-Type", mw.FormDataContentType())
+		images, perr := readImages(httptest.NewRecorder(), r)
+		if perr != nil {
+			t.Fatalf("%d bytes: %v", size, perr)
+		}
+		if got := images[0]; len(got) != size || cap(got)-len(got) > 64<<10 {
+			t.Errorf("%d bytes: len %d cap %d", size, len(got), cap(got))
+		}
 	}
 }

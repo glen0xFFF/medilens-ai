@@ -148,6 +148,31 @@ func TestRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+// Final review M3: a Node-era PROVIDER_MODE (live or demo) used to be
+// ignored, so a host set up from the Node docs started on mock without a
+// word. It is now a startup error that names the variables to use; a blank
+// value still means not set.
+func TestANodeProviderModeIsAStartupError(t *testing.T) {
+	for _, v := range []string{"live", "demo", " live "} {
+		_, err := Load(env(map[string]string{"PROVIDER_MODE": v, "MODEL_PROVIDER": "mock"}))
+		if err == nil {
+			t.Fatalf("PROVIDER_MODE=%q: no error", v)
+		}
+		msg := err.Error()
+		for _, name := range []string{"PROVIDER_MODE", "MODEL_PROVIDER", "REFERENCE_PROVIDER"} {
+			if !strings.Contains(msg, name) {
+				t.Errorf("PROVIDER_MODE=%q: message lacks %s: %s", v, name, msg)
+			}
+		}
+		if strings.Contains(msg, "live") || strings.Contains(msg, "demo") {
+			t.Errorf("message echoes the value: %s", msg)
+		}
+	}
+	if got := mustLoad(t, map[string]string{"PROVIDER_MODE": "  "}); !reflect.DeepEqual(got, defaults()) {
+		t.Errorf("blank PROVIDER_MODE: %+v", got)
+	}
+}
+
 // z.coerce.number() is JS Number(): whitespace is trimmed, and hex, octal,
 // binary and exponent forms are numbers.
 func TestSpendCapIsReadAsAJSNumber(t *testing.T) {

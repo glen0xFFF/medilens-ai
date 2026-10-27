@@ -111,7 +111,10 @@ func readImages(w http.ResponseWriter, r *http.Request) ([][]byte, *pipeline.Err
 		if n > imaging.MaxImageBytes {
 			return nil, tooLarge()
 		}
-		images = append(images, buf.Bytes())
+		// a copy of exactly the photo's size: the growing buffer can hold up
+		// to twice that, and the photo is kept while its job waits (final
+		// review M8)
+		images = append(images, bytes.Clone(buf.Bytes()))
 	}
 	if len(images) == 0 {
 		return nil, sendPhotos()
