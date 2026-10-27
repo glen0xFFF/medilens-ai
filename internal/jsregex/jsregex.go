@@ -103,11 +103,16 @@ func (m *Match) Group(i int) (string, bool) {
 
 // exec is RegExpBuiltinExec with lastIndex 0 and no g or y flag: try each
 // start position from 0 to the length, the first match wins.
-func (re *Regexp) exec(in []uint16) []int {
+func (re *Regexp) exec(in []uint16) []int { return re.execFrom(in, 0) }
+
+// execFrom is RegExpBuiltinExec with lastIndex from (a g-flag search): try
+// each start position from `from` to the length, the first match wins.
+// Lookbehind still sees the input before `from`.
+func (re *Regexp) execFrom(in []uint16, from int) []int {
 	m := &machine{in: in, caps: make([]int, 2*(re.ncap+1))}
 	end := -1
 	found := func(p int) bool { end = p; return true }
-	for start := 0; start <= len(in); start++ {
+	for start := from; start <= len(in); start++ {
 		if re.bol && start > 0 {
 			break
 		}
@@ -145,4 +150,30 @@ func (re *Regexp) ExecInput(in Input) *Match {
 		return nil
 	}
 	return &Match{Index: caps[0], in: in.u, caps: caps}
+}
+
+// ReplaceAllFunc is String.prototype.replace(s) with this pattern under a g
+// flag and a replacer function: every match, left to right from where the
+// previous one ended, is replaced by f(match); an empty match advances one
+// code unit (AdvanceStringIndex without the u flag).
+func (re *Regexp) ReplaceAllFunc(s string, f func(match string) string) string {
+	in := NewInput(s).u
+	var out []uint16
+	last := 0
+	for from := 0; from <= len(in); {
+		caps := re.execFrom(in, from)
+		if caps == nil {
+			break
+		}
+		start, end := caps[0], caps[1]
+		out = append(out, in[last:start]...)
+		out = append(out, utf16.Encode([]rune(f(string(utf16.Decode(in[start:end])))))...)
+		last = end
+		from = end
+		if end == start {
+			from++
+		}
+	}
+	out = append(out, in[last:]...)
+	return string(utf16.Decode(out))
 }

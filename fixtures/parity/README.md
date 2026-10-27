@@ -130,3 +130,13 @@ These come from `scripts/parity/probes.parity.ts`. All of it is synthetic DEMO D
 | `internal/domain/testdata/js_unicode.json` | JS `\s`, `\p{Cf}`, `\p{L}`, `\p{N}`, `\p{Pd}`, the safety gate's invisible class, `toLowerCase` and NFKC, `\p{Cased}`, `\p{Case_Ignorable}`, and the Final_Sigma context of `toLowerCase` (the Σ of `AΣc`, `AΣcA`, `cΣ` and `AcΣ`), recorded per code point. |
 | `internal/domain/testdata/matcher_regexps.jsonl` | The matcher's `i`- and `u`-flag RegExps on every matcher corpus string plus Unicode edge cases. |
 | `internal/domain/testdata/unicode_runs.jsonl` | NFKC and `toLowerCase` on strings with runs of more than 30 combining marks or case-ignorables, where golang.org/x/text is bounded and ICU is not (Stream-Safe U+034F insertion, Final_Sigma look-ahead). Also `classifyQuestion`, `extractExplainPhrase`, `askedFields`, `normalizeName`, `parseStrength` and `assessMatch` on inputs built from such runs, including questions that normalise to exactly 299, 300 and 301 code units. |
+
+## Go probe data (task G4)
+
+`npx tsx scripts/parity/go-probes-answers.ts` records reference output for the Go port of `summary.ts` and `answers.ts` into `internal/domain/testdata`. It is deterministic (seeded, sorted) and, after task G12, needs `git checkout node-fallback-v1` first.
+
+| File | What V8 recorded |
+|---|---|
+| `answers_casefold.json` | The `iu` RegExp semantics the phrase lookup relies on, per code point: which code points `/^[\p{L}\p{N}]$/iu` matches, and, for every code point with a case mapping, which others a `/^\u{c}$/iu` literal matches. |
+| `answers_regexps.json` | The source and flags of every RegExp V8 ran inside the summary and answer functions below. The Go test checks that each pattern answers.go compiles from a TS source is one of them, with the same flags. |
+| `answers_unicode.jsonl` | Corpus-format lines for `findPhraseInFields`, `explainQuote`, `composeExplainAnswer`, `explanationAllowed`, `explanationFits`, `quoteExplainable`, `answerFromLabel` and `buildSummary` on non-ASCII inputs: case-fold variants (Kelvin sign, long s, final sigma, ypogegrammeni, dotted and dotless i, sharp s, Deseret), NFKC compatibility forms, format characters, typographic quotes and dashes, and long printed values with astral characters (UTF-16 lengths in the 400-unit chunker). A probe whose result would contain a lone surrogate is not recorded. |

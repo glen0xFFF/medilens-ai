@@ -164,3 +164,23 @@ func TestCodeUnits(t *testing.T) {
 		t.Fatal("Len is not the UTF-16 length")
 	}
 }
+
+// TestReplaceAllFunc checks String.prototype.replace with a g-flag RegExp
+// and a replacer function; the expected strings are V8's (node -e).
+func TestReplaceAllFunc(t *testing.T) {
+	for _, tc := range []struct{ source, input, want string }{
+		{`(?<![a-z])ab`, "ab xab ab", "<ab> xab <ab>"},
+		{`(?<![a-z'])(?:not hot)(?=[.!]|$)`, "keep it not hot. not hot", "keep it <not hot>. <not hot>"},
+		{`a*`, "baaac", "<>b<aaa><>c<>"},
+		{``, "abc", "<>a<>b<>c<>"},
+		{`x`, "yyy", "yyy"},
+		{`(?<=a)b`, "abab", "a<b>a<b>"},
+		{`b(?=a)`, "baba b", "<b>a<b>a b"},
+	} {
+		re := MustCompile(tc.source)
+		got := re.ReplaceAllFunc(tc.input, func(m string) string { return "<" + m + ">" })
+		if got != tc.want {
+			t.Errorf("%q.replace(/%s/g): got %q, want %q", tc.input, tc.source, got, tc.want)
+		}
+	}
+}
