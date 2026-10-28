@@ -20,7 +20,8 @@ unless it says so.
 
 ## Build and verification
 
-- [ ] Run the live smoke test with a real key and paste its output into
+- [x] Run the live smoke test with a real key (done 2026-10-28 on a synthetic image; still
+  run it once on a real pack photo) and paste its output into
   [TESTING.md](TESTING.md): `npm run smoke:live -- <image> [fda-search-term]`
   (steps in [MUSE_SPARK_INTEGRATION.md](MUSE_SPARK_INTEGRATION.md)).
 - [ ] **Accuracy eval on 20 real packs by Oct 31** ([eval/README.md](../eval/README.md));

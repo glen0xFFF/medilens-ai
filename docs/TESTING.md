@@ -282,10 +282,21 @@ reported), HTTP status and response key names; never the read text. Aborts (exit
 serving model id is missing, empty or contains "contributor" (the empty case follows the Go port
 spec, not the Node script, per the final-review ruling). Never run in CI.
 
-- **NOT RUN — owner:** `npm run smoke:live -- <image> [fda-search-term]` (default term
-  `biogesic`) with `MODEL_API_KEY` set. No key was available to the build agents. Paste the
-  printed lines here, and use the `fdawebsite row keys` line to confirm the advisory field names
-  assumed in `internal/references/phfda.go`.
+- **RUN 2026-10-28** with the owner's key from `.env` (`go run ./services/smoke
+  fixtures/parity/images/blue.jpg biogesic`), on a synthetic image with no label. Output after
+  the `post_link` fix (the registry key list line is shortened here):
+
+  ```
+  Muse Spark call 1: model=muse-spark-1.3 finish_reason=stop prompt_tokens=2021 completion_tokens=723 total_tokens=2744 reasoning_tokens=356
+  Label read: ok (imageKind=not_medicine, fields with a value: 0/12, clear: 12)
+  PH FDA request 1: HTTP 200; top-level keys: ...; fdawebsite row keys: category, content, date_posted, post_link, title
+  PH FDA lookup: ok (records: 13, advisories: 32)
+  ```
+
+  Before the fix the same run printed `advisories: 0, advisories unchecked`: the advisory link is
+  `post_link`, which the client did not read. The first run also hit the 5 s PH FDA timeout once
+  (a slow first response, about 17 s by curl); later runs answered in under a second.
+- **NOT RUN — owner:** the smoke test on a real medicine photo (reading accuracy).
 - Checked without a key, by `services/smoke` tests against local fakes: usage line and exit 1 with
   no arguments; "MODEL_API_KEY is not set. The live smoke test needs it." and exit 1 with a blank
   key; "Image rejected: INVALID_IMAGE"; metadata-only report (no label or registry value in the

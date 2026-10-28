@@ -38,13 +38,12 @@ import (
 //	  country_of_origin, trader, importer, distributor, app_type,
 //	  issuance_date, expiry_date, pharmacologic_category
 //
-// The fdawebsite rows were beyond the 4 KB captured, so their field names
-// are NOT confirmed: `title` comes from the research memo; the link is the
-// first of url / link / permalink / guid that the contract accepts. Until a
-// live check confirms them (final review Minor 9), a non-empty fdawebsite
-// list that maps to no advisory at all, or a row about this product whose
-// link is unusable, flags AdvisoriesUnchecked, so a field-name mismatch is
-// never read as "no advisory".
+// fdawebsite rows, confirmed by a live smoke run on 2026-10-28: category,
+// content, date_posted, post_link, title. The link is the first of
+// post_link / url / link / permalink / guid that the contract accepts. A
+// non-empty fdawebsite list that maps to no advisory at all, or a row about
+// this product whose link is unusable, still flags AdvisoriesUnchecked, so a
+// future field-name change is never read as "no advisory".
 //
 // expiry_date is the registration certificate's expiry, never the product's.
 
@@ -67,7 +66,7 @@ const (
 	lookupFailed = "PH FDA lookup failed: "
 )
 
-var advisoryURLKeys = []string{"url", "link", "permalink", "guid"}
+var advisoryURLKeys = []string{"post_link", "url", "link", "permalink", "guid"}
 
 // PHFDAOptions configures NewPHFDA.
 type PHFDAOptions struct {

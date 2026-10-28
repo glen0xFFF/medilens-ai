@@ -643,3 +643,18 @@ func TestPHFDAEncodesTheTerm(t *testing.T) {
 		t.Errorf("sourceUrl %q", r.Records[0].SourceURL)
 	}
 }
+
+// Live response shape, seen 2026-10-28: fdawebsite rows carry category,
+// content, date_posted, post_link and title. post_link is the advisory link.
+func TestPHFDAAdvisoryPostLinkFromTheLiveShape(t *testing.T) {
+	body := `{"cdrr":[],"fdawebsite":[{"category":"Drugs Advisories","content":"...","date_posted":"26 August 2026",` +
+		`"post_link":"https://www.fda.gov.ph/?p=117671","title":"FDA Advisory No.2026-0927 || Warning about Paracelin"}]}`
+	s := newSetup(t, ok200(body))
+	r := mustOK(t, search(t, s.provider, Query{Name: "Paracelin"}))
+	jsonEq(t, "advisories", r.Advisories, []contracts.Advisory{
+		{Title: "FDA Advisory No.2026-0927 || Warning about Paracelin", URL: "https://www.fda.gov.ph/?p=117671"},
+	})
+	if r.AdvisoriesUnchecked {
+		t.Error("a live-shape row was flagged unchecked")
+	}
+}

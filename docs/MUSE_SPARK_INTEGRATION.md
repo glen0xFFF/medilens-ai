@@ -3,10 +3,12 @@
 How MediLens uses Meta Muse Spark through the Meta Model API, what is verified, what is **not
 verified until a live call**, and the exact steps to make that first call.
 
-**No live call to `api.meta.ai` has been made from this repository, by either the Node or the Go
-build.** No API key was available to the build agents. Every statement below about live
-behaviour comes from Meta's documentation, and every Go behaviour was tested against a local fake
-server replaying recorded synthetic responses (DEMO DATA, fictional products).
+**Live status (2026-10-28):** the Go smoke test (`services/smoke`) made live calls to
+`api.meta.ai` with the owner's key. The response named `muse-spark-1.3`, finished with `stop`, and
+reported usage including `reasoning_tokens` (output in [TESTING.md](TESTING.md#live-smoke-test)).
+The image was a synthetic test image, so this proves the key, endpoint, model id, request shape
+and structured output, not reading accuracy on real packs. Other Go behaviour was tested against a
+local fake server replaying recorded synthetic responses (DEMO DATA, fictional products).
 
 ## What the model is used for
 

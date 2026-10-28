@@ -43,9 +43,9 @@ organisers is **pending** (owner); see [docs/HACKATHON_SUBMISSION.md](docs/HACKA
 
 | Capability | Real (live) | Mock / fixture (demo) | Verified so far |
 |---|---|---|---|
-| Label reading | Muse Spark `muse-spark-1.3` via the Meta Model API (`MODEL_PROVIDER=muse_spark`) | Mock reader: the fictional s1 label for any upload (`MODEL_PROVIDER=mock`, the default) | Mock: automated tests. Live: **no live call has been made** (no key yet); Go client tested against local fakes with recorded synthetic responses |
+| Label reading | Muse Spark `muse-spark-1.3` via the Meta Model API (`MODEL_PROVIDER=muse_spark`) | Mock reader: the fictional s1 label for any upload (`MODEL_PROVIDER=mock`, the default) | Mock: automated tests. Live: smoke test run 2026-10-28 (one call per run, `muse-spark-1.3` served, on a synthetic non-label image, read as not a medicine); label-reading accuracy on real packs **not yet measured** |
 | Phrase explanation | Muse Spark, behind the closed-vocabulary gate | None: the printed text is quoted alone | Same as above |
-| Registry check | PH FDA verification search (`REFERENCE_PROVIDER=ph_fda`), undocumented endpoint | Fixture registry rows (`REFERENCE_PROVIDER=fixture`, the default) | Node build: registry record field names confirmed against one real response on 2026-10-27; the advisory (`fdawebsite`) field names are **not** confirmed (see [API.md](docs/API.md#external-services-server-only)). Go client: tested against local fakes only |
+| Registry check | PH FDA verification search (`REFERENCE_PROVIDER=ph_fda`), undocumented endpoint | Fixture registry rows (`REFERENCE_PROVIDER=fixture`, the default) | Node build: registry record field names confirmed against one real response on 2026-10-27; advisory (`fdawebsite`) field names confirmed by the Go live smoke test on 2026-10-28 (`post_link` is the link). Go client: local fakes plus that live lookup |
 | Photo quality check | Real in every mode (Go imaging, parity with the Node sharp pipeline) | Same | Automated tests on the parity image set |
 | Matching, summary, answers, safety gate | Deterministic Go code in every mode | Same | Parity corpora recorded from the Node suite: 100% pass |
 | Demo scenarios s1 to s8 | Always fixture data (fictional products), whatever the providers | Same | Automated tests; HTTP output equals the recorded Node output |
