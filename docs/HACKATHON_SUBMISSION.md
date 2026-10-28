@@ -26,15 +26,14 @@ unless it says so.
   (steps in [MUSE_SPARK_INTEGRATION.md](MUSE_SPARK_INTEGRATION.md)).
 - [ ] **Accuracy eval on 20 real packs by Oct 31** ([eval/README.md](../eval/README.md));
   bar: zero confidently-wrong strengths or expiry dates. Commit only `docs/eval-results.md`.
-- [ ] **Choose the backend host** (stable, always-on HTTPS) and deploy the Go API
+- [x] **Choose the backend host** (done 2026-10-28: `https://medilens-api.glenox.net` on the owner's server; see [TESTING.md](TESTING.md#hosted-deployment-2026-10-28)). Original item: stable, always-on HTTPS; deploy the Go API
   (`Dockerfile.api`, or `CGO_ENABLED=0 go build ./services/api` and run the binary) with
   `MODEL_PROVIDER=muse_spark`, `REFERENCE_PROVIDER=ph_fda`, `MODEL_API_KEY`,
   `DAILY_SPEND_CAP_USD` and `PUBLIC_REPO_URL`. Set `TRUSTED_PROXIES` to the host proxy's CIDR
   range so the rate limits are per user behind it (empty: every user shares the proxy's bucket).
   Set `GOMEMLIMIT` to the container's memory limit less headroom. The Dockerfiles and compose
   file are **unverified** (no Docker on the dev machine): build them once on the host first.
-- [ ] Replace `https://REPLACE-WITH-HOSTED-SERVER` in `apps/mobile/eas.json` with the hosted
-  API URL.
+- [x] `apps/mobile/eas.json` points at `https://medilens-api.glenox.net`.
 - [ ] **EAS preview APK by Nov 2**: `cd apps/mobile && eas build --profile preview --platform android`;
   install on the phone and run the manual device checks in [TESTING.md](TESTING.md).
 - [ ] **Feature freeze Nov 3.** After that, fixes only.

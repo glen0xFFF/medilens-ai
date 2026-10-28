@@ -309,9 +309,22 @@ spec, not the Node script, per the final-review ruling). Never run in CI.
 
 ## EAS build
 
-- **NOT RUN — owner:** replace `https://REPLACE-WITH-HOSTED-SERVER` in `apps/mobile/eas.json`
-  with the hosted API URL, then `cd apps/mobile && eas build --profile preview --platform
-  android` (APK, internal distribution) and install it on the phone.
+- `apps/mobile/eas.json` points at the hosted API, `https://medilens-api.glenox.net`.
+- **NOT RUN — owner:** `cd apps/mobile && eas build --profile preview --platform android` (APK,
+  internal distribution) and install it on the phone.
+
+## Hosted deployment (2026-10-28)
+
+- API: `https://medilens-api.glenox.net`, live mode (`MODEL_PROVIDER=muse_spark`,
+  `REFERENCE_PROVIDER=ph_fda`, `DAILY_SPEND_CAP_USD=5`). Landing page: `https://medilens.glenox.net`.
+- Host: the owner's Ubuntu 24.04 server behind its Coolify Traefik proxy (Let's Encrypt) and
+  Cloudflare (proxied, SSL mode strict). The API image was built on the host from
+  `Dockerfile.api` at commit `2db0030`; this is the first time that Dockerfile has been built.
+- The key is in a root-only env file on the host (mode 600), not in the image or the repository.
+- Checked after deploy: `GET /healthz` 200, `GET /api/v1/config/capabilities` reports
+  `muse_spark` / `muse-spark-1.3` / `ph_fda`, `POST /api/v1/demo/scenarios` 202, landing page 200.
+- Known gap: behind Cloudflare the API sees Cloudflare edge addresses, so the per-client rate
+  limits are per edge address, not per user. The daily spend cap still bounds the cost.
 
 ## Emulator (documented, not run)
 
