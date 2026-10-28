@@ -306,6 +306,16 @@ spec, not the Node script, per the final-review ruling). Never run in CI.
 
 - **NOT RUN — owner:** 20 real packs by Oct 31; see [eval/README.md](../eval/README.md)
   (`npm run eval:labels`).
+- **Pipeline check, synthetic labels only (2026-10-28):** `npm run eval:labels` on 2 computer-made
+  labels of the fictional "Paracelin 500" (one clean, one with added noise and lower contrast).
+  Live Muse Spark read both: 12 of 12 fields correct, 0 unreadable, 0 confidently wrong; spent
+  $0.0191. This proves the eval and the live reader work end to end. It says nothing about
+  accuracy on real packs. The 2 synthetic packs and their `docs/eval-results.md` were deleted
+  and are not committed.
+- The photo-quality gate rejected the same synthetic images as BLURRY (sharpness 5.1 to 7.7
+  against a minimum of 12; the eval skips that gate). The thresholds in
+  `internal/imaging/quality.go` are uncalibrated starting values: check the sharpness scores of
+  real phone photos before the device test.
 
 ## EAS build
 
