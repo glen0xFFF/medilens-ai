@@ -1,0 +1,108 @@
+{
+  "id": "31758235-2c77-4939-ba44-2c277a115745",
+  "isDemo": true,
+  "createdAt": "2026-10-27T06:57:37.748Z",
+  "expiresAt": "2026-10-27T07:12:37.748Z",
+  "pipelineState": "explanation_ready",
+  "quality": {
+    "ok": true,
+    "sharpness": 48.2,
+    "luminance": 132,
+    "glareFraction": 0.01,
+    "reasons": []
+  },
+  "label": {
+    "imageKind": "label",
+    "fields": [
+      {
+        "key": "brandName",
+        "value": "Paracel",
+        "legibility": "partial",
+        "evidenceText": "Paracel",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "genericNames",
+        "value": "Paracetamol",
+        "legibility": "clear",
+        "evidenceText": "Paracetamol",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "strength",
+        "value": "500 mg",
+        "legibility": "clear",
+        "evidenceText": "500 mg",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "dosageForm",
+        "value": "Tablet",
+        "legibility": "clear",
+        "evidenceText": "Tablet",
+        "imageIndex": 0,
+        "notes": null
+      },
+      {
+        "key": "registrationNumber",
+        "value": null,
+        "legibility": "unreadable",
+        "evidenceText": null,
+        "imageIndex": null,
+        "notes": null
+      }
+    ],
+    "rawText": "DEMO DATA\nParacel\nParacetamol\n500 mg\nTablet",
+    "warnings": []
+  },
+  "match": {
+    "status": "ambiguous",
+    "matched": ["genericNames", "strength", "dosageForm"],
+    "conflicting": [],
+    "missing": ["registrationNumber", "brandName"],
+    "candidates": [
+      {
+        "provider": "demo-fixture",
+        "sourceUrl": "https://verification.fda.gov.ph/?q=DR-XY900002",
+        "registrationNumber": "DR-XY900002",
+        "brandName": "Paracelin 500",
+        "genericName": "Paracetamol",
+        "strengthForm": "500 mg Tablet",
+        "manufacturer": "Demo Pharma Labs (DEMO DATA)",
+        "classification": "Over-the-counter (DEMO DATA)",
+        "registrationExpiry": "2030-12-31",
+        "checkedAt": "2026-10-27T00:00:00.000Z"
+      },
+      {
+        "provider": "demo-fixture",
+        "sourceUrl": "https://verification.fda.gov.ph/?q=DR-XY900003",
+        "registrationNumber": "DR-XY900003",
+        "brandName": "Paracelin-Forte 500",
+        "genericName": "Paracetamol",
+        "strengthForm": "500 mg Tablet",
+        "manufacturer": "Demo Pharma Labs (DEMO DATA)",
+        "classification": "Over-the-counter (DEMO DATA)",
+        "registrationExpiry": "2030-12-31",
+        "checkedAt": "2026-10-27T00:00:00.000Z"
+      }
+    ],
+    "advisories": [],
+    "limitations": ["Registration expiry is not the product's expiry date."]
+  },
+  "explanation": {
+    "displayText": "Demo data. This is a made-up example, not a real medicine.\nThis label reads: Paracel, but this part is unclear (Paracetamol); strength 500 mg; form Tablet.\nMore than one registered product could match this label. I can't tell which one.\nSome parts were unclear: brand name, registration number.\nConfirm with your pharmacist or doctor.",
+    "spokenChunks": [
+      "Demo data. This is a made-up example, not a real medicine.",
+      "This label reads: Paracel, but this part is unclear (Paracetamol); strength 500 mg; form Tablet.",
+      "More than one registered product could match this label. I can't tell which one.",
+      "Some parts were unclear: brand name, registration number.",
+      "Confirm with your pharmacist or doctor."
+    ],
+    "safetyNotices": ["Confirm with your pharmacist or doctor."],
+    "supportingFields": ["brandName", "genericNames", "strength", "dosageForm"]
+  },
+  "imageRetention": "none"
+}

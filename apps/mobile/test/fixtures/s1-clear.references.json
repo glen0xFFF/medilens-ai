@@ -1,0 +1,19 @@
+{
+  "candidates": [
+    {
+      "provider": "demo-fixture",
+      "sourceUrl": "https://verification.fda.gov.ph/?q=DR-XY900001",
+      "registrationNumber": "DR-XY900001",
+      "brandName": "Paracelin 500",
+      "genericName": "Paracetamol",
+      "strengthForm": "500 mg Tablet",
+      "manufacturer": "Demo Pharma Labs (DEMO DATA)",
+      "classification": "Over-the-counter (DEMO DATA)",
+      "registrationExpiry": "2030-12-31",
+      "checkedAt": "2026-10-27T00:00:00.000Z"
+    }
+  ],
+  "advisories": [],
+  "limitations": ["Registration expiry is not the product's expiry date."],
+  "checkedAt": "2026-10-27T00:00:00.000Z"
+}
