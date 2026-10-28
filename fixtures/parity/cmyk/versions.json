@@ -1,0 +1,13 @@
+{
+  "note": "Recorded by scripts/parity/record-cmyk-lut.ts. Do not edit by hand.",
+  "sharp": "0.35.5",
+  "vips": "8.18.7",
+  "nodes": 17,
+  "fitSamples": 5581072,
+  "iterations": 300,
+  "fitResidualRms": [
+    64.62,
+    66.95,
+    65.5
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "patterns": [
+    "https://{c}a.com/x",
+    "https://a{c}a.com/x",
+    "https://א{c}א.com/x",
+    "https://א{c}.com/x",
+    "https://{c}‌ب.com/x",
+    "https://ب‌{c}.com/x",
+    "https://ä.{ace}.com/x",
+    "https://{c}{c}.com/x",
+    "https://א{c}1א.com/x",
+    "https://א{c}١א.com/x",
+    "https://{c}א.com/x"
+  ],
+  "aceSha256": "6247b7c0781b1c215def05ca6941bd8fb4d2b89a7715d996608ba49129525acf",
+  "codePoints": 1112064,
+  "accepted": [
+    154291,
+    156332,
+    10569,
+    5042,
+    1097,
+    1243,
+    150900,
+    156880,
+    10511,
+    10346,
+    3189
+  ],
+  "node": "v24.21.0",
+  "ada": "4.0.0"
+}

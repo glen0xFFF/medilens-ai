@@ -1,0 +1,22 @@
+fixtures/parity/*.jsonl -text
+# gofmt -l fails on CRLF, and core.autocrlf=true would check Go sources out with CRLF
+*.go text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
+# TS-recorded extra parity cases for the Go domain tests
+internal/domain/testdata/*.jsonl -text
+internal/domain/testdata/*.json -text
+internal/jsregex/testdata/*.jsonl -text
+# Image parity set (task G5): binary images and the recorded reference, byte for byte
+fixtures/parity/images/** -text
+# CMYK to sRGB table recorded from sharp (task G5 review round 1), byte for byte
+internal/imaging/cmyk_srgb.lut -text
+fixtures/parity/cmyk/** -text
+# Provider parity set (task G6): recorded Node requests, zod httpUrl results and copies of the Node provider fixtures, byte for byte
+fixtures/parity/providers/** -text
+# Explain question limits (task G7 review round 1): zod ExplainRequestSchema and Node explainQuestion results, byte for byte
+fixtures/parity/explain/** -text
+# ada v4.0.0's IDNA table blob (task G6 review round 1), byte for byte
+internal/contracts/ada_idna_tables.deflate -text
+# Node .env parser corpus (task G8): file contents with CR, tabs and quotes, byte for byte
+fixtures/parity/dotenv/** -text

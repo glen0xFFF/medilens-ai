@@ -1,0 +1,865 @@
+{"fn":"normalizeName","args":["  "],"result":""}
+{"fn":"normalizeName","args":["  Bio-gesic  "],"result":"bio-gesic"}
+{"fn":"normalizeName","args":["  Biogesic  "],"result":"biogesic"}
+{"fn":"normalizeName","args":["  Café  "],"result":"café"}
+{"fn":"normalizeName","args":["  Eye Drops  "],"result":"eye"}
+{"fn":"normalizeName","args":["  Film-Coated Tablet  "],"result":""}
+{"fn":"normalizeName","args":["  Ibuprofen 200 mg Capsule  "],"result":"ibuprofen 200 mg"}
+{"fn":"normalizeName","args":["  Neozep   Forte  "],"result":"neozep forte"}
+{"fn":"normalizeName","args":["  Paracetamol + Caffeine  "],"result":"paracetamol + caffeine"}
+{"fn":"normalizeName","args":["  Para​cetamol  "],"result":"para​cetamol"}
+{"fn":"normalizeName","args":["  Phenylephrine HCl  "],"result":"phenylephrine hcl"}
+{"fn":"normalizeName","args":["  Straße  "],"result":"straße"}
+{"fn":"normalizeName","args":[" Caffeine"],"result":"caffeine"}
+{"fn":"normalizeName","args":[" Chlorphenamine"],"result":"chlorphenamine"}
+{"fn":"normalizeName","args":[" Paracetamol"],"result":"paracetamol"}
+{"fn":"normalizeName","args":[" Phenylephrine HCl "],"result":"phenylephrine hcl"}
+{"fn":"normalizeName","args":[" caffeine"],"result":"caffeine"}
+{"fn":"normalizeName","args":[" paracelin "],"result":"paracelin"}
+{"fn":"normalizeName","args":["0.5% Drops"],"result":"0.5%"}
+{"fn":"normalizeName","args":["0.5% Eye Drops"],"result":"0.5% eye"}
+{"fn":"normalizeName","args":["1 g Caplet"],"result":"1 g"}
+{"fn":"normalizeName","args":["2 mg"],"result":"2 mg"}
+{"fn":"normalizeName","args":["250 mg Capsule"],"result":"250 mg"}
+{"fn":"normalizeName","args":["250 mg Tablet"],"result":"250 mg"}
+{"fn":"normalizeName","args":["250 mg"],"result":"250 mg"}
+{"fn":"normalizeName","args":["250 mg/5 mL Suspension"],"result":"250 mg/5 ml"}
+{"fn":"normalizeName","args":["250mg/5mL-Suspension"],"result":"250mg/5ml-suspension"}
+{"fn":"normalizeName","args":["500 mg Capsule"],"result":"500 mg"}
+{"fn":"normalizeName","args":["500 mg Capsule500"],"result":"500 mg capsule500"}
+{"fn":"normalizeName","args":["500 mg Chewable Tablet"],"result":"500 mg chewable"}
+{"fn":"normalizeName","args":["500 mg Film Coated Tablet"],"result":"500 mg film coated"}
+{"fn":"normalizeName","args":["500 mg Film-Coated Tablets"],"result":"500 mg"}
+{"fn":"normalizeName","args":["500 mg Film–Coated Tablet"],"result":"500 mg film–coated"}
+{"fn":"normalizeName","args":["500 mg Film—Coated Tablet"],"result":"500 mg film—coated"}
+{"fn":"normalizeName","args":["500 mg Gel"],"result":"500 mg"}
+{"fn":"normalizeName","args":["500 mg Granules"],"result":"500 mg"}
+{"fn":"normalizeName","args":["500 mg Lozenge"],"result":"500 mg"}
+{"fn":"normalizeName","args":["500 mg Oral Drops"],"result":"500 mg oral"}
+{"fn":"normalizeName","args":["500 mg Pessary"],"result":"500 mg pessary"}
+{"fn":"normalizeName","args":["500 mg Powder"],"result":"500 mg"}
+{"fn":"normalizeName","args":["500 mg Softgel"],"result":"500 mg"}
+{"fn":"normalizeName","args":["500 mg Suppository"],"result":"500 mg"}
+{"fn":"normalizeName","args":["500 mg Tablet"],"result":"500 mg"}
+{"fn":"normalizeName","args":["500 mg Tablet-1s"],"result":"500 mg tablet-1s"}
+{"fn":"normalizeName","args":["500 mg Tablets (10s)"],"result":"500 mg (10s)"}
+{"fn":"normalizeName","args":["500 mg"],"result":"500 mg"}
+{"fn":"normalizeName","args":["500 mg/5 mL Syrup"],"result":"500 mg/5 ml"}
+{"fn":"normalizeName","args":["500mg Film-Coated Tablet"],"result":"500mg"}
+{"fn":"normalizeName","args":["500mg-Capsule"],"result":"500mg-capsule"}
+{"fn":"normalizeName","args":["500mg-Suppository"],"result":"500mg-suppository"}
+{"fn":"normalizeName","args":["500mg-Tablet"],"result":"500mg-tablet"}
+{"fn":"normalizeName","args":["500mgTablet"],"result":"500mgtablet"}
+{"fn":"normalizeName","args":["AMOXICILLIN"],"result":"amoxicillin"}
+{"fn":"normalizeName","args":["Alaxan FR Film-Coated Tablets"],"result":"alaxan fr"}
+{"fn":"normalizeName","args":["Amoxicillin"],"result":"amoxicillin"}
+{"fn":"normalizeName","args":["Amoxil 500 Capsules"],"result":"amoxil 500"}
+{"fn":"normalizeName","args":["Ascof Lagundi Syrup"],"result":"ascof lagundi"}
+{"fn":"normalizeName","args":["BIO-GESIC"],"result":"bio-gesic"}
+{"fn":"normalizeName","args":["BIOGESIC"],"result":"biogesic"}
+{"fn":"normalizeName","args":["BIOGESIC®"],"result":"biogesic"}
+{"fn":"normalizeName","args":["Bio"],"result":"bio"}
+{"fn":"normalizeName","args":["Bio-gesic"],"result":"bio-gesic"}
+{"fn":"normalizeName","args":["Biogesic Forte"],"result":"biogesic forte"}
+{"fn":"normalizeName","args":["Biogesic Tablet"],"result":"biogesic"}
+{"fn":"normalizeName","args":["Biogesic"],"result":"biogesic"}
+{"fn":"normalizeName","args":["Biogesic™"],"result":"biogesic"}
+{"fn":"normalizeName","args":["Biogésic"],"result":"biogésic"}
+{"fn":"normalizeName","args":["Bio–gesic"],"result":"bio–gesic"}
+{"fn":"normalizeName","args":["Bi­o-gesic"],"result":"bi­o-gesic"}
+{"fn":"normalizeName","args":["Bi­ogesic"],"result":"bi­ogesic"}
+{"fn":"normalizeName","args":["Brand caplet"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand caplets"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand capsule"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand capsules"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand cream"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand drop"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand drops"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand elixir"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand film-coated"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand gel"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand granule"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand granules"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand inhaler"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand injection"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand lotion"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand lozenge"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand lozenges"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand ointment"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand patch"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand patches"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand powder"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand sachet"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand sachets"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand softgel"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand softgels"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand solution"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand spray"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand suppositories"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand suppository"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand suspension"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand syrup"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand tablet"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand tablets"],"result":"brand"}
+{"fn":"normalizeName","args":["Bİo-gesic"],"result":"bi̇o-gesic"}
+{"fn":"normalizeName","args":["Bİogesic"],"result":"bi̇ogesic"}
+{"fn":"normalizeName","args":["B́io-gesic"],"result":"b́io-gesic"}
+{"fn":"normalizeName","args":["B́iogesic"],"result":"b́iogesic"}
+{"fn":"normalizeName","args":["CAFÉ"],"result":"café"}
+{"fn":"normalizeName","args":["Caffeine "],"result":"caffeine"}
+{"fn":"normalizeName","args":["Caffeine"],"result":"caffeine"}
+{"fn":"normalizeName","args":["Café"],"result":"café"}
+{"fn":"normalizeName","args":["Ca­fé"],"result":"ca­fé"}
+{"fn":"normalizeName","args":["Clavulanic Acid"],"result":"clavulanic acid"}
+{"fn":"normalizeName","args":["Ćafé"],"result":"ćafé"}
+{"fn":"normalizeName","args":["Cаfé"],"result":"cаfé"}
+{"fn":"normalizeName","args":["EYE DROPS"],"result":"eye"}
+{"fn":"normalizeName","args":["Enervon Caplets"],"result":"enervon"}
+{"fn":"normalizeName","args":["Eye Drops"],"result":"eye"}
+{"fn":"normalizeName","args":["Eye Mo Eye Drops"],"result":"eye mo eye"}
+{"fn":"normalizeName","args":["Eye ​Drops"],"result":"eye ​drops"}
+{"fn":"normalizeName","args":["Eye\nDrops"],"result":"eye"}
+{"fn":"normalizeName","args":["Eye Drops"],"result":"eye"}
+{"fn":"normalizeName","args":["Eye Drops"],"result":"eye"}
+{"fn":"normalizeName","args":["Ey­e Drops"],"result":"ey­e"}
+{"fn":"normalizeName","args":["Éye Drops"],"result":"éye"}
+{"fn":"normalizeName","args":["FILM-COATED TABLET"],"result":""}
+{"fn":"normalizeName","args":["Film-Coated Tablet"],"result":""}
+{"fn":"normalizeName","args":["Film-Coated ​Tablet"],"result":"​tablet"}
+{"fn":"normalizeName","args":["Film-Coated\nTablet"],"result":""}
+{"fn":"normalizeName","args":["Film-Coated Tablet"],"result":""}
+{"fn":"normalizeName","args":["Film-Coated Tablet"],"result":""}
+{"fn":"normalizeName","args":["Film-Coаted Tablet"],"result":"film-coаted"}
+{"fn":"normalizeName","args":["Film–Coated Tablet"],"result":"film–coated"}
+{"fn":"normalizeName","args":["Fi­lm-Coated Tablet"],"result":"fi­lm-coated"}
+{"fn":"normalizeName","args":["Fİlm-Coated Tablet"],"result":"fi̇lm-coated"}
+{"fn":"normalizeName","args":["F́ilm-Coated Tablet"],"result":"f́ilm-coated"}
+{"fn":"normalizeName","args":["IBUPROFEN 200 MG CAPSULE"],"result":"ibuprofen 200 mg"}
+{"fn":"normalizeName","args":["Ibuprofen 200 mg Capsule"],"result":"ibuprofen 200 mg"}
+{"fn":"normalizeName","args":["Ibuprofen 200 mg Cаpsule"],"result":"ibuprofen 200 mg cаpsule"}
+{"fn":"normalizeName","args":["Ibuprofen ​200 mg Capsule"],"result":"ibuprofen ​200 mg"}
+{"fn":"normalizeName","args":["Ibuprofen"],"result":"ibuprofen"}
+{"fn":"normalizeName","args":["Ibuprofen\n200\tmg\tCapsule"],"result":"ibuprofen 200 mg"}
+{"fn":"normalizeName","args":["Ibuprofen 200 mg Capsule"],"result":"ibuprofen 200 mg"}
+{"fn":"normalizeName","args":["Ibuprofen 200 mg Capsule"],"result":"ibuprofen 200 mg"}
+{"fn":"normalizeName","args":["Ib­uprofen 200 mg Capsule"],"result":"ib­uprofen 200 mg"}
+{"fn":"normalizeName","args":["Íbuprofen 200 mg Capsule"],"result":"íbuprofen 200 mg"}
+{"fn":"normalizeName","args":["Neozep Forte"],"result":"neozep forte"}
+{"fn":"normalizeName","args":["Neozep"],"result":"neozep"}
+{"fn":"normalizeName","args":["Nothingfound"],"result":"nothingfound"}
+{"fn":"normalizeName","args":["PARACELIN"],"result":"paracelin"}
+{"fn":"normalizeName","args":["PARACETAMOL + CAFFEINE"],"result":"paracetamol + caffeine"}
+{"fn":"normalizeName","args":["PARACETAMOL"],"result":"paracetamol"}
+{"fn":"normalizeName","args":["PARA​CETAMOL"],"result":"para​cetamol"}
+{"fn":"normalizeName","args":["PHENYLEPHRINE HCL"],"result":"phenylephrine hcl"}
+{"fn":"normalizeName","args":["Paracelin 250"],"result":"paracelin 250"}
+{"fn":"normalizeName","args":["Paracelin 500"],"result":"paracelin 500"}
+{"fn":"normalizeName","args":["Paracelin"],"result":"paracelin"}
+{"fn":"normalizeName","args":["Paracelin® 500 Tablet"],"result":"paracelin 500"}
+{"fn":"normalizeName","args":["Paracelin®500"],"result":"paracelin 500"}
+{"fn":"normalizeName","args":["Paracetamol "],"result":"paracetamol"}
+{"fn":"normalizeName","args":["Paracetamol + Caffeine"],"result":"paracetamol + caffeine"}
+{"fn":"normalizeName","args":["Paracetamol + Caffeİne"],"result":"paracetamol + caffei̇ne"}
+{"fn":"normalizeName","args":["Paracetamol ​+ Caffeine"],"result":"paracetamol ​+ caffeine"}
+{"fn":"normalizeName","args":["Paracetamol"],"result":"paracetamol"}
+{"fn":"normalizeName","args":["Paracetamol\n+\tCaffeine"],"result":"paracetamol + caffeine"}
+{"fn":"normalizeName","args":["Paracetamol + Caffeine"],"result":"paracetamol + caffeine"}
+{"fn":"normalizeName","args":["Paracetamol + Caffeine"],"result":"paracetamol + caffeine"}
+{"fn":"normalizeName","args":["Para​cetamol"],"result":"para​cetamol"}
+{"fn":"normalizeName","args":["Pa­racetamol + Caffeine"],"result":"pa­racetamol + caffeine"}
+{"fn":"normalizeName","args":["Pa­ra​cetamol"],"result":"pa­ra​cetamol"}
+{"fn":"normalizeName","args":["Phenylephrine HCl"],"result":"phenylephrine hcl"}
+{"fn":"normalizeName","args":["Phenylephrine ​HCl"],"result":"phenylephrine ​hcl"}
+{"fn":"normalizeName","args":["Phenylephrine"],"result":"phenylephrine"}
+{"fn":"normalizeName","args":["Phenylephrine\nHCl"],"result":"phenylephrine hcl"}
+{"fn":"normalizeName","args":["Phenylephrine HCl"],"result":"phenylephrine hcl"}
+{"fn":"normalizeName","args":["Phenylephrine HCl"],"result":"phenylephrine hcl"}
+{"fn":"normalizeName","args":["Phenylephrİne HCl"],"result":"phenylephri̇ne hcl"}
+{"fn":"normalizeName","args":["Ph­enylephrine HCl"],"result":"ph­enylephrine hcl"}
+{"fn":"normalizeName","args":["Ṕaracetamol + Caffeine"],"result":"ṕaracetamol + caffeine"}
+{"fn":"normalizeName","args":["Ṕara​cetamol"],"result":"ṕara​cetamol"}
+{"fn":"normalizeName","args":["Ṕhenylephrine HCl"],"result":"ṕhenylephrine hcl"}
+{"fn":"normalizeName","args":["Pаracetamol + Caffeine"],"result":"pаracetamol + caffeine"}
+{"fn":"normalizeName","args":["Pаra​cetamol"],"result":"pаra​cetamol"}
+{"fn":"normalizeName","args":["STRASSE"],"result":"strasse"}
+{"fn":"normalizeName","args":["See package insert Tablet"],"result":"see package insert"}
+{"fn":"normalizeName","args":["See package insert"],"result":"see package insert"}
+{"fn":"normalizeName","args":["Straße"],"result":"straße"}
+{"fn":"normalizeName","args":["Strepsils Lozenges"],"result":"strepsils"}
+{"fn":"normalizeName","args":["Strаße"],"result":"strаße"}
+{"fn":"normalizeName","args":["St­raße"],"result":"st­raße"}
+{"fn":"normalizeName","args":["Suppository-500mg"],"result":"suppository-500mg"}
+{"fn":"normalizeName","args":["Śtraße"],"result":"śtraße"}
+{"fn":"normalizeName","args":["Tablet"],"result":""}
+{"fn":"normalizeName","args":["Tempra"],"result":"tempra"}
+{"fn":"normalizeName","args":["Voltaren Gel"],"result":"voltaren"}
+{"fn":"normalizeName","args":["clavulanic acid"],"result":"clavulanic acid"}
+{"fn":"normalizeName","args":["paracetamol "],"result":"paracetamol"}
+{"fn":"normalizeName","args":["İbuprofen 200 mg Capsule"],"result":"i̇buprofen 200 mg"}
+{"fn":"normalizeName","args":["İbuprofen"],"result":"i̇buprofen"}
+{"fn":"normalizeName","args":["Ｂｉｏ－ｇｅｓｉｃ"],"result":"ｂｉｏ－ｇｅｓｉｃ"}
+{"fn":"normalizeName","args":["Ｂｉｏｇｅｓｉｃ"],"result":"ｂｉｏｇｅｓｉｃ"}
+{"fn":"normalizeName","args":["Ｃａｆé"],"result":"ｃａｆé"}
+{"fn":"normalizeName","args":["Ｅｙｅ Ｄｒｏｐｓ"],"result":"ｅｙｅ ｄｒｏｐｓ"}
+{"fn":"normalizeName","args":["Ｆｉｌｍ－Ｃｏａｔｅｄ Ｔａｂｌｅｔ"],"result":"ｆｉｌｍ－ｃｏａｔｅｄ ｔａｂｌｅｔ"}
+{"fn":"normalizeName","args":["Ｉｂｕｐｒｏｆｅｎ ２００ ｍｇ Ｃａｐｓｕｌｅ"],"result":"ｉｂｕｐｒｏｆｅｎ ２００ ｍｇ ｃａｐｓｕｌｅ"}
+{"fn":"normalizeName","args":["Ｐａｒａ​ｃｅｔａｍｏｌ"],"result":"ｐａｒａ​ｃｅｔａｍｏｌ"}
+{"fn":"normalizeName","args":["Ｐａｒａｃｅｔａｍｏｌ ＋ Ｃａｆｆｅｉｎｅ"],"result":"ｐａｒａｃｅｔａｍｏｌ ＋ ｃａｆｆｅｉｎｅ"}
+{"fn":"normalizeName","args":["Ｐｈｅｎｙｌｅｐｈｒｉｎｅ ＨＣｌ"],"result":"ｐｈｅｎｙｌｅｐｈｒｉｎｅ ｈｃｌ"}
+{"fn":"normalizeName","args":["Ｓｔｒａßｅ"],"result":"ｓｔｒａßｅ"}
+{"fn":"normalizeRegistrationNumber","args":["    "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["   DR XY 12345   "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["  DR-XY12345  "],"result":"DR-XY12345"}
+{"fn":"normalizeRegistrationNumber","args":["  DRP-1234-01  "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["  FR-4000001234  "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["  N/A  "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["  dr-xy12345  "],"result":"DR-XY12345"}
+{"fn":"normalizeRegistrationNumber","args":[" DR XY 12345 "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":[" D­R XY 12345 "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":[" dr-xy 39670"],"result":"DR-XY39670"}
+{"fn":"normalizeRegistrationNumber","args":[" ́DR XY 12345 "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":[" ​DR XY 12345 "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":[" ＤＲ ＸＹ １２３４５ "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":[""],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["12345"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DR XY 12345"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DR-"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DR-1"],"result":"DR-1"}
+{"fn":"normalizeRegistrationNumber","args":["DR-12345A"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DR-AB12345"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DR-XY 12345"],"result":"DR-XY12345"}
+{"fn":"normalizeRegistrationNumber","args":["DR-XY"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DR-XY12345"],"result":"DR-XY12345"}
+{"fn":"normalizeRegistrationNumber","args":["DR-XY12345​"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DR-XY12346"],"result":"DR-XY12346"}
+{"fn":"normalizeRegistrationNumber","args":["DR-XY39670"],"result":"DR-XY39670"}
+{"fn":"normalizeRegistrationNumber","args":["DR-XY900001"],"result":"DR-XY900001"}
+{"fn":"normalizeRegistrationNumber","args":["DR-XY900004"],"result":"DR-XY900004"}
+{"fn":"normalizeRegistrationNumber","args":["DR-XY900099"],"result":"DR-XY900099"}
+{"fn":"normalizeRegistrationNumber","args":["DR-XY99001"],"result":"DR-XY99001"}
+{"fn":"normalizeRegistrationNumber","args":["DR-XY99999"],"result":"DR-XY99999"}
+{"fn":"normalizeRegistrationNumber","args":["DRHR-99002"],"result":"DRHR-99002"}
+{"fn":"normalizeRegistrationNumber","args":["DRP-1234"],"result":"DRP-1234"}
+{"fn":"normalizeRegistrationNumber","args":["DRP-1234-01"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DRP–1234-01"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DRXY12345"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DR­-XY12345"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DR­P-1234-01"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["DR–XY12345"],"result":"DR-XY12345"}
+{"fn":"normalizeRegistrationNumber","args":["DR–XY39670"],"result":"DR-XY39670"}
+{"fn":"normalizeRegistrationNumber","args":["D́R-XY12345"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["D́RP-1234-01"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["FR-123"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["FR-12345"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["FR-4000001234"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["FR­-4000001234"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["FR–4000001234"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["F́R-4000001234"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["N/A"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["Ń/A"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["XY-12345"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["\nDR\tXY\t12345\t"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["dr-12345"],"result":"DR-12345"}
+{"fn":"normalizeRegistrationNumber","args":["dr-xy 12345"],"result":"DR-XY12345"}
+{"fn":"normalizeRegistrationNumber","args":["dr-xy 900001"],"result":"DR-XY900001"}
+{"fn":"normalizeRegistrationNumber","args":["dr-xy 99001"],"result":"DR-XY99001"}
+{"fn":"normalizeRegistrationNumber","args":["dr-xy12345"],"result":"DR-XY12345"}
+{"fn":"normalizeRegistrationNumber","args":["drhr-567"],"result":"DRHR-567"}
+{"fn":"normalizeRegistrationNumber","args":["dr­-xy12345"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["dr–xy12345"],"result":"DR-XY12345"}
+{"fn":"normalizeRegistrationNumber","args":["d́r-xy12345"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["garbage"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["see box"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":[" DR XY 12345 "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":[" DR XY 12345 "],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["ＤＲ－ＸＹ１２３４５"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["ＤＲＰ－１２３４－０１"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["ＦＲ－４０００００１２３４"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["Ｎ／Ａ"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["ｄｒ－ｘｙ１２３４５"],"result":null}
+{"fn":"parseStrength","args":["  0.5 g  "],"result":[{"amount":0.5,"unit":"g"}]}
+{"fn":"parseStrength","args":["  1 g  "],"result":[{"amount":1,"unit":"g"}]}
+{"fn":"parseStrength","args":["  1,000 mg  "],"result":[{"amount":1000,"unit":"mg"}]}
+{"fn":"parseStrength","args":["  1.000 mg  "],"result":null}
+{"fn":"parseStrength","args":["  10 IU  "],"result":[{"amount":10,"unit":"IU"}]}
+{"fn":"parseStrength","args":["  100 mcg  "],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["  100 µg  "],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["  100 μg  "],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["  2.5 mL  "],"result":[{"amount":2.5,"unit":"mL"}]}
+{"fn":"parseStrength","args":["  250 mg per 5 mL  "],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["  250 mg/5 mL  "],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["  250mg/5ml  "],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["  5%  "],"result":[{"amount":5,"unit":"%"}]}
+{"fn":"parseStrength","args":["  500  "],"result":null}
+{"fn":"parseStrength","args":["  500 mg  "],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["  500 mg + 65 mg  "],"result":[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]}
+{"fn":"parseStrength","args":["  500 milligrams  "],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["  500mg  "],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["  Paracetamol 500 mg Tablet  "],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["  ٥٠٠ mg  "],"result":null}
+{"fn":"parseStrength","args":[""],"result":null}
+{"fn":"parseStrength","args":["(10 sachets) 2 mg"],"result":[{"amount":2,"unit":"mg"}]}
+{"fn":"parseStrength","args":["(10x1) 2 mg"],"result":null}
+{"fn":"parseStrength","args":["(10x1] 2 mg"],"result":null}
+{"fn":"parseStrength","args":["(B12) 5 mg"],"result":null}
+{"fn":"parseStrength","args":["(Cholecalciferol (Vitamin D3)) 400 IU"],"result":[{"amount":400,"unit":"IU"}]}
+{"fn":"parseStrength","args":["0,125 mg"],"result":null}
+{"fn":"parseStrength","args":["0,500 mg"],"result":null}
+{"fn":"parseStrength","args":["0.125 mg"],"result":[{"amount":0.125,"unit":"mg"}]}
+{"fn":"parseStrength","args":["0.5 %"],"result":[{"amount":0.5,"unit":"%"}]}
+{"fn":"parseStrength","args":["0.5 G"],"result":[{"amount":0.5,"unit":"g"}]}
+{"fn":"parseStrength","args":["0.5 g"],"result":[{"amount":0.5,"unit":"g"}]}
+{"fn":"parseStrength","args":["0.5 mg"],"result":[{"amount":0.5,"unit":"mg"}]}
+{"fn":"parseStrength","args":["0.5 ​g"],"result":null}
+{"fn":"parseStrength","args":["0.5% eye"],"result":[{"amount":0.5,"unit":"%"}]}
+{"fn":"parseStrength","args":["0.5%"],"result":[{"amount":0.5,"unit":"%"}]}
+{"fn":"parseStrength","args":["0.5\ng"],"result":[{"amount":0.5,"unit":"g"}]}
+{"fn":"parseStrength","args":["0.5 g"],"result":[{"amount":0.5,"unit":"g"}]}
+{"fn":"parseStrength","args":["0.5 g"],"result":[{"amount":0.5,"unit":"g"}]}
+{"fn":"parseStrength","args":["0.­5 g"],"result":null}
+{"fn":"parseStrength","args":["000 mg"],"result":[{"amount":0,"unit":"mg"}]}
+{"fn":"parseStrength","args":["0́.5 g"],"result":null}
+{"fn":"parseStrength","args":["1 500 mg"],"result":null}
+{"fn":"parseStrength","args":["1 G"],"result":[{"amount":1,"unit":"g"}]}
+{"fn":"parseStrength","args":["1 Gram"],"result":[{"amount":1,"unit":"g"}]}
+{"fn":"parseStrength","args":["1 g"],"result":[{"amount":1,"unit":"g"}]}
+{"fn":"parseStrength","args":["1 mg"],"result":[{"amount":1,"unit":"mg"}]}
+{"fn":"parseStrength","args":["1 microgram"],"result":[{"amount":1,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["1 milligram"],"result":[{"amount":1,"unit":"mg"}]}
+{"fn":"parseStrength","args":["1 x 2,5 mg"],"result":null}
+{"fn":"parseStrength","args":["1 ​g"],"result":null}
+{"fn":"parseStrength","args":["1%"],"result":[{"amount":1,"unit":"%"}]}
+{"fn":"parseStrength","args":["1'000 mg"],"result":null}
+{"fn":"parseStrength","args":["1,00 mg"],"result":null}
+{"fn":"parseStrength","args":["1,000 MG"],"result":[{"amount":1000,"unit":"mg"}]}
+{"fn":"parseStrength","args":["1,000 mg"],"result":[{"amount":1000,"unit":"mg"}]}
+{"fn":"parseStrength","args":["1,000 ​mg"],"result":null}
+{"fn":"parseStrength","args":["1,000,000 IU"],"result":[{"amount":1000000,"unit":"IU"}]}
+{"fn":"parseStrength","args":["1,000.5 mg"],"result":[{"amount":1000.5,"unit":"mg"}]}
+{"fn":"parseStrength","args":["1,0000 mg"],"result":null}
+{"fn":"parseStrength","args":["1,000\nmg"],"result":[{"amount":1000,"unit":"mg"}]}
+{"fn":"parseStrength","args":["1,000 mg"],"result":[{"amount":1000,"unit":"mg"}]}
+{"fn":"parseStrength","args":["1,000 mg"],"result":[{"amount":1000,"unit":"mg"}]}
+{"fn":"parseStrength","args":["1,5 mg"],"result":null}
+{"fn":"parseStrength","args":["1,­000 mg"],"result":null}
+{"fn":"parseStrength","args":["1.000 MG"],"result":null}
+{"fn":"parseStrength","args":["1.000 mg"],"result":null}
+{"fn":"parseStrength","args":["1.000 ​mg"],"result":null}
+{"fn":"parseStrength","args":["1.000.000 IU"],"result":null}
+{"fn":"parseStrength","args":["1.000\nmg"],"result":null}
+{"fn":"parseStrength","args":["1.000 mg"],"result":null}
+{"fn":"parseStrength","args":["1.000 mg"],"result":null}
+{"fn":"parseStrength","args":["1.25 mg"],"result":[{"amount":1.25,"unit":"mg"}]}
+{"fn":"parseStrength","args":["1.­000 mg"],"result":null}
+{"fn":"parseStrength","args":["10 IU"],"result":[{"amount":10,"unit":"IU"}]}
+{"fn":"parseStrength","args":["10 grams"],"result":[{"amount":10,"unit":"g"}]}
+{"fn":"parseStrength","args":["10 mg"],"result":[{"amount":10,"unit":"mg"}]}
+{"fn":"parseStrength","args":["10 micrograms"],"result":[{"amount":10,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["10 sachets plus 2 sachet and 500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["10 sachets) 2 mg"],"result":null}
+{"fn":"parseStrength","args":["10 x 1 * 2 mg"],"result":null}
+{"fn":"parseStrength","args":["10 x 1 . 5 mg"],"result":null}
+{"fn":"parseStrength","args":["10 x 1 / 2 mg"],"result":null}
+{"fn":"parseStrength","args":["10 x 10 tablets 500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["10 İU"],"result":null}
+{"fn":"parseStrength","args":["10 ​IU"],"result":null}
+{"fn":"parseStrength","args":["10,000 IU"],"result":[{"amount":10000,"unit":"IU"}]}
+{"fn":"parseStrength","args":["100 MCG"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100 mcg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100 µg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100 ΜG"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100 μg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100 ​mcg"],"result":null}
+{"fn":"parseStrength","args":["100 ​µg"],"result":null}
+{"fn":"parseStrength","args":["100 ​μg"],"result":null}
+{"fn":"parseStrength","args":["1000 mcg"],"result":[{"amount":1000,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["1000 mg"],"result":[{"amount":1000,"unit":"mg"}]}
+{"fn":"parseStrength","args":["1000mg"],"result":[{"amount":1000,"unit":"mg"}]}
+{"fn":"parseStrength","args":["100\nmcg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100\nµg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100\nμg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100 mcg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100 µg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100 μg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100 mcg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100 µg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["100 μg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["10\nIU"],"result":[{"amount":10,"unit":"IU"}]}
+{"fn":"parseStrength","args":["10x0,5 mg"],"result":null}
+{"fn":"parseStrength","args":["10x0·5 mg"],"result":null}
+{"fn":"parseStrength","args":["10x0˙5 mg"],"result":null}
+{"fn":"parseStrength","args":["10x0٫5 mg"],"result":null}
+{"fn":"parseStrength","args":["10x0​,5 mg"],"result":null}
+{"fn":"parseStrength","args":["10x0‚5 mg"],"result":null}
+{"fn":"parseStrength","args":["10x0、5 mg"],"result":null}
+{"fn":"parseStrength","args":["10x0。5 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1 )2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1 ~ 2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1) 2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1*2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1-2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x10 (2 mg)"],"result":null}
+{"fn":"parseStrength","args":["10x1=2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1\"2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1] 2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1`2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1~2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1×2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1–2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1—2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1•2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1⁄2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1→2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x1∶2 mg"],"result":null}
+{"fn":"parseStrength","args":["10x2,5 mg"],"result":null}
+{"fn":"parseStrength","args":["10x½ mg"],"result":null}
+{"fn":"parseStrength","args":["10x⅓ mg"],"result":null}
+{"fn":"parseStrength","args":["10 IU"],"result":[{"amount":10,"unit":"IU"}]}
+{"fn":"parseStrength","args":["10­ IU"],"result":null}
+{"fn":"parseStrength","args":["10­0 mcg"],"result":null}
+{"fn":"parseStrength","args":["10­0 µg"],"result":null}
+{"fn":"parseStrength","args":["10­0 μg"],"result":null}
+{"fn":"parseStrength","args":["10 IU"],"result":[{"amount":10,"unit":"IU"}]}
+{"fn":"parseStrength","args":["12,500 IU"],"result":[{"amount":12500,"unit":"IU"}]}
+{"fn":"parseStrength","args":["125 mg"],"result":[{"amount":125,"unit":"mg"}]}
+{"fn":"parseStrength","args":["125 milligrams"],"result":[{"amount":125,"unit":"mg"}]}
+{"fn":"parseStrength","args":["125,000 IU"],"result":null}
+{"fn":"parseStrength","args":["1\ng"],"result":[{"amount":1,"unit":"g"}]}
+{"fn":"parseStrength","args":["1 500 mg"],"result":null}
+{"fn":"parseStrength","args":["1 g"],"result":[{"amount":1,"unit":"g"}]}
+{"fn":"parseStrength","args":["1́ g"],"result":null}
+{"fn":"parseStrength","args":["1́,000 mg"],"result":null}
+{"fn":"parseStrength","args":["1́.000 mg"],"result":null}
+{"fn":"parseStrength","args":["1́0 IU"],"result":null}
+{"fn":"parseStrength","args":["1́00 mcg"],"result":null}
+{"fn":"parseStrength","args":["1́00 µg"],"result":null}
+{"fn":"parseStrength","args":["1́00 μg"],"result":null}
+{"fn":"parseStrength","args":["1 g"],"result":[{"amount":1,"unit":"g"}]}
+{"fn":"parseStrength","args":["2 mg"],"result":[{"amount":2,"unit":"mg"}]}
+{"fn":"parseStrength","args":["2 mg/kg"],"result":null}
+{"fn":"parseStrength","args":["2 x 0 , 5 mg"],"result":null}
+{"fn":"parseStrength","args":["2 x 0,500 mg"],"result":null}
+{"fn":"parseStrength","args":["2 x 0.5 mg"],"result":[{"amount":0.5,"unit":"mg"}]}
+{"fn":"parseStrength","args":["2 x 500 mg Paracetamol"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["2 x 500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["2.000.000 IU"],"result":null}
+{"fn":"parseStrength","args":["2.5 ML"],"result":[{"amount":2.5,"unit":"mL"}]}
+{"fn":"parseStrength","args":["2.5 mL"],"result":[{"amount":2.5,"unit":"mL"}]}
+{"fn":"parseStrength","args":["2.5 mg"],"result":[{"amount":2.5,"unit":"mg"}]}
+{"fn":"parseStrength","args":["2.5 ​mL"],"result":null}
+{"fn":"parseStrength","args":["2.500 mg"],"result":null}
+{"fn":"parseStrength","args":["2.5\nmL"],"result":[{"amount":2.5,"unit":"mL"}]}
+{"fn":"parseStrength","args":["2.5 mL"],"result":[{"amount":2.5,"unit":"mL"}]}
+{"fn":"parseStrength","args":["2.5 mL"],"result":[{"amount":2.5,"unit":"mL"}]}
+{"fn":"parseStrength","args":["2.­5 mL"],"result":null}
+{"fn":"parseStrength","args":["250 MG PER 5 ML"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250 MG/5 ML"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250 mg per 5 cc"],"result":null}
+{"fn":"parseStrength","args":["250 mg per 5 mL"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250 mg per tsp"],"result":null}
+{"fn":"parseStrength","args":["250 mg"],"result":[{"amount":250,"unit":"mg"}]}
+{"fn":"parseStrength","args":["250 mg/10 mL"],"result":[{"amount":250,"unit":"mg","per":{"amount":10,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250 mg/5 cc"],"result":null}
+{"fn":"parseStrength","args":["250 mg/5 mL"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250 mg/5 ml"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250 mg/tsp"],"result":null}
+{"fn":"parseStrength","args":["250 ​mg per 5 mL"],"result":null}
+{"fn":"parseStrength","args":["250 ​mg/5 mL"],"result":null}
+{"fn":"parseStrength","args":["250MG/5ML"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250\nmg/5\tmL"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250\nmg\tper\t5\tmL"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250mg / 5ml"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250mg"],"result":[{"amount":250,"unit":"mg"}]}
+{"fn":"parseStrength","args":["250mg/5ml"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250mg/5ml-suspension"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250 mg/5 mL"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250 mg per 5 mL"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250 mg/5 mL"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["250 mg per 5 mL"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["25­0 mg per 5 mL"],"result":null}
+{"fn":"parseStrength","args":["25­0 mg/5 mL"],"result":null}
+{"fn":"parseStrength","args":["25­0mg/5ml"],"result":null}
+{"fn":"parseStrength","args":["2x0,5 mg"],"result":null}
+{"fn":"parseStrength","args":["2́.5 mL"],"result":null}
+{"fn":"parseStrength","args":["2́50 mg per 5 mL"],"result":null}
+{"fn":"parseStrength","args":["2́50 mg/5 mL"],"result":null}
+{"fn":"parseStrength","args":["2́50mg/5ml"],"result":null}
+{"fn":"parseStrength","args":["3 mg"],"result":[{"amount":3,"unit":"mg"}]}
+{"fn":"parseStrength","args":["400 IU"],"result":[{"amount":400,"unit":"IU"}]}
+{"fn":"parseStrength","args":["400 iu"],"result":[{"amount":400,"unit":"IU"}]}
+{"fn":"parseStrength","args":["400 mg"],"result":[{"amount":400,"unit":"mg"}]}
+{"fn":"parseStrength","args":["5 mL"],"result":[{"amount":5,"unit":"mL"}]}
+{"fn":"parseStrength","args":["5 mg"],"result":[{"amount":5,"unit":"mg"}]}
+{"fn":"parseStrength","args":["5%"],"result":[{"amount":5,"unit":"%"}]}
+{"fn":"parseStrength","args":["50 mg per mL"],"result":[{"amount":50,"unit":"mg","per":{"amount":1,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["50 mg/mL"],"result":[{"amount":50,"unit":"mg","per":{"amount":1,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["500 MG + 65 MG"],"result":[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 MG"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 MILLIGRAMS"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 gel"],"result":null}
+{"fn":"parseStrength","args":["500 mg (10s)"],"result":null}
+{"fn":"parseStrength","args":["500 mg + .5 mmol"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 1.000.000 IU"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10 'units'"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10 (mmol)"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10 X10 IU"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10 grams"],"result":[{"amount":500,"unit":"mg"},{"amount":10,"unit":"g"}]}
+{"fn":"parseStrength","args":["500 mg + 10 tablets ℔"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10 x 10 mmol"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10 x 10 units"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10 x 10 μmol"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10 x 10 ℥"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10 мг"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10 ㎎"],"result":[{"amount":500,"unit":"mg"},{"amount":10,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg + 10 ｍｇ"],"result":[{"amount":500,"unit":"mg"},{"amount":10,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg + 10.5.3 mmol"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10:5 mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10X65MG"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10_5 mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10mmol"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10x10 x mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10x10%"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10x10mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 10x65-mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 2 kg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 2 x $"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 2 x 65 (mg)"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 2 x65mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 2.000.000 IU"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 2x5 mmol"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 5 drams"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 5 mEq"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 5 mg"],"result":[{"amount":500,"unit":"mg"},{"amount":5,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg + 65 X MG"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 65 each mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 65 forte mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 65 mg"],"result":[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg + 65 tablets x mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 65 x %"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 65 x and mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 65 x mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 65 x tablets mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + 65 xmg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + B12 mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + B12%"],"result":null}
+{"fn":"parseStrength","args":["500 mg + D3 IU"],"result":null}
+{"fn":"parseStrength","args":["500 mg + mg65 x"],"result":null}
+{"fn":"parseStrength","args":["500 mg + ١٠ mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + ٦٥mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + १० mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg + ১০ mmol"],"result":null}
+{"fn":"parseStrength","args":["500 mg 1 caplet each"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg 10 x 10 tablets"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg 10x10"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg 2 in 1"],"result":null}
+{"fn":"parseStrength","args":["500 mg PER 5 ml"],"result":[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["500 mg capsule500"],"result":null}
+{"fn":"parseStrength","args":["500 mg chewable"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg film coated"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg film–coated"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg film—coated"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg oral"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg per 5 mL"],"result":[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["500 mg pessary"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg tablet-1s"],"result":null}
+{"fn":"parseStrength","args":["500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg, 10 x 10 capsules"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg/5 mL"],"result":[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["500 mg/5 ml"],"result":[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["500 mg­"],"result":null}
+{"fn":"parseStrength","args":["500 mg⁠"],"result":null}
+{"fn":"parseStrength","args":["500 milligrams"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 milligrаms"],"result":null}
+{"fn":"parseStrength","args":["500 mİlligrams"],"result":null}
+{"fn":"parseStrength","args":["500 µg"],"result":[{"amount":500,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["500 μg"],"result":[{"amount":500,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["500 ​mg + 65 mg"],"result":null}
+{"fn":"parseStrength","args":["500 ​mg"],"result":null}
+{"fn":"parseStrength","args":["500 ​milligrams"],"result":null}
+{"fn":"parseStrength","args":["500"],"result":null}
+{"fn":"parseStrength","args":["500,125 mg"],"result":null}
+{"fn":"parseStrength","args":["500MG"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500\nmg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500\nmg\t+\t65\tmg"],"result":[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500\nmilligrams"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500mcg"],"result":[{"amount":500,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["500mg + 250mg"],"result":[{"amount":500,"unit":"mg"},{"amount":250,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500mg + 500mg"],"result":[{"amount":500,"unit":"mg"},{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500mg-capsule"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500mg-suppository"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500mg-tablet"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500mgtablet"],"result":null}
+{"fn":"parseStrength","args":["500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg + 65 mg"],"result":[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 milligrams"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500​ mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg + 65 mg"],"result":[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 milligrams"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["50­0 mg + 65 mg"],"result":null}
+{"fn":"parseStrength","args":["50­0 mg"],"result":null}
+{"fn":"parseStrength","args":["50­0 milligrams"],"result":null}
+{"fn":"parseStrength","args":["50­0mg"],"result":null}
+{"fn":"parseStrength","args":["5OO mg"],"result":null}
+{"fn":"parseStrength","args":["5́%"],"result":null}
+{"fn":"parseStrength","args":["5́00 mg + 65 mg"],"result":null}
+{"fn":"parseStrength","args":["5́00 mg"],"result":null}
+{"fn":"parseStrength","args":["5́00 milligrams"],"result":null}
+{"fn":"parseStrength","args":["5́00"],"result":null}
+{"fn":"parseStrength","args":["5́00mg"],"result":null}
+{"fn":"parseStrength","args":["60 ml"],"result":[{"amount":60,"unit":"mL"}]}
+{"fn":"parseStrength","args":["600 mg"],"result":[{"amount":600,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Amoxicillin 500 mg + Clavulanic acid 125 milligrams"],"result":[{"amount":500,"unit":"mg"},{"amount":125,"unit":"mg"}]}
+{"fn":"parseStrength","args":["B12 500 mcg"],"result":[{"amount":500,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["B12) 5 mg"],"result":null}
+{"fn":"parseStrength","args":["Box of 100, 500 mg"],"result":null}
+{"fn":"parseStrength","args":["Caffeine 65 mg, Paracetamol 500 mg"],"result":[{"amount":65,"unit":"mg"},{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Calcium 600 mg + Vitamin D 10 micrograms"],"result":[{"amount":600,"unit":"mg"},{"amount":10,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["Calcium 600mg+Vitamin D400IU"],"result":null}
+{"fn":"parseStrength","args":["Cholecalciferol (Vitamin D3) 400 IU"],"result":[{"amount":400,"unit":"IU"}]}
+{"fn":"parseStrength","args":["Cholecalciferol [Vitamin D3] 400 IU"],"result":[{"amount":400,"unit":"IU"}]}
+{"fn":"parseStrength","args":["Co-Amoxiclav 500mg/125mg"],"result":[{"amount":500,"unit":"mg"},{"amount":125,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Drug 10 tablets ~2 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug 10 tablets ÷ 2 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug 10 tablets/2 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug 10 x 10 tablets / 2 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug 10x1/2 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug 2 x 0,5 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug B1'2 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug B12 ÷ 5 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug B12,5 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug B12/5 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug B12~5 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug D3:5 mg"],"result":null}
+{"fn":"parseStrength","args":["Drug D3_5 mg"],"result":null}
+{"fn":"parseStrength","args":["Neozep 500 Forte 10 mg"],"result":[{"amount":10,"unit":"mg"}]}
+{"fn":"parseStrength","args":["PARACETAMOL 500 MG TABLET"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Paracetamol 500 mg + Caffeine 1x65mg"],"result":null}
+{"fn":"parseStrength","args":["Paracetamol 500 mg + Caffeine 65 mg"],"result":[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Paracetamol 500 mg + Caffeine 65-mg"],"result":null}
+{"fn":"parseStrength","args":["Paracetamol 500 mg 10 Tablets"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Paracetamol 500 mg 10 tablets"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Paracetamol 500 mg Tablet"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Paracetamol 500 mg, 10 x 10 tablets"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Paracetamol 500mg + Caffeine 65mg"],"result":[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Paracetamol 500mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Paracetamol ​500 mg Tablet"],"result":null}
+{"fn":"parseStrength","args":["Paracetamol\n500\tmg\tTablet"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Paracetamol 500 mg Tablet"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Paracetamol 500 mg Tablet"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Para​cetamol 500 mg"],"result":null}
+{"fn":"parseStrength","args":["Pa­racetamol 500 mg Tablet"],"result":null}
+{"fn":"parseStrength","args":["Potassium 500 mg + Magnesium 10 mmol"],"result":null}
+{"fn":"parseStrength","args":["Ṕaracetamol 500 mg Tablet"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Pаracetamol 500 mg Tablet"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Tablet"],"result":null}
+{"fn":"parseStrength","args":["Vitamin B1 100 mg + B6 5 mg + B12 50 mcg"],"result":[{"amount":100,"unit":"mg"},{"amount":5,"unit":"mg"},{"amount":50,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["Vitamin B1 100 mg + B6 5 mg"],"result":[{"amount":100,"unit":"mg"},{"amount":5,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Vitamin B12 500 mcg"],"result":[{"amount":500,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["Vitamin B12"],"result":null}
+{"fn":"parseStrength","args":["Vitamin B12) 5 mg"],"result":null}
+{"fn":"parseStrength","args":["Vitamin D3 1000 IU + 500 mg"],"result":[{"amount":1000,"unit":"IU"},{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Vitamin D3 400 IU"],"result":[{"amount":400,"unit":"IU"}]}
+{"fn":"parseStrength","args":["Zinc 10 mg + Lactobacillus 5 billion CFU"],"result":null}
+{"fn":"parseStrength","args":["abc"],"result":null}
+{"fn":"parseStrength","args":["five hundred"],"result":null}
+{"fn":"parseStrength","args":["see package insert"],"result":null}
+{"fn":"parseStrength","args":["suppository-500mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["½ mg"],"result":null}
+{"fn":"parseStrength","args":["٥́٠٠ mg"],"result":null}
+{"fn":"parseStrength","args":["٥٠­٠ mg"],"result":null}
+{"fn":"parseStrength","args":["٥٠٠ MG"],"result":null}
+{"fn":"parseStrength","args":["٥٠٠ mg"],"result":null}
+{"fn":"parseStrength","args":["٥٠٠ ​mg"],"result":null}
+{"fn":"parseStrength","args":["٥٠٠ ｍｇ"],"result":null}
+{"fn":"parseStrength","args":["٥٠٠\nmg"],"result":null}
+{"fn":"parseStrength","args":["٥٠٠ mg"],"result":null}
+{"fn":"parseStrength","args":["٥٠٠ mg"],"result":null}
+{"fn":"parseStrength","args":["﻿500 mg"],"result":null}
+{"fn":"parseStrength","args":["０．５ ｇ"],"result":[{"amount":0.5,"unit":"g"}]}
+{"fn":"parseStrength","args":["１ ｇ"],"result":[{"amount":1,"unit":"g"}]}
+{"fn":"parseStrength","args":["１，０００ ｍｇ"],"result":[{"amount":1000,"unit":"mg"}]}
+{"fn":"parseStrength","args":["１．０００ ｍｇ"],"result":null}
+{"fn":"parseStrength","args":["１０ ＩＵ"],"result":[{"amount":10,"unit":"IU"}]}
+{"fn":"parseStrength","args":["１００ µｇ"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["１００ μｇ"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["１００ ｍｃｇ"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["２．５ ｍＬ"],"result":[{"amount":2.5,"unit":"mL"}]}
+{"fn":"parseStrength","args":["２５０ ｍｇ ｐｅｒ ５ ｍＬ"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["２５０ ｍｇ／５ ｍＬ"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["２５０ｍｇ／５ｍｌ"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["５％"],"result":[{"amount":5,"unit":"%"}]}
+{"fn":"parseStrength","args":["５００ mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["５００ ｍｇ ＋ ６５ ｍｇ"],"result":[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]}
+{"fn":"parseStrength","args":["５００ ｍｇ"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["５００ ｍｉｌｌｉｇｒａｍｓ"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["５００"],"result":null}
+{"fn":"parseStrength","args":["５００ｍｇ"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Ｐａｒａｃｅｔａｍｏｌ ５００ ｍｇ Ｔａｂｌｅｔ"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"%"}],[{"amount":0.5,"unit":"%"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":0.5,"unit":"g"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":1,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":10,"unit":"IU"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":100,"unit":"mcg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":1000,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":2.5,"unit":"mL"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":250,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":5,"unit":"%"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],[{"amount":500,"unit":"mg"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":0.5,"unit":"g"}],null],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"%"}],[{"amount":1,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],[{"amount":0.5,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],[{"amount":1,"unit":"g"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],[{"amount":1,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],[{"amount":10,"unit":"IU"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],[{"amount":100,"unit":"mcg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],[{"amount":1000,"unit":"mg"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],[{"amount":2.5,"unit":"mL"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],[{"amount":5,"unit":"%"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"g"}],null],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1,"unit":"mg"}],[{"amount":1000,"unit":"mcg"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":10,"unit":"IU"}],[{"amount":0.5,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":10,"unit":"IU"}],[{"amount":1,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":10,"unit":"IU"}],[{"amount":10,"unit":"IU"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":10,"unit":"IU"}],[{"amount":100,"unit":"mcg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":10,"unit":"IU"}],[{"amount":1000,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":10,"unit":"IU"}],[{"amount":2.5,"unit":"mL"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":10,"unit":"IU"}],[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":10,"unit":"IU"}],[{"amount":5,"unit":"%"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":10,"unit":"IU"}],[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":10,"unit":"IU"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":10,"unit":"IU"}],null],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":100,"unit":"mcg"}],[{"amount":0.5,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":100,"unit":"mcg"}],[{"amount":1,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":100,"unit":"mcg"}],[{"amount":10,"unit":"IU"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":100,"unit":"mcg"}],[{"amount":100,"unit":"mcg"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":100,"unit":"mcg"}],[{"amount":1000,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":100,"unit":"mcg"}],[{"amount":2.5,"unit":"mL"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":100,"unit":"mcg"}],[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":100,"unit":"mcg"}],[{"amount":5,"unit":"%"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":100,"unit":"mcg"}],[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":100,"unit":"mcg"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":100,"unit":"mcg"}],null],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":0.5,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":1,"unit":"g"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":10,"unit":"IU"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":100,"unit":"mcg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":1000,"unit":"mg"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":2.5,"unit":"mL"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":250,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":5,"unit":"%"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":1000,"unit":"mg"}],null],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":125,"unit":"mg"}],[{"amount":125,"unit":"mg"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":2.5,"unit":"mL"}],[{"amount":0.5,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":2.5,"unit":"mL"}],[{"amount":1,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":2.5,"unit":"mL"}],[{"amount":10,"unit":"IU"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":2.5,"unit":"mL"}],[{"amount":100,"unit":"mcg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":2.5,"unit":"mL"}],[{"amount":1000,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":2.5,"unit":"mL"}],[{"amount":2.5,"unit":"mL"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":2.5,"unit":"mL"}],[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":2.5,"unit":"mL"}],[{"amount":5,"unit":"%"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":2.5,"unit":"mL"}],[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":2.5,"unit":"mL"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":2.5,"unit":"mL"}],null],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":0.5,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":1,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":10,"unit":"IU"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":100,"unit":"mcg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":1000,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":2.5,"unit":"mL"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":250,"unit":"mg","per":{"amount":10,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":250,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":5,"unit":"%"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}],null],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg"}],[{"amount":1,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg"}],[{"amount":250,"unit":"mg"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg"}],[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":250,"unit":"mg"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":400,"unit":"IU"}],[{"amount":400,"unit":"IU"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":400,"unit":"IU"}],[{"amount":400,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"%"}],[{"amount":0.5,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"%"}],[{"amount":1,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"%"}],[{"amount":10,"unit":"IU"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"%"}],[{"amount":100,"unit":"mcg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"%"}],[{"amount":1000,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"%"}],[{"amount":2.5,"unit":"mL"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"%"}],[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"%"}],[{"amount":5,"unit":"%"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"%"}],[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"%"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"%"}],null],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":5,"unit":"mL"}],[{"amount":5,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mcg"}],[{"amount":0.5,"unit":"mg"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":1,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":250,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":10,"unit":"g"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":10,"unit":"mg"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":125,"unit":"mg"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":500,"unit":"mg"}],[{"amount":500,"unit":"mg"},{"amount":250,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":500,"unit":"mg"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":0.5,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":1,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":10,"unit":"IU"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":100,"unit":"mcg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":1000,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":2.5,"unit":"mL"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":250,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":5,"unit":"%"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],[{"amount":65,"unit":"mg"},{"amount":500,"unit":"mg"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}],null],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":0.5,"unit":"g"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":1,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":10,"unit":"IU"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":100,"unit":"mcg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":1000,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":2.5,"unit":"mL"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":250,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":5,"unit":"%"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":500,"unit":"mcg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],[{"amount":500,"unit":"mg"}]],"result":true}
+{"fn":"strengthsEqual","args":[[{"amount":500,"unit":"mg"}],null],"result":false}
+{"fn":"strengthsEqual","args":[[{"amount":600,"unit":"mg"},{"amount":10,"unit":"mcg"}],[{"amount":600,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":0,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":0.5,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":1,"unit":"g"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":1,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":10,"unit":"IU"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":10,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":100,"unit":"mcg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":1000,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":125,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":2,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":2.5,"unit":"mL"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":250,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":3,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":5,"unit":"%"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":5,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":500,"unit":"mg"},{"amount":5,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":500,"unit":"mg"},{"amount":65,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":500,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,[{"amount":600,"unit":"mg"}]],"result":false}
+{"fn":"strengthsEqual","args":[null,null],"result":false}

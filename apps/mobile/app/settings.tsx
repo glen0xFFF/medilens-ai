@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useApi } from '../src/api/ApiContext';
+import { serverModeOf } from '../src/api/useServerMode';
 import { BigButton } from '../src/components/BigButton';
 import { Body, Heading, Screen } from '../src/components/Screen';
 import { LIVE_MODE_PHOTOS } from '../src/ui/text';
@@ -32,9 +33,9 @@ export default function Settings() {
 
   useEffect(() => {
     let active = true;
-    client.health().then(
-      (h) => {
-        if (active) setMode(h.providerMode);
+    client.capabilities().then(
+      (c) => {
+        if (active) setMode(serverModeOf(c));
       },
       () => {
         if (active) setMode('not reachable');

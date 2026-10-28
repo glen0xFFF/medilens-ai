@@ -1,0 +1,229 @@
+# Parity corpora
+
+Golden cases recorded from the Node build (`apps/server`; tag `node-fallback-v1`). The Go port must reproduce every one of them exactly (Go port spec §6). They are generated files: do not edit them by hand. Re-record instead.
+
+## Re-recording
+
+```
+npm run parity:record
+```
+
+`scripts/parity/record.ts` runs `scripts/parity/vitest.config.ts`:
+
+- the whole server vitest suite (`apps/server/test/**/*.test.ts`);
+- the recorder's own tests (`scripts/parity/*.test.ts`);
+- the extra probe corpora (`scripts/parity/probes.parity.ts`).
+
+The setup file `scripts/parity/setup.ts` replaces each domain module (`apps/server/src/domain/{parsers,matcher,safety,summary,answers}.ts`) with a copy whose exported functions record every call. It is loaded only by this config. The server's own `npm test` never loads it, and no production source changes. Then the script:
+
+1. merges the raw output per corpus;
+2. checks that every exported domain function has at least one case and that all 8 scenarios were recorded;
+3. prints the counts;
+4. fails if any corpus is over 20 MB.
+
+Recording is deterministic. Three consecutive recordings gave byte-identical files.
+
+After the Node server was removed (task G12), re-recording first restores `apps/server` from the tag onto the current branch (`git -c core.autocrlf=false checkout node-fallback-v1 -- apps/server`, then `npm install`). A whole-tree checkout of the tag does not work: the tag predates `scripts/parity`. The full procedure, including how to discard the restored server, is in [scripts/parity/README.md](../../scripts/parity/README.md#re-recording).
+
+## Files
+
+| File | Functions |
+|---|---|
+| `parsers.jsonl` | `parseStrength`, `strengthsEqual`, `normalizeRegistrationNumber`, `normalizeName` |
+| `matcher.jsonl` | `assessMatch`, `clearValue` |
+| `safety.jsonl` | `classifyQuestion`, `extractExplainPhrase`, `askedFields` |
+| `summary.jsonl` | `buildSummary`, `advisorySentence`, `verificationSentences` |
+| `answers.jsonl` | `answerFromLabel`, `composeExplainAnswer`, `explanationAllowed`, `findPhraseInFields`, `explainQuote`, `quoteExplainable`, `explanationFits`, `notALabelAnswer`, `unclearAnswer`, `conflictWarning` |
+| `scenarios.jsonl` | `POST /api/v1/demo/scenario`: the 8 demo scenarios through the Node app (ruling R3) |
+
+## Line format
+
+There is one JSON object per line, with LF endings (`.gitattributes` marks these files `-text`):
+
+```
+{"fn":"parseStrength","args":["500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+```
+
+- `fn` is the exported TS function name. For scenarios, it is the route.
+- `args` has exactly one entry per declared parameter of the function (its JS `length`):
+  - Extra positional arguments are dropped. For example, `labels.map(normalizeName)` also passes `(index, array)`, which the function ignores.
+  - A missing trailing argument is recorded as undefined.
+  - No exported domain function has default or rest parameters or reads `arguments`, so this changes nothing about the call.
+- `result` is the return value.
+- Lines are deduplicated on `fn` + `args`. If the same call ever gives two different results, recording fails.
+- Lines are sorted by `fn`, then by the `args` JSON text, using plain code-unit order.
+- Object key order inside a line is the TS insertion order. Compare values, not text: `parity.Normalize` in Go re-encodes both sides canonically.
+
+### Markers (ruling R8)
+
+JSON has no `undefined` and no non-finite numbers, so the recorder writes markers:
+
+| JS value | Recorded as |
+|---|---|
+| `undefined` (an argument, an array element or hole, a property present with the value undefined, or a return value) | `{"$undefined":true}` |
+| `NaN`, `Infinity`, `-Infinity` | `{"$number":"NaN"}`, `{"$number":"Infinity"}`, `{"$number":"-Infinity"}` |
+
+- A property that is absent stays absent, and `null` stays `null`.
+- The recorder refuses anything else JSON cannot carry: functions, bigints, symbols, Maps, Sets, Dates, RegExps, Promises and class instances. It also refuses an object that already uses a marker key.
+- In Go, use `parity.IsUndefined(raw)`.
+- The current corpora contain no markers. The only JS undefined values seen were absent optional properties, which stay absent.
+
+### Rounded float arguments
+
+sharp's image-quality floats (`sharpness`, `luminance`, `glareFraction`) vary in the last digits from run to run, by about 1e-13. They reach `buildSummary` through the HTTP and pipeline tests.
+
+To keep the corpus stable, every non-integer number in `args` is rounded to 10 significant digits. When rounding changes an argument, the recorded case is not the test's own call: the recorder calls the pure original again with the rounded arguments and records that call's result. Every line is therefore a real TS input/output pair. Results are never rounded.
+
+## Extra probe corpora
+
+These come from `scripts/parity/probes.parity.ts`. All of it is synthetic DEMO DATA.
+
+1. **Matcher fuzz.** Seeded mulberry32, seed `20261028`, 4000 label × registry cases through `assessMatch`.
+   - The generator covers:
+     - registration numbers with spacing, case, fullwidth and zero-width variants;
+     - brand, generic, strength and dosage-form variants, including non-ASCII ones;
+     - partial and unreadable fields, duplicated keys, loose-pill and unreadable image kinds;
+     - 0 to 3 registry records;
+     - `unavailable` and `not_attempted` lookups;
+     - neutral and counterfeit advisories, and `advisoriesUnchecked`.
+   - Every 4th case also runs `buildSummary`, `verificationSentences` and `clearValue`.
+   - Every 8th case also runs `answerFromLabel` with a preset question and its intent.
+   - No matcher fuzz generator existed in the repository (the "6,560 cases" in the Node ledger was an uncommitted run), so this one was written for the corpus.
+2. **Safety sweep.** The preset questions plus refusal and explain-phrase questions go through `classifyQuestion`, `extractExplainPhrase` and `askedFields`. Each question is also run under these variants:
+   - case;
+   - fullwidth;
+   - NBSP and narrow NBSP;
+   - zero-width space and soft hyphen;
+   - tabs and newlines;
+   - padding;
+   - a Cyrillic look-alike;
+   - a combining accent;
+   - curly quotes;
+   - dotted capital I and the Kelvin sign;
+   - the fi ligature;
+   - a fullwidth question mark;
+   - an en dash.
+
+   It also covers the empty, 300-character and 301-character limits. The review-round probe tables in `apps/server/test/domain/safety.test.ts` are recorded through the suite itself.
+3. **Parser sweep.** Strengths, names and registration numbers under the same variants, plus `strengthsEqual` over every pair of the plain strengths.
+4. **Explanation probes.** `ROUND2_PROBE_CASES` (`apps/server/test/fixtures/explanationProbes.ts`) and some accepted explanations go through:
+   - `explanationAllowed`, `explanationFits` and `quoteExplainable`;
+   - `composeExplainAnswer` on a label with a partly unclear field and a strength conflict;
+   - `findPhraseInFields` and `explainQuote` under phrase variants;
+   - `notALabelAnswer` for every image kind.
+5. **Scenarios (ruling R3).** Each of the 8 scenario ids is posted to the in-process Node app (supertest, `apps/server/test/http/helpers.ts` `makeApp`). The body is checked against `AnalysisResultSchema`, and then these fields are stripped because they differ per run or per server:
+   - `id`;
+   - `createdAt`;
+   - `expiresAt`.
+
+   Nothing else is stripped. Registry `checkedAt` in the demo fixtures is a constant.
+
+## Go probe data (task G3)
+
+`npx tsx scripts/parity/go-probes.ts` records more reference output from the Node build into the Go packages' `testdata`. These files target the places where JS and Go differ by construction. Like the corpora above, recording is deterministic (seeded, sorted), and after task G12 it needs `apps/server` restored from the tag first ([scripts/parity/README.md](../../scripts/parity/README.md#re-recording)).
+
+| File | What V8 recorded |
+|---|---|
+| `internal/jsregex/testdata/v8_probes.jsonl` | Hand-written and seeded random RegExp probes, with the `exec` index and every capture. They check the Go JS-semantics matcher. |
+| `internal/domain/testdata/safety_adversarial.jsonl` | `classifyQuestion`, `extractExplainPhrase` and `askedFields` on seeded adversarial variants of every corpus question: casing, confusables, zero-width and format characters, whitespace, punctuation, digits, and long inputs around the 300 code-unit limit. |
+| `internal/domain/testdata/safety_regexps.json` | Every flagless RegExp the safety module ran, literal or constructed, with its `test` result on every text any of them saw, plus `exec` results for the two `exec` patterns. |
+| `internal/domain/testdata/js_unicode.json` | JS `\s`, `\p{Cf}`, `\p{L}`, `\p{N}`, `\p{Pd}`, the safety gate's invisible class, `toLowerCase` and NFKC, `\p{Cased}`, `\p{Case_Ignorable}`, and the Final_Sigma context of `toLowerCase` (the Σ of `AΣc`, `AΣcA`, `cΣ` and `AcΣ`), recorded per code point. |
+| `internal/domain/testdata/matcher_regexps.jsonl` | The matcher's `i`- and `u`-flag RegExps on every matcher corpus string plus Unicode edge cases. |
+| `internal/domain/testdata/unicode_runs.jsonl` | NFKC and `toLowerCase` on strings with runs of more than 30 combining marks or case-ignorables, where golang.org/x/text is bounded and ICU is not (Stream-Safe U+034F insertion, Final_Sigma look-ahead). Also `classifyQuestion`, `extractExplainPhrase`, `askedFields`, `normalizeName`, `parseStrength` and `assessMatch` on inputs built from such runs, including questions that normalise to exactly 299, 300 and 301 code units. |
+
+## Go probe data (task G4)
+
+`npx tsx scripts/parity/go-probes-answers.ts` records reference output for the Go port of `summary.ts` and `answers.ts` into `internal/domain/testdata`. It is deterministic (seeded, sorted) and, after task G12, needs `apps/server` restored from the tag first ([scripts/parity/README.md](../../scripts/parity/README.md#re-recording)).
+
+| File | What V8 recorded |
+|---|---|
+| `answers_casefold.json` | The `iu` RegExp semantics the phrase lookup relies on, per code point: which code points `/^[\p{L}\p{N}]$/iu` matches, and, for every code point with a case mapping, which others a `/^\u{c}$/iu` literal matches. |
+| `answers_regexps.json` | The source and flags of every RegExp V8 ran inside the summary and answer functions below. The Go test checks that each pattern answers.go compiles from a TS source is one of them, with the same flags. |
+| `answers_unicode.jsonl` | Corpus-format lines for `findPhraseInFields`, `explainQuote`, `composeExplainAnswer`, `explanationAllowed`, `explanationFits`, `quoteExplainable`, `answerFromLabel` and `buildSummary` on non-ASCII inputs: case-fold variants (Kelvin sign, long s, final sigma, ypogegrammeni, dotted and dotless i, sharp s, Deseret), NFKC compatibility forms, format characters, typographic quotes and dashes, and long printed values with astral characters (UTF-16 lengths in the 400-unit chunker). A probe whose result would contain a lone surrogate is not recorded. |
+
+## Image parity (task G5)
+
+`npx tsx scripts/parity/record-images.ts` writes `fixtures/parity/images/`: synthetic images and `reference.json`, which records what the Node imaging code (`apps/server/src/imaging`, sharp 0.35.5 / libvips 8.18.7) returns for each of them. Every image is synthetic: text-like block patterns, solid colours and gradients. None is a real medicine photo. The image bytes are deterministic. Metric floats are rounded to 10 significant digits, because sharp varies by about 1e-13 between runs. After task G12, re-recording needs `apps/server` restored from the tag first ([scripts/parity/README.md](../../scripts/parity/README.md#re-recording)).
+
+Per image, `reference.json` holds:
+
+- `validate`: `validateImage` as returned;
+- `assess`: `assessQuality` on the upload itself, or null (16-bit, alpha, rejected, and the large images);
+- `normalized`: `normalizeImage`, then `assessQuality` on the JPEG it returns (what the pipeline measures), with the output size, channel count and `grid`, the 4x4 block means of its greyscale;
+- `rgb` (decode probes only, which have no `normalized`): sharp's raw RGB decode of the image itself.
+
+`fit` lists input sizes with the size sharp's fit-inside resize gives them: rounding edge cases plus a seeded sample.
+
+| Images | What they cover |
+|---|---|
+| `sharp`, `blurred`, `dark`, `glare`, `blue`, `green`, `wide` (3000x1000), `orient6.jpg`, `sharp.gif`, `huge.png` (7000x7000) | the Node tests' own images (`apps/server/test/helpers/images.ts`) |
+| `sharp.png`, `sharp.webp`, `sharp-lossless.webp`, `progressive.jpg`, `grey16.png`, `alpha.png`, `tiny.jpg` (1x1) | formats and decoder paths |
+| `colour.*`, `colour-444.jpg`, `colour-p3.jpg`, `sharp-p3.jpg`, `cmyk.jpg` | colour to grey conversion, chroma subsampling, ICC profiles |
+| `cmyk-contrast-*.jpg`, `cmyk-dark-*.jpg`, `large-shrink3-cmyk.jpg` | CMYK either side of minSharpness (contrast 0.62 to 0.74) and minLuminance (brightness 0.30 to 0.38), and CMYK through the JPEG shrink-on-load |
+| `patches-*.jpg` | decode probes: saturated 1-2 px colour runs at odd and tiny sizes (4:2:0, one 4:4:4), checked pixel by pixel against sharp's decode (libjpeg's fancy chroma upsampling and its edge rules) |
+| `orient6.png`, `orient6.webp`, `cells-o1.jpg` to `cells-o8.jpg` | EXIF orientation in PNG and WebP, and all eight orientations (block means) |
+| `tall.jpg`, `large-*` | the resize: Lanczos3, JPEG shrink-on-load (1/2, 1/4, 1/8), libvips' box shrink, and libwebp's scaled decode for WebP over 2048 |
+
+The Go test (`internal/imaging/parity_test.go`) requires sharpness within 0.5, luminance within 0.5 and glare within 0.005, with the same `ok` and `reasons`. It also requires the same output size and block means within 3 grey levels. A known gap may relax only the block means, never a metric (`TestKnownGapsKeepMetricTolerance`), and no CMYK image may be one. One image is a known gap, with the verdict still exactly equal:
+
+- `colour-p3.jpg`: the block means of its saturated corner, because Go ignores the embedded Display P3 profile. Its metrics are within the tolerance.
+
+Divergences outside the parity set (final review M14), each failing closed or changing layout only:
+
+- An animated WebP is refused by `Validate` (`415 INVALID_IMAGE`, synchronously); Node analysed its first frame. x/image/webp decodes no animation, so the job would fail anyway.
+- Arithmetic-coded, 12-bit and lossless JPEG are refused (`INVALID_IMAGE`); libjpeg-turbo decodes them.
+- A CMYK JPEG with its own embedded ICC profile (Go always uses libvips' built-in CMYK profile), YCCK, and real Display P3 phone photos are unmeasured.
+- Fixed to follow sharp, as the task G5 reviewer measured it: a WebP EXIF chunk is read only when the VP8X EXIF flag is set, and an Orientation stored as LONG is read (`internal/imaging/exif_test.go`, hand-built cases).
+
+The decode probes have no `normalized` entry: on 1-2 px runs of saturated colour, image/jpeg's q85 encoder and sharp's (libvips with mozjpeg) quantise differently, up to 5 luma and 8 chroma levels a pixel on `patches-33x17-444.jpg`, while Go decodes sharp's own output exactly. That encoder gap is reported in the task G5 report (fix round 1).
+
+### CMYK to sRGB table
+
+`npx tsx scripts/parity/record-cmyk-lut.ts` (after `record-images.ts`) writes `internal/imaging/cmyk_srgb.lut`, the 17^4 16-bit node table lcms evaluates for sharp's CMYK to sRGB transform, recovered by least squares from sharp's own output on 5.6 million CMYK pixels (every pixel of the cube's corners, edges and 2-D faces, plus seeded random pixels on its 3-D faces and inside). It first checks that the TIFF route it feeds sharp gives byte for byte what sharp gives each CMYK parity JPEG. It also writes `fixtures/parity/cmyk/`: `pixels.*` and `faces.*`, 20,000 seeded random CMYK pixels each (anywhere, and on the faces) with sharp's sRGB, which `internal/imaging/cmyk_test.go` checks the table against, and `versions.json`.
+
+## Provider parity (task G6)
+
+`npx tsx scripts/parity/record-providers.ts` writes `fixtures/parity/providers/`. Nothing in it touches the network. After task G12, re-recording needs `apps/server` restored from the tag first ([scripts/parity/README.md](../../scripts/parity/README.md#re-recording)).
+
+| File | What the Node build recorded |
+|---|---|
+| `muse-requests.json` | The request bodies the Node Muse Spark adapters (`apps/server/src/providers/museSpark.ts`) hand to the chat completions client, captured with a fake client: the label reader with 1, 2 and 3 images, and the explainer for the printed phrase "Store in a cool dry place". They pin the prompts, the image parts and the strict JSON Schemas. The Go client sends the same bodies, except that `max_tokens` is sent under its current name `max_completion_tokens` (Go port spec §3). |
+| `httpurl.jsonl` | Corpus-format lines (`fn: "httpUrl"`): `AdvisorySchema.safeParse({title, url})` from `packages/contracts` (`url: z.httpUrl()`, zod 4.6.7) over a probe list of URL strings, with `result` `{success, url}` (the URL the schema outputs: trimmed, with ASCII tab and newline removed) or `{success: false}`. The probes include IDNA hosts and the places where Node's parser departs from the letter of UTS #46 (below). |
+| `httpurl-idna.jsonl` | The same over 2,000 seeded random hosts built from code points the IDNA processing treats differently: mapped, ignored, disallowed, marks, joiners, Bidi classes, composable pairs, A-labels and percent-encoded bytes. |
+| `httpurl-codepoints.json`, `httpurl-codepoints.bin.gz` | The same over every Unicode scalar value in each of the JSON's 11 host patterns (`{c}` is the code point, `{ace}` is `xn--` plus the Punycode of `a` + c; the JSON pins that list by sha256). The gzip holds one little-endian uint16 per code point, with bit k set when the schema accepts pattern k. |
+| `muse/*.json`, `phfda/*.json` | Byte-for-byte copies of the synthetic recorded responses the Node provider tests use (`apps/server/test/fixtures/{muse,phfda}`), so the Go tests keep them after the Node server is removed. All synthetic DEMO DATA. |
+
+The Go `contracts.ParseHTTPURL` reproduces every result in the three `httpurl` files: the accept or reject decision and the output value. zod checks the hostname Node's URL parser gives, and for a non-ASCII host that parser is ada 4.0.0's IDNA code (Node v24.21.0). It is not the letter of UTS #46:
+
+- an all-ASCII host is only lowercased, so its `xn--` labels are never checked;
+- the NFC quick check can leave a string unnormalized (U+00E2 U+0323, U+AC00 U+11A8);
+- the normalization tables stop at Unicode 15.1, and the Bidi and combining-mark tables at Unicode 13, while the mapping is IDNA 17.0.0;
+- the Bidi rule is checked label by label, and the ContextJ check returns at the first joiner;
+- a percent-decoded host over 16,384 bytes fails.
+
+So the Go port (`internal/contracts/idna.go`, `ada_tables.go`) ports ada's `to_ascii` and reads ada's own tables. `npx tsx scripts/parity/extract-ada-idna.ts <ada_idna.cpp>` copies them byte for byte to `internal/contracts/ada_idna_tables.deflate`. It takes ada v4.0.0's single-file `src/ada_idna.cpp` (https://raw.githubusercontent.com/ada-url/ada/v4.0.0/src/ada_idna.cpp, checked by sha256) and checks the blob's size and CRC32, the layout constants and the ContextJ lists against the Go source. The license is in `ada_idna_tables.LICENSE`.
+
+## Question limits (task G7 review round 1)
+
+`npx tsx scripts/parity/record-question-limits.ts` writes `fixtures/parity/explain/question-limits.jsonl`. Nothing in it touches the network, and its label data is the synthetic DEMO DATA of the demo scenarios. Recording is deterministic. After task G12, re-recording needs `apps/server` restored from the tag first ([scripts/parity/README.md](../../scripts/parity/README.md#re-recording)).
+
+The file has corpus-format lines, sorted by `fn` and then by the `args` JSON text:
+
+| `fn` | What the Node build recorded |
+|---|---|
+| `ExplainRequestSchema` | `ExplainRequestSchema.safeParse({question})` (`packages/contracts`, `z.string().trim().min(1).max(300)`, zod 4.6.7) over 57 boundary questions. `args` is `[{question}]`. `result` is `{success: true, question}` with the trimmed question the schema outputs, or `{success: false}`. |
+| `explainQuestion` | Node's `explainQuestion`, run as the explain route runs it, for every question the schema accepts, on each of the 8 demo scenario results: the trimmed question, `analyzeScenario`'s result, the fixture answerer and no live answerer. `args` is `[{scenarioId}, question]`, where the scenario id stands for `analyzeScenario`'s result. `result` is the answer. |
+
+zod measures a string in Unicode code points, not UTF-16 units (`$ZodCheckMaxLength`, `util.codePointLength`). A surrogate pair counts once, and a lone surrogate counts as one. The probes sit on both sides of 300 in both units. They cover ASCII, BMP CJK, emoji, CJK Ext-B, combining marks, lone and reversed surrogates, and JS-trim whitespace. 14 accepted questions are over 300 UTF-16 units, and Node's safety gate refuses them, because its own limit is 300 UTF-16 units.
+
+The recorder writes lone surrogates as JSON `\u` escapes. Go's `encoding/json` reads them as U+FFFD, as it reads a request body with the same escape, and U+FFFD counts as one code point, as the lone surrogate does in zod.
+
+`internal/pipeline/question_limits_test.go` holds `pipeline.ValidateQuestion` and `pipeline.Explain` to every line.
+
+## .env parser (task G8)
+
+`npx tsx scripts/parity/record-dotenv.ts` writes `fixtures/parity/dotenv/node-parse-env.jsonl`. It needs Node only (`node:util`), not the Node server, so it still runs after task G12. Nothing in it touches the network. Recording is deterministic for one Node version: three consecutive recordings with Node v24.21.0 gave the same sha256, `e5c8dd14a404b4df15f25ceea398bdd929f3f56ad686a91e41a3877683f0c449`.
+
+Each line is `{"fn":"util.parseEnv","args":[content],"result":{KEY: value, ...}}`: what Node's `.env` parser (the one `process.loadEnvFile` runs, which the Node server called on the repository-root `.env`) makes of one file content. There are 2,937 distinct contents: 75 hand-picked cases (comments, inline `#`, the three quote kinds, `\n` in double quotes, multi-line and unterminated quotes, `export`, CRLF, empty keys, blank values) and the rest random files from a fixed-seed generator over a small alphabet of keys, `=`, quotes, `#`, backslash, `n`, spaces, tabs, newlines, CRLF and `export `. A `""` key is left out of `result`: no environment variable can have an empty name.
+
+`internal/config/dotenv_parity_test.go` holds the Go parser to every line: with Node's blank-value behaviour switched on, it gives exactly Node's variables for every file; `config.ParseDotenv` differs only on files with a line of `=` followed by only spaces or tabs, where Node reads the next line as the value (the documented difference in `internal/config/dotenv.go`).

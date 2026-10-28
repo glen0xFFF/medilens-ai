@@ -1,0 +1,97 @@
+{"fn":"parseStrength","args":["١٠ mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["5 Μg"],"result":[{"amount":5,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["5 µg"],"result":[{"amount":5,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["1.000 Μg"],"result":null}
+{"fn":"parseStrength","args":["1.000 Μ"],"result":null}
+{"fn":"parseStrength","args":["500 mgé"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500mg"],"result":null}
+{"fn":"parseStrength","args":["2 x 500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["(Vitamin D3) 400 IU"],"result":[{"amount":400,"unit":"IU"}]}
+{"fn":"parseStrength","args":["𝟓𝟎𝟎 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg 🙂"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["10 tablets ℥ 2"],"result":null}
+{"fn":"parseStrength","args":["10 tablets ÷ 2 mg"],"result":null}
+{"fn":"parseStrength","args":["500 ㎎"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 ｍｇ"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Ⅻ mg"],"result":null}
+{"fn":"parseStrength","args":["500 mg​"],"result":null}
+{"fn":"parseStrength","args":["½ mg"],"result":null}
+{"fn":"parseStrength","args":["B12 1000 mcg"],"result":[{"amount":1000,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["10 tabletſ 500 mg"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["10 Kɡ"],"result":null}
+{"fn":"parseStrength","args":["500 MG"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["5 Per mL"],"result":null}
+{"fn":"parseStrength","args":["250 mg PER 5 ML"],"result":[{"amount":250,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["1,000.5 mg"],"result":[{"amount":1000.5,"unit":"mg"}]}
+{"fn":"parseStrength","args":["10,000 IU"],"result":[{"amount":10000,"unit":"IU"}]}
+{"fn":"parseStrength","args":["500 mg/125 mg"],"result":[{"amount":500,"unit":"mg"},{"amount":125,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg / 5 ml"],"result":[{"amount":500,"unit":"mg","per":{"amount":5,"unit":"mL"}}]}
+{"fn":"parseStrength","args":["20 tablets, 500 mg each"],"result":null}
+{"fn":"parseStrength","args":["500 mg (10x1)"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg (Para 10x1) 2 mg"],"result":[{"amount":500,"unit":"mg"},{"amount":2,"unit":"mg"}]}
+{"fn":"parseStrength","args":["Ⅰ0 mg"],"result":null}
+{"fn":"parseStrength","args":["10 x 10"],"result":null}
+{"fn":"parseStrength","args":["500 mg €"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg ‰"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["10 plus 2 mg"],"result":null}
+{"fn":"parseStrength","args":["10 and"],"result":null}
+{"fn":"parseStrength","args":["0.5,000 mg"],"result":null}
+{"fn":"parseStrength","args":["١٠٠ mg 5 mg"],"result":null}
+{"fn":"parseStrength","args":["5 mǵ"],"result":null}
+{"fn":"parseStrength","args":["5́ mg"],"result":null}
+{"fn":"parseStrength","args":["10 TABLETS"],"result":null}
+{"fn":"parseStrength","args":["k2 100 mcg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["K2 100 mcg"],"result":[{"amount":100,"unit":"mcg"}]}
+{"fn":"parseStrength","args":["D3 400 IU"],"result":[{"amount":400,"unit":"IU"}]}
+{"fn":"parseStrength","args":["1。5 mg"],"result":null}
+{"fn":"parseStrength","args":["1·5 mg"],"result":null}
+{"fn":"parseStrength","args":["10/2 tablets 5 mg"],"result":null}
+{"fn":"normalizeName","args":["ΟΔΟΣ ΣΟΦΟΣ"],"result":"οδος σοφος"}
+{"fn":"normalizeName","args":["AΣ."],"result":"aς."}
+{"fn":"normalizeName","args":["ΣΑ"],"result":"σα"}
+{"fn":"normalizeName","args":["AΣ"],"result":"aς"}
+{"fn":"normalizeName","args":["İbuprofen"],"result":"i̇buprofen"}
+{"fn":"normalizeName","args":["IBUPROFEN TABLET"],"result":"ibuprofen"}
+{"fn":"normalizeName","args":["TabletPara"],"result":"tabletpara"}
+{"fn":"normalizeName","args":["Para Tablet"],"result":"para"}
+{"fn":"normalizeName","args":["K TABLET"],"result":"k"}
+{"fn":"normalizeName","args":["ǅ Tablet"],"result":"ǆ"}
+{"fn":"normalizeName","args":["Brand®Tablet"],"result":"brand"}
+{"fn":"normalizeName","args":["Brand™Tablet"],"result":"brand"}
+{"fn":"normalizeName","args":["Ⅻ"],"result":"ⅻ"}
+{"fn":"normalizeName","args":["Straße"],"result":"straße"}
+{"fn":"normalizeName","args":["FILM-COATED tablets"],"result":""}
+{"fn":"normalizeName","args":["Tablet　Gel"],"result":""}
+{"fn":"normalizeName","args":["Para﻿Tablet"],"result":"para"}
+{"fn":"normalizeName","args":["Para᠎Tablet"],"result":"para᠎tablet"}
+{"fn":"normalizeName","args":["İ tablet"],"result":"i̇"}
+{"fn":"normalizeName","args":["Para Drops"],"result":"para"}
+{"fn":"normalizeRegistrationNumber","args":["dr-ẋy123"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["drp− 123"],"result":"DRP-123"}
+{"fn":"normalizeRegistrationNumber","args":["ＤＲ－１２"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["dr-١٢"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["dr-12"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["dr　-12"],"result":"DR-12"}
+{"fn":"normalizeRegistrationNumber","args":["drp‐12"],"result":"DRP-12"}
+{"fn":"normalizeRegistrationNumber","args":["dr―xy 99"],"result":"DR-XY99"}
+{"fn":"normalizeRegistrationNumber","args":["dr‖ 12"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["drhr﻿-1"],"result":"DRHR-1"}
+{"fn":"normalizeRegistrationNumber","args":["ıdr-1"],"result":null}
+{"fn":"normalizeRegistrationNumber","args":["dr-xy 12"],"result":"DR-XY12"}
+{"fn":"normalizeRegistrationNumber","args":["dr— 1 2 3"],"result":"DR-123"}
+{"fn":"normalizeRegistrationNumber","args":["straße-1"],"result":null}
+{"fn":"parseStrength","args":["500 mg 10 tablets ‰"],"result":null}
+{"fn":"parseStrength","args":["500 mg 10 tablets €"],"result":null}
+{"fn":"parseStrength","args":["500 mg 10 tablets 🙂"],"result":null}
+{"fn":"parseStrength","args":["500 mg (10x1) ℥"],"result":null}
+{"fn":"parseStrength","args":["500 mg B12 ‰"],"result":null}
+{"fn":"parseStrength","args":["500 mg 10 tablets plus 2 caplets"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg 10 tablets / 2"],"result":null}
+{"fn":"parseStrength","args":["500 mg 10 tablets ⁄"],"result":null}
+{"fn":"parseStrength","args":["500 mg 10 Tablets each"],"result":[{"amount":500,"unit":"mg"}]}
+{"fn":"parseStrength","args":["500 mg 10 x 2"],"result":null}
+{"fn":"parseStrength","args":["500 mg 10　x　10"],"result":[{"amount":500,"unit":"mg"}]}

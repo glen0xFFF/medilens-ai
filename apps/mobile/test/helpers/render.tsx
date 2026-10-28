@@ -9,7 +9,7 @@ import type { ReactElement, ReactNode } from 'react';
 import type { ApiClient } from '../../src/api/client';
 import { AppProviders } from '../../src/AppProviders';
 import { AppStack } from '../../src/AppStack';
-import { PRESETS, SCENARIOS } from './fixtures';
+import { CAPABILITIES, PRESETS, SCENARIOS } from './fixtures';
 
 export type MockClient = { [K in keyof ApiClient]: jest.Mock };
 
@@ -19,9 +19,8 @@ function notMocked(name: string) {
 
 export function mockClient(overrides: Partial<MockClient> = {}): MockClient {
   return {
-    health: jest.fn(() =>
-      Promise.resolve({ status: 'ok', version: '0.1.0', providerMode: 'demo' as const }),
-    ),
+    // The Go API in mock mode, as captured: the demo-mode notice shows.
+    capabilities: jest.fn(() => Promise.resolve(CAPABILITIES)),
     analyze: notMocked('analyze'),
     result: notMocked('result'),
     scenario: notMocked('scenario'),
@@ -29,6 +28,7 @@ export function mockClient(overrides: Partial<MockClient> = {}): MockClient {
     explain: notMocked('explain'),
     references: notMocked('references'),
     presets: jest.fn(() => Promise.resolve(PRESETS)),
+    deleteAnalysis: jest.fn(() => Promise.resolve()),
     ...overrides,
   };
 }
