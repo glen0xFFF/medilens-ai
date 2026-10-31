@@ -11,14 +11,20 @@ import (
 )
 
 // quality.test.ts "has the agreed starting values", against the recording.
+// MinTileSharpness is Go-only (Node has no tile metric): calibrated on real
+// phone photos and synthetic blur.
 func TestDefaultThresholdsMatchNode(t *testing.T) {
 	ref := loadReference(t).Thresholds
-	want := Thresholds{MinSharpness: 12, MinLuminance: 40, MaxLuminance: 235, MaxGlare: 0.08}
+	want := Thresholds{MinSharpness: 12, MinTileSharpness: 0.26, MinLuminance: 40, MaxLuminance: 235, MaxGlare: 0.08}
 	if DefaultThresholds() != want {
 		t.Errorf("DefaultThresholds() = %+v, want %+v", DefaultThresholds(), want)
 	}
-	if got := (Thresholds{ref.MinSharpness, ref.MinLuminance, ref.MaxLuminance, ref.MaxGlare}); got != want {
-		t.Errorf("recorded thresholds %+v, want %+v", got, want)
+	recorded := Thresholds{
+		MinSharpness: ref.MinSharpness, MinTileSharpness: want.MinTileSharpness,
+		MinLuminance: ref.MinLuminance, MaxLuminance: ref.MaxLuminance, MaxGlare: ref.MaxGlare,
+	}
+	if recorded != want {
+		t.Errorf("recorded thresholds %+v, want %+v", recorded, want)
 	}
 }
 
@@ -66,16 +72,31 @@ func TestAssessReasons(t *testing.T) {
 	}
 }
 
-// quality.test.ts "accepts custom thresholds".
+// quality.test.ts "accepts custom thresholds", on the threshold that
+// decides BLURRY in production: MinTileSharpness.
 func TestAssessWithCustomThresholds(t *testing.T) {
 	th := DefaultThresholds()
-	th.MinSharpness = 9007199254740991 // Number.MAX_SAFE_INTEGER
+	th.MinTileSharpness = 9007199254740991 // Number.MAX_SAFE_INTEGER
 	q, err := AssessWith(fixture(t, "sharp.jpg"), th)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if q.OK || !slices.Equal(q.Reasons, []contracts.QualityReason{contracts.QualityBlurry}) {
 		t.Errorf("got %+v, want reasons [BLURRY]", q)
+	}
+}
+
+// MinSharpness is Node's recorded value and the parity oracle's: on its
+// own it no longer produces BLURRY.
+func TestMinSharpnessAloneIsNotBlurry(t *testing.T) {
+	th := DefaultThresholds()
+	th.MinSharpness = 9007199254740991 // Number.MAX_SAFE_INTEGER
+	q, err := AssessWith(fixture(t, "sharp.jpg"), th)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !q.OK || len(q.Reasons) != 0 {
+		t.Errorf("got %+v, want ok", q)
 	}
 }
 

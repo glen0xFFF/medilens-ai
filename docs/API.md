@@ -119,6 +119,7 @@ ids and timestamps (`fixtures/parity/scenarios.jsonl`).
 ## Core types (summary)
 
 - `AnalysisResult = {id, isDemo, createdAt, expiresAt, pipelineState, quality, label, match, explanation, imageRetention: "none", provenance?: {model, references}}`; `label` is `null` when the photo failed the quality check.
+- `QualityReport = {ok, sharpness, luminance, glareFraction, reasons}`; `reasons` is a subset of `BLURRY`, `TOO_DARK`, `GLARE` in that order. `BLURRY` is decided by a Go-only tile metric (the 3 sharpest 128 px tiles of the photo, minimum 0.26). `sharpness` is the Node-parity global value: it is still reported but no longer decides `BLURRY`, so a photo can pass with a `sharpness` far below the old minimum of 12. The check is coarse: it asks whether something in the frame is in focus, not whether the label is.
 - `PipelineState = "label_unreadable" | "not_a_label" | "loose_pill" | "text_extracted" | "explanation_ready"`
 - `LabelField = {key, value: string | null, legibility: "clear" | "partial" | "unreadable", evidenceText, imageIndex, notes}`
 - `MatchAssessment = {status, matched, conflicting: {key, labelValue, referenceValue}[], missing, candidates, advisories: {title, url}[], limitations}`;

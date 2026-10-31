@@ -88,8 +88,9 @@ must deep-equal in Go. All pass in the `go test` run above.
 | `scenarios.jsonl` | 8 | `internal/httpapi/routes_test.go` (HTTP: `POST /demo/scenarios` → `/result` equals the Node output except ids and timestamps), `internal/application`, `internal/demo`, `internal/contracts` |
 
 Further recorded sets: `fixtures/parity/images` (imaging, ±0.5 sharpness and luminance, ±0.005
-glare, no verdict flip), `cmyk`, `providers` (Muse request bodies, zod `httpUrl` results, IDNA
-hosts), `explain` (question limits) and `dotenv` (Node `.env` parser).
+glare, no verdict flip under Node's rule applied to Go's metrics; the production BLURRY verdict
+is Go-only and pinned by `TestTileVerdictGolden`), `cmyk`, `providers` (Muse request bodies, zod
+`httpUrl` results, IDNA hosts), `explain` (question limits) and `dotenv` (Node `.env` parser).
 
 ### Eval and smoke ports (task G12)
 
@@ -313,9 +314,25 @@ spec, not the Node script, per the final-review ruling). Never run in CI.
   accuracy on real packs. The 2 synthetic packs and their `docs/eval-results.md` were deleted
   and are not committed.
 - The photo-quality gate rejected the same synthetic images as BLURRY (sharpness 5.1 to 7.7
-  against a minimum of 12; the eval skips that gate). The thresholds in
-  `internal/imaging/quality.go` are uncalibrated starting values: check the sharpness scores of
-  real phone photos before the device test.
+  against a minimum of 12; the eval skips that gate). Real phone photos then scored 0.79 to 1.82,
+  so the gate rejected every real label.
+- **Changed (2026-10-31, not yet deployed):** BLURRY now uses a Go-only tile metric: the Laplacian
+  deviation of each 128 px tile, averaged over the 3 sharpest tiles, with a minimum of 0.26.
+  `sharpness` in the quality report is still the Node-parity global value; it no longer decides
+  the verdict. The 0.26 was calibrated on 4 real label photos (2.7 to 4.0 as taken) and Gaussian
+  blur of them (0.235 to 0.260 at sigma 8, where the reader failed on every one it was tried on;
+  the highest sits only 0.0001 under 0.26, so a decoder change could flip it).
+- **Known gap:** blurred photos the reader could NOT read still pass the gate: sigma 3 (0.39),
+  sigma 5 (0.26 to 0.31) and horizontal motion blur (0.94 to 1.90). The 0.26 rejects only gross,
+  noise-free blur of the whole frame. The
+  image parity test still checks Node's rule on Go's metrics exactly; `TestTileVerdictGolden` pins
+  the production verdict of every parity image and fails if any of them sits within 15% of 0.26.
+- The gate is coarse: it checks that something in the frame is in focus. It passes a blurred
+  label beside a sharp background, foil highlights, and noisy or recompressed frames (added
+  noise lifts a blurred frame over 0.26). Whether the label can be read is decided by the
+  reader's per-field legibility and `LABEL_UNREADABLE`.
+- **NOT RUN — owner:** real defocus and handshake photos, to check the 0.26 against blur that
+  was not made by a computer.
 
 ## EAS build
 

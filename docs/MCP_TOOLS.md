@@ -74,7 +74,10 @@ Notes per tool:
 
 - **`assess_image_quality`** runs the same validation and quality check as an upload: magic-byte
   sniff, size and pixel limits, normalisation, sharpness / luminance / glare against the same
-  thresholds as the app. Reasons are `BLURRY`, `TOO_DARK`, `GLARE`.
+  thresholds as the app. Reasons are `BLURRY`, `TOO_DARK`, `GLARE`. `BLURRY` comes from a Go-only
+  tile metric (the 3 sharpest 128 px tiles, minimum 0.26), not from `sharpness`: `sharpness` is
+  the Node-parity global value and is reported only. The check is coarse (something in the frame
+  is in focus); the reader's per-field legibility decides whether the label can be read.
 - **`extract_medication_label`** runs the full pipeline. With `scenario_id` it runs one of the
   eight demo scenarios on fixture data (always available). A field that is not `clear` must not be
   read out as certain; a loose pill is never identified.

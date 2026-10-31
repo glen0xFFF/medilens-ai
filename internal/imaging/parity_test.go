@@ -6,8 +6,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/medilens-ai/medilens/internal/contracts"
 )
 
 // Parity tolerances (Go port spec §4 Imaging; task G5 brief). The verdict
@@ -53,8 +51,13 @@ func toleranceFor(t *testing.T, file string) tolerance {
 	return specTolerance
 }
 
-func checkQuality(t *testing.T, label string, got contracts.QualityReport, want refQuality, tol tolerance) {
+// checkQuality holds Go's metrics to Node's within tol, and Node's rule
+// applied to Go's metrics (nodeVerdict) to Node's recorded verdict, exactly.
+// The production verdict decides BLURRY on the Go-only tile metric, so it
+// is not what Node recorded; TestTileVerdictGolden pins that one.
+func checkQuality(t *testing.T, label string, m metrics, want refQuality, tol tolerance) {
 	t.Helper()
+	got := nodeVerdict(m, DefaultThresholds())
 	t.Logf("%-30s go sharp=%9.4f lum=%9.4f glare=%.5f %v | node sharp=%9.4f lum=%9.4f glare=%.5f %v",
 		label, got.Sharpness, got.Luminance, got.GlareFraction, got.Reasons,
 		want.Sharpness, want.Luminance, want.GlareFraction, want.Reasons)
@@ -88,11 +91,11 @@ func TestImageParity(t *testing.T) {
 			t.Errorf("%s: %d bytes, recorded %d", im.File, len(b), im.Bytes)
 		}
 		if im.Assess != nil {
-			q, err := AssessWith(b, DefaultThresholds())
+			m, _, err := assess(b, DefaultThresholds())
 			if err != nil {
-				t.Errorf("%s: AssessWith: %v", im.File, err)
+				t.Errorf("%s: assess: %v", im.File, err)
 			} else {
-				checkQuality(t, im.File, q, *im.Assess, tol)
+				checkQuality(t, im.File, m, *im.Assess, tol)
 			}
 		}
 		if im.Normalized == nil {
@@ -112,12 +115,12 @@ func TestImageParity(t *testing.T) {
 		if n.Channels != 3 {
 			t.Errorf("%s: node wrote %d channels; the Go output is always 3", im.File, n.Channels)
 		}
-		q, err := AssessWith(out, DefaultThresholds())
+		m, _, err := assess(out, DefaultThresholds())
 		if err != nil {
-			t.Errorf("%s: AssessWith(normalised): %v", im.File, err)
+			t.Errorf("%s: assess(normalised): %v", im.File, err)
 			continue
 		}
-		checkQuality(t, im.File+" normalised", q, n.Quality, tol)
+		checkQuality(t, im.File+" normalised", m, n.Quality, tol)
 		grid := gridOf(t, out)
 		for i := range grid {
 			if d := math.Abs(grid[i] - n.Grid[i]); d > tol.grid {
@@ -162,6 +165,20 @@ func TestCMYKParityImagesHaveNoExemption(t *testing.T) {
 		if im.Normalized != nil {
 			flips[fmt.Sprint(im.Normalized.Quality.Reasons)] = true
 		}
+		// Node's rule on Go's metrics gives Node's recorded verdict, on the
+		// upload and on the normalised image.
+		b := fixture(t, im.File)
+		if im.Assess != nil {
+			checkNodeVerdict(t, im.File, b, *im.Assess)
+		}
+		if im.Normalized != nil {
+			out, err := Normalize(b)
+			if err != nil {
+				t.Errorf("%s: Normalize: %v", im.File, err)
+				continue
+			}
+			checkNodeVerdict(t, im.File+" normalised", out, im.Normalized.Quality)
+		}
 	}
 	if n < 10 {
 		t.Errorf("%d CMYK parity images, want at least 10", n)
@@ -169,5 +186,17 @@ func TestCMYKParityImagesHaveNoExemption(t *testing.T) {
 	// Both sides of each threshold: ok, BLURRY alone, BLURRY+TOO_DARK.
 	if len(flips) < 3 {
 		t.Errorf("CMYK parity verdicts %v do not straddle the thresholds", flips)
+	}
+}
+
+func checkNodeVerdict(t *testing.T, label string, b []byte, want refQuality) {
+	t.Helper()
+	m, _, err := assess(b, DefaultThresholds())
+	if err != nil {
+		t.Errorf("%s: assess: %v", label, err)
+		return
+	}
+	if got := nodeVerdict(m, DefaultThresholds()); got.OK != want.OK || !slices.Equal(got.Reasons, want.Reasons) {
+		t.Errorf("%s: node rule on go metrics ok=%v %v, node recorded ok=%v %v", label, got.OK, got.Reasons, want.OK, want.Reasons)
 	}
 }
