@@ -62,11 +62,12 @@ const answer: Answer = {
   safetyNotice: null,
 };
 
+/** A part as React Native's FormData.getParts() reports it. */
 interface FormPart {
   fieldName: string;
-  uri: string;
   name: string;
   type: string;
+  bytes(): Promise<Uint8Array>;
 }
 
 /** Response headers, looked up case-insensitively as the Fetch Headers class does. */
@@ -748,13 +749,22 @@ describe('createApiClient', () => {
     const [, init] = script.fetchImpl.mock.calls[0]!;
     const parts = (init?.body as unknown as { getParts(): FormPart[] }).getParts();
     expect(parts).toHaveLength(2);
+    // A file part expo/fetch can encode (name, type, bytes()), not React
+    // Native's {uri, name, type}; test/api/multipart.test.ts runs the encoder.
     expect(parts[0]).toMatchObject({
       fieldName: 'images',
-      uri: 'file:///cache/a.jpg',
+      name: 'photo-1.jpg',
       type: 'image/jpeg',
     });
-    expect(parts[1]).toMatchObject({ fieldName: 'images', uri: 'file:///cache/b.jpg' });
-    expect(parts[0]!.name).toMatch(/\.jpg$/);
+    expect(parts[1]).toMatchObject({
+      fieldName: 'images',
+      name: 'photo-2.jpg',
+      type: 'image/jpeg',
+    });
+    expect(parts[0]).not.toHaveProperty('uri');
+    // jest.setup's expo-file-system File mock reads a file as `bytes of <uri>`.
+    const bytes = await parts[0]!.bytes();
+    expect(new TextDecoder().decode(bytes)).toBe('bytes of file:///cache/a.jpg');
   });
 
   it('rejects 0 or more than 3 images before calling the server', async () => {

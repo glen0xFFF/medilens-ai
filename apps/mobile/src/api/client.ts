@@ -29,6 +29,9 @@ import {
   type DemoScenarioSummary,
 } from '@medilens/contracts';
 import type { z } from 'zod';
+import { fileUploadPart, type ToUploadPart } from './uploadPart';
+
+export type { ToUploadPart, UploadPart } from './uploadPart';
 
 export const REQUEST_TIMEOUT_MS = 15_000;
 /** Sending up to 3 photos over a phone connection gets longer than an ordinary request. */
@@ -104,7 +107,7 @@ function retryAfterOf(res: Response): number | undefined {
 /** GET /api/v1/analyses/{id}/references: the registry side of a stored analysis. */
 export type References = AnalysisReferences;
 
-/** A photo already on the device (camera cache or picker), sent as a React Native file part. */
+/** A photo already on the device (camera cache or picker), sent as a multipart file part. */
 export interface UploadImage {
   uri: string;
   type: string;
@@ -175,7 +178,11 @@ function pause(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-export function createApiClient(baseUrl: string, fetchImpl: FetchLike = fetch): ApiClient {
+export function createApiClient(
+  baseUrl: string,
+  fetchImpl: FetchLike = fetch,
+  toUploadPart: ToUploadPart = fileUploadPart,
+): ApiClient {
   const root = baseUrl.replace(/\/+$/, '');
   const api = `${root}/api/v1`;
 
@@ -359,13 +366,10 @@ export function createApiClient(baseUrl: string, fetchImpl: FetchLike = fetch): 
       }
       const form = new FormData();
       images.forEach((img, i) => {
-        const file = {
-          uri: img.uri,
-          type: img.type,
-          name: img.name ?? `photo-${i + 1}.${extensionFor(img.type)}`,
-        };
-        // React Native's FormData takes {uri, name, type} file objects; the DOM typing expects a Blob.
-        form.append('images', file as unknown as Blob);
+        const name = img.name ?? `photo-${i + 1}.${extensionFor(img.type)}`;
+        // Not React Native's {uri, name, type}: expo/fetch cannot encode it
+        // (see uploadPart.ts). The DOM typing expects a Blob.
+        form.append('images', toUploadPart(img.uri, name, img.type) as unknown as Blob);
       });
       const created = await request(
         `${api}/analyses`,

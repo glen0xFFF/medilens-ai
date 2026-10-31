@@ -125,7 +125,10 @@ jest.mock('expo-image-manipulator', () => {
   };
 });
 
-/** expo-file-system: File(uri).delete() is recorded by `__deleted`. */
+/**
+ * expo-file-system: File(uri).delete() is recorded by `__deleted`;
+ * File(uri).bytes() reads the text `bytes of <uri>`.
+ */
 jest.mock('expo-file-system', () => {
   const deleted = jest.fn();
   class File {
@@ -135,6 +138,9 @@ jest.mock('expo-file-system', () => {
     }
     delete() {
       deleted(this.uri);
+    }
+    bytes(): Promise<Uint8Array> {
+      return Promise.resolve(new (require('util').TextEncoder)().encode(`bytes of ${this.uri}`));
     }
   }
   return { File, __deleted: deleted };
