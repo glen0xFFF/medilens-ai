@@ -26,7 +26,7 @@ export default defineConfig(
       ],
     },
   },
-  // Server, contracts and root scripts run on Node.
+  // Contracts and root scripts run on Node.
   {
     ignores: ['apps/mobile/**'],
     languageOptions: { globals: { ...globals.node } },

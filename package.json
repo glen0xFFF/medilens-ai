@@ -11,9 +11,21 @@
     "apps/*"
   ],
   "scripts": {
-    "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "eslint ."
+    "test": "npm run test --workspaces --if-present && npm run test:contract",
+    "test:contract": "vitest run --config scripts/contract/vitest.config.ts",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p scripts/contract",
+    "lint": "eslint .",
+    "go:test": "go test ./...",
+    "go:vet": "go vet ./...",
+    "go:fmt": "node scripts/dev/gofmt-check.mjs",
+    "go:staticcheck": "go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...",
+    "go:lint": "npm run go:vet && npm run go:fmt && npm run go:staticcheck",
+    "dev:api": "go run ./services/api",
+    "dev:mcp": "go run ./services/mcp",
+    "demo": "node scripts/dev/go.mjs MODEL_PROVIDER=mock REFERENCE_PROVIDER=fixture -- run ./services/api",
+    "eval:labels": "go run ./services/eval",
+    "smoke:live": "go run ./services/smoke",
+    "parity:record": "tsx scripts/parity/record.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

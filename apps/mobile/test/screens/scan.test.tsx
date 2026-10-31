@@ -6,7 +6,7 @@ import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testi
 import { StrictMode } from 'react';
 import { AccessibilityInfo, Linking } from 'react-native';
 import { ApiError, type ApiErrorCode } from '../../src/api/client';
-import { RESULTS } from '../helpers/fixtures';
+import { CAPABILITIES, RESULTS, S1_STATUS } from '../helpers/fixtures';
 import {
   appRoutes,
   expectPressablesLabelled,
@@ -109,8 +109,12 @@ describe('scan screen: server mode notice (final review Minor 17)', () => {
   const DEMO_NOTICE = 'Server is in demo mode: scans return a made-up example.';
   const live = () =>
     mockClient({
-      health: jest.fn(() =>
-        Promise.resolve({ status: 'ok', version: '0.1.0', providerMode: 'live' as const }),
+      capabilities: jest.fn(() =>
+        Promise.resolve({
+          ...CAPABILITIES,
+          modelProvider: 'muse_spark' as const,
+          modelId: 'muse-spark-1.3',
+        }),
       ),
     });
 
@@ -130,7 +134,7 @@ describe('scan screen: server mode notice (final review Minor 17)', () => {
     const client = live();
     await openAt('/scan', client);
     expect(await screen.findByTestId('camera-view')).toBeTruthy();
-    await waitFor(() => expect(client.health).toHaveBeenCalled());
+    await waitFor(() => expect(client.capabilities).toHaveBeenCalled());
     expect(screen.queryByText(DEMO_NOTICE)).toBeNull();
   });
 });
@@ -244,8 +248,9 @@ describe('analyzing screen', () => {
         { uri: prepared(1), type: 'image/jpeg' },
         { uri: prepared(2), type: 'image/jpeg' },
       ],
-      // The screen can stop the upload when the user leaves (final review Minor 22).
-      { signal: expect.any(AbortSignal) },
+      // The screen can stop the upload when the user leaves (final review Minor 22),
+      // and hears each progress stage the server reports (Go port spec §7).
+      { signal: expect.any(AbortSignal), onStage: expect.any(Function) },
     );
     deleted.mockClear();
     await act(async () => resolve(RESULTS.s1));
@@ -254,6 +259,33 @@ describe('analyzing screen', () => {
     // Upload done: the prepared photos are deleted and nothing else re-reads them.
     expect(deleted.mock.calls).toEqual([[prepared(1)], [prepared(2)]]);
     expect(client.result).not.toHaveBeenCalled();
+  });
+
+  // Go port spec §7: the server's own stage labels, shown and announced verbatim.
+  it('shows and announces each progress stage the server reports', async () => {
+    type Options = { onStage?: (e: (typeof S1_STATUS.events)[number]) => void };
+    let report: Options['onStage'];
+    const client = mockClient({
+      analyze: jest.fn((_images: unknown, options?: Options) => {
+        report = options?.onStage;
+        return new Promise(() => {});
+      }),
+    });
+    await analyze(client, 1);
+    await screen.findByText('Sending 1 photo and reading the label. This can take up to a minute.');
+    const [received, reading] = S1_STATUS.events;
+    await act(async () => report?.(received!));
+    expect(await screen.findByText('Request received.')).toBeTruthy();
+    expect(announce).toHaveBeenCalledWith('Request received.');
+    await act(async () => report?.(reading!));
+    expect(await screen.findByText('Reading the label.')).toBeTruthy();
+    expect(announce).toHaveBeenCalledWith('Reading the label.');
+    // The end of an analysis is announced by the result (or failure), not twice.
+    const completed = S1_STATUS.events.at(-1)!;
+    expect(completed.stage).toBe('completed');
+    await act(async () => report?.(completed));
+    expect(announce).not.toHaveBeenCalledWith(completed.label);
+    expect(screen.getByText('Reading the label.')).toBeTruthy();
   });
 
   // Final review Minor 22: a double tap must not upload (and spend) twice.
@@ -355,6 +387,46 @@ describe('analyzing screen', () => {
     });
     expect(announce).toHaveBeenCalledWith('Still reading the label. Please wait.');
     expect(screen.getByText('Still reading the label. Please wait.')).toBeTruthy();
+  });
+
+  // Final review M12: the reminder must not replace (or contradict) a real
+  // server stage, and a new stage restarts its 15 s wait.
+  it('keeps a real stage on screen and names it in the reminder, 15 s after the last stage', async () => {
+    jest.useFakeTimers();
+    type Options = { onStage?: (e: (typeof S1_STATUS.events)[number]) => void };
+    let report: Options['onStage'];
+    const client = mockClient({
+      analyze: jest.fn((_images: unknown, options?: Options) => {
+        report = options?.onStage;
+        return new Promise(() => {});
+      }),
+    });
+    await analyze(client, 1);
+    await screen.findByText('Sending 1 photo and reading the label. This can take up to a minute.');
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+    const checking = {
+      seq: 4,
+      stage: 'checking_references' as const,
+      label: 'Checking the registry.',
+      at: S1_STATUS.events[0]!.at,
+    };
+    await act(async () => report?.(checking));
+    expect(screen.getByText('Checking the registry.')).toBeTruthy();
+    // 15 s after the upload began, but only 5 s after the stage: no reminder yet.
+    await act(async () => {
+      jest.advanceTimersByTime(5_000);
+    });
+    expect(announce).not.toHaveBeenCalledWith('Still reading the label. Please wait.');
+    expect(announce).not.toHaveBeenCalledWith('Still working. Checking the registry.');
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+    expect(announce).toHaveBeenCalledWith('Still working. Checking the registry.');
+    expect(announce).not.toHaveBeenCalledWith('Still reading the label. Please wait.');
+    expect(screen.getByText('Checking the registry.')).toBeTruthy();
+    expect(screen.queryByText('Still reading the label. Please wait.')).toBeNull();
   });
 
   const cases: [ApiErrorCode, RegExp][] = [

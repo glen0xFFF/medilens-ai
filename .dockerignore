@@ -1,0 +1,13 @@
+# Keep secrets, photos and the Node/mobile trees out of the build context.
+.env
+.env.*
+.git
+.superpowers
+node_modules
+**/node_modules
+apps
+packages
+scripts
+eval
+fixtures
+docs

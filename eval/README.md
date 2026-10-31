@@ -61,12 +61,13 @@ The script calls the real Meta Model API and costs money. It stops before the
 next pack once `DAILY_SPEND_CAP_USD` (default 5) is reached.
 
 ```sh
-MODEL_API_KEY=... npm run eval:labels -w @medilens/server
+MODEL_API_KEY=... npm run eval:labels      # runs go run ./services/eval
 ```
 
 `MODEL_API_KEY` (and `DAILY_SPEND_CAP_USD`) may instead be set in the repo-root
-`.env`, which the script reads the way the server does; a variable set in the
-environment wins.
+`.env` (or the file `ENV_FILE` names); a variable set in the environment wins.
+The repository root is the first directory at or above the working directory
+that holds `go.mod`.
 
 It prints a per-field table and every confidently-wrong case (pack id, field,
 read value) to the terminal, then writes `docs/eval-results.md`. That file
@@ -76,3 +77,11 @@ run with skipped or unattempted packs as not clean. With no packs it prints
 
 Each pack is validated and normalised exactly as live uploads are, but the
 photo-quality gate is not applied: the eval measures the reader itself.
+
+The eval is the Go port (`services/eval`, scoring in `internal/eval`) of the
+Node script `apps/server/scripts/eval-labels.ts` (tag `node-fallback-v1`); its
+tests port the Node scoring tests case for case, and the truth-file error
+messages are the ones the Node build's zod schema printed. Two deliberate
+differences, both stricter: an image name of `.` or `..` is rejected, and an
+image that passes validation but fails normalisation skips its pack instead of
+stopping the run.

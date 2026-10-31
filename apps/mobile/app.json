@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MediLens AI",
-    "slug": "medilens-ai",
+    "slug": "glen0xfff",
     "scheme": "medilens",
     "version": "0.1.0",
     "orientation": "portrait",
@@ -12,7 +12,9 @@
     },
     "android": {
       "package": "com.medilens.ai",
-      "permissions": ["CAMERA"],
+      "permissions": [
+        "CAMERA"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -24,6 +26,19 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-router"]
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "327c1765-12e4-49f0-8957-c02d78aab643"
+      }
+    },
+    "owner": "devglenox21s-team"
   }
 }

@@ -10,7 +10,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://REPLACE-WITH-HOSTED-SERVER"
+        "EXPO_PUBLIC_API_BASE_URL": "https://medilens-api.glenox.net"
       }
     }
   }

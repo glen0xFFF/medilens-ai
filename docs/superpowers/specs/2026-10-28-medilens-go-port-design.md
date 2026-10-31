@@ -84,7 +84,7 @@ Toolchain facts:
 
 ## 4. REST contract (replaces base §5.1; Node routes are not kept in Go)
 
-All JSON. Errors use the base `{error:{code,message,requestId}}` shape, and never include stacks. New error codes: `ANALYSIS_NOT_READY` (409), `ANALYSIS_FAILED` (stored on a failed analysis).
+All JSON. Errors use the base `{error:{code,message,requestId}}` shape, and never include stacks. New error codes: `ANALYSIS_NOT_READY` (409), `ANALYSIS_FAILED` (stored on an analysis whose job was cut off before it finished, for example by shutdown; a failed pipeline step keeps its own stored code, such as `OCR_FAILED`, `INVALID_IMAGE` or `INTERNAL_ERROR`). *Amended 2026-10-28 in the final-review fix wave (ledger ruling R14), to match the implementation; the sentence first read "`ANALYSIS_FAILED` (stored on a failed analysis)".*
 
 | Method & path | Behaviour |
 |---|---|

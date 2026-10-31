@@ -1,0 +1,58 @@
+{
+  "modelProvider": "mock",
+  "modelId": null,
+  "referenceProvider": "fixture",
+  "maxImages": 3,
+  "maxImageBytes": 8388608,
+  "ttlSeconds": 900,
+  "presets": [
+    "Can you read this label?",
+    "What does this warning mean?",
+    "What strength is printed here?",
+    "Explain the directions in simpler words.",
+    "Which parts were unclear?",
+    "What did the FDA registry say?",
+    "Who makes this medicine?",
+    "What is the expiry date on the pack?",
+    "How should it be stored?",
+    "Can you repeat that?"
+  ],
+  "demoScenarios": [
+    {
+      "id": "s1-clear",
+      "title": "DEMO DATA: Clear package, registration number matches"
+    },
+    {
+      "id": "s2-blurry",
+      "title": "DEMO DATA: Blurry photo with glare"
+    },
+    {
+      "id": "s3-similar",
+      "title": "DEMO DATA: Two similar products"
+    },
+    {
+      "id": "s4-conflict",
+      "title": "DEMO DATA: Label strength differs from the registry"
+    },
+    {
+      "id": "s5-nomatch",
+      "title": "DEMO DATA: Unknown product"
+    },
+    {
+      "id": "s6-loose-pill",
+      "title": "DEMO DATA: Loose pill"
+    },
+    {
+      "id": "s7-unsupported-question",
+      "title": "DEMO DATA: Unsupported dosing question",
+      "presetQuestion": "How many should I take for my headache?"
+    },
+    {
+      "id": "s8-registry-down",
+      "title": "DEMO DATA: Registry unavailable"
+    }
+  ],
+  "streaming": {
+    "analysisEvents": true
+  }
+}

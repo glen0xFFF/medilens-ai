@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
+import { router } from 'expo-router';
+import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import { AccessibilityInfo } from 'react-native';
 import { ApiError } from '../../src/api/client';
 import { SETTINGS_KEY } from '../../src/state/settings';
-import { SCENARIOS } from '../helpers/fixtures';
+import { CAPABILITIES, SCENARIOS } from '../helpers/fixtures';
 import { appRoutes, expectPressablesLabelled, mockClient } from '../helpers/render';
 
 let announce: jest.SpyInstance;
@@ -49,6 +50,8 @@ describe('welcome and home', () => {
 
 // Final review Minor 17: a demo-mode server answers every scan with the s1 fixture.
 const DEMO_NOTICE = 'Server is in demo mode: scans return a made-up example.';
+// Go port spec §7: capabilities, not /health, say which model the server runs.
+const LIVE = { ...CAPABILITIES, modelProvider: 'muse_spark' as const, modelId: 'muse-spark-1.3' };
 // Final review Minor 21: live mode sends the photos to the Meta Model API.
 const META_PHOTOS = /live mode.*photos.*Meta Model API/i;
 
@@ -57,32 +60,28 @@ describe('server mode notice on home', () => {
     await AsyncStorage.setItem('medilens.disclaimer.v1', 'true');
   });
 
-  it('says scans return a made-up example when the server is in demo mode', async () => {
+  it('says scans return a made-up example when the server runs the mock model', async () => {
     const client = mockClient();
     await renderRouter(appRoutes(client), { initialUrl: '/' });
     expect(await screen.findByText(DEMO_NOTICE)).toBeTruthy();
-    expect(client.health).toHaveBeenCalled();
+    expect(client.capabilities).toHaveBeenCalled();
   });
 
-  it('shows no notice when the server is live', async () => {
-    const client = mockClient({
-      health: jest.fn(() =>
-        Promise.resolve({ status: 'ok', version: '0.1.0', providerMode: 'live' as const }),
-      ),
-    });
+  it('shows no notice when the server runs Muse Spark', async () => {
+    const client = mockClient({ capabilities: jest.fn(() => Promise.resolve(LIVE)) });
     await renderRouter(appRoutes(client), { initialUrl: '/' });
     await screen.findByRole('button', { name: 'Scan medicine' });
-    await waitFor(() => expect(client.health).toHaveBeenCalled());
+    await waitFor(() => expect(client.capabilities).toHaveBeenCalled());
     expect(screen.queryByText(DEMO_NOTICE)).toBeNull();
   });
 
   it('shows no notice when the server cannot be reached', async () => {
     const client = mockClient({
-      health: jest.fn(() => Promise.reject(new ApiError('NETWORK', 'No connection.'))),
+      capabilities: jest.fn(() => Promise.reject(new ApiError('NETWORK', 'No connection.'))),
     });
     await renderRouter(appRoutes(client), { initialUrl: '/' });
     await screen.findByRole('button', { name: 'Scan medicine' });
-    await waitFor(() => expect(client.health).toHaveBeenCalled());
+    await waitFor(() => expect(client.capabilities).toHaveBeenCalled());
     expect(screen.queryByText(DEMO_NOTICE)).toBeNull();
   });
 });
@@ -107,6 +106,43 @@ describe('demo screen', () => {
     }
     expect(screen.getAllByText('DEMO DATA').length).toBeGreaterThan(0);
     expectPressablesLabelled(view);
+  });
+
+  it('announces the real progress stages while a scenario runs', async () => {
+    const client = mockClient({
+      scenario: jest.fn(
+        (_id: string, options?: { onStage?: (e: { stage: string; label: string }) => void }) => {
+          options?.onStage?.({ stage: 'reading', label: 'Reading the label.' });
+          return new Promise(() => {});
+        },
+      ),
+    });
+    await renderRouter(appRoutes(client), { initialUrl: '/demo' });
+    await fireEvent.press(await screen.findByRole('button', { name: SCENARIOS[0]!.title }));
+    expect(await screen.findByText('Reading the label.')).toBeTruthy();
+    expect(announce).toHaveBeenCalledWith('Reading the label.');
+    expect(client.scenario).toHaveBeenCalledWith(SCENARIOS[0]!.id, {
+      signal: expect.any(AbortSignal),
+      onStage: expect.any(Function),
+    });
+  });
+
+  it('leaving the demo screen aborts the scenario in progress', async () => {
+    let signal: AbortSignal | undefined;
+    const client = mockClient({
+      scenario: jest.fn((_id: string, options?: { signal?: AbortSignal }) => {
+        signal = options?.signal;
+        return new Promise(() => {});
+      }),
+    });
+    await AsyncStorage.setItem('medilens.disclaimer.v1', 'true');
+    await renderRouter(appRoutes(client), { initialUrl: '/' });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Demo mode' }));
+    await fireEvent.press(await screen.findByRole('button', { name: SCENARIOS[0]!.title }));
+    expect(signal?.aborted).toBe(false);
+    await act(async () => router.back());
+    expect(screen).toHavePathname('/');
+    expect(signal?.aborted).toBe(true);
   });
 
   it('shows the server message when a scenario fails to load', async () => {
@@ -146,9 +182,15 @@ describe('settings screen', () => {
     });
   });
 
+  it('shows live for a server running Muse Spark', async () => {
+    const client = mockClient({ capabilities: jest.fn(() => Promise.resolve(LIVE)) });
+    await renderRouter(appRoutes(client), { initialUrl: '/settings' });
+    expect(await screen.findByText('Server mode: live')).toBeTruthy();
+  });
+
   it('says when the server cannot be reached', async () => {
     const client = mockClient({
-      health: jest.fn(() => Promise.reject(new ApiError('NETWORK', 'No connection.'))),
+      capabilities: jest.fn(() => Promise.reject(new ApiError('NETWORK', 'No connection.'))),
     });
     await renderRouter(appRoutes(client), { initialUrl: '/settings' });
     expect(await screen.findByText('Server mode: not reachable')).toBeTruthy();

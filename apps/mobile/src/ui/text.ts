@@ -4,7 +4,13 @@
  * composes only field names, legibility chips, status labels (theme.ts) and
  * the conflict row format below.
  */
-import type { AnalysisResult, FieldConflict, FieldKey, Legibility } from '@medilens/contracts';
+import type {
+  AnalysisResult,
+  AnalysisStage,
+  FieldConflict,
+  FieldKey,
+  Legibility,
+} from '@medilens/contracts';
 import { ApiError, type ApiErrorCode } from '../api/client';
 import type { StatusKey } from '../theme/theme';
 
@@ -80,7 +86,16 @@ export function statusKeyFor(result: AnalysisResult): StatusKey {
   return result.pipelineState === 'label_unreadable' ? 'unreadable' : result.match.status;
 }
 
-/** Shown on Home and Scan when the server reports providerMode demo (final review Minor 17). */
+/**
+ * The stages that end an analysis. Their labels are not announced as
+ * progress: the result screen announces a completed analysis, and a failed
+ * one's label is its error message, which the failure path shows.
+ */
+export function isTerminalStage(stage: AnalysisStage): boolean {
+  return stage === 'completed' || stage === 'needs_attention' || stage === 'failed';
+}
+
+/** Shown on Home and Scan when the server runs the mock model (final review Minor 17). */
 export const DEMO_MODE_NOTICE = 'Server is in demo mode: scans return a made-up example.';
 
 /**

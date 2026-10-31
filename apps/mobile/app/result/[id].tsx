@@ -1,6 +1,7 @@
-import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useIsFocused, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef } from 'react';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
+import { useApi } from '../../src/api/ApiContext';
 import { BigButton } from '../../src/components/BigButton';
 import { ConflictRow } from '../../src/components/ConflictRow';
 import { DemoBanner } from '../../src/components/DemoBanner';
@@ -22,6 +23,30 @@ export default function ResultScreen() {
   const router = useRouter();
   const focused = useIsFocused();
   const theme = useTheme();
+  const client = useApi();
+
+  const navigation = useNavigation();
+
+  // Go port spec §7: once the user leaves this result, the server's copy is
+  // dropped now rather than at its 15-minute expiry. expo-router 58's
+  // navigation core has no `beforeRemove`; its `removed` event fires only when
+  // this route is actually popped (Back to home, Android hardware back, the
+  // back gesture, a retake), never when fields, sources or ask are pushed on
+  // top, and never on a StrictMode simulated unmount. It fires after the
+  // screen unmounts, so the listener uses only the closure and a ref, and
+  // unsubscribing is deferred a microtask as the event's docs require.
+  // Best effort: leaving never waits for it or reports its failure, and it is
+  // sent at most once.
+  const deleted = useRef(false);
+  const dropServerCopy = useCallback(() => {
+    if (deleted.current || id === undefined) return;
+    deleted.current = true;
+    client.deleteAnalysis(id).catch(() => {});
+  }, [client, id]);
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('removed', dropServerCopy);
+    return () => queueMicrotask(unsubscribe);
+  }, [navigation, dropServerCopy]);
 
   const announced = useRef<string | null>(null);
   useEffect(() => {
@@ -41,6 +66,10 @@ export default function ResultScreen() {
   }
 
   const go = (pathname: ResultRoute) => router.push({ pathname, params: { id: result.id } });
+  const home = () => {
+    dropServerCopy();
+    router.dismissTo('/');
+  };
   const { explanation, match } = result;
 
   return (
@@ -102,7 +131,7 @@ export default function ResultScreen() {
         variant="secondary"
         onPress={() => router.push('/safety')}
       />
-      <BigButton label="Back to home" variant="secondary" onPress={() => router.dismissTo('/')} />
+      <BigButton label="Back to home" variant="secondary" onPress={home} />
     </Screen>
   );
 }
